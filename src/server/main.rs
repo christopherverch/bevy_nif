@@ -13,6 +13,7 @@ use cdda_bevy::networking::{
     ClientChannel, NetworkedEntities, Player, PlayerCommand, PlayerInput2, Projectile,
     ServerChannel, ServerMessages, Velocity, setup_level, spawn_fireball,
 };
+use cdda_bevy::serializer::{PlayerStateNetwork, SerializableTransform};
 
 #[derive(Debug, Default, Resource)]
 pub struct ServerLobby {
@@ -40,7 +41,7 @@ fn add_netcode_network(app: &mut App) {
 
     let server = RenetServer::new(connection_config());
 
-    let public_addr = "127.0.0.1:5000".parse().unwrap();
+    let public_addr = "0.0.0.0:5000".parse().unwrap();
     let socket = UdpSocket::bind(public_addr).unwrap();
     let current_time: std::time::Duration = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
@@ -125,7 +126,7 @@ fn server_update_system(
                 );
                 let player_entity = commands
                     .spawn((
-                        Mesh3d(meshes.add(Mesh::from(Capsule3d::default()))),
+                        Mesh3d(meshes.add(Mesh::from(Cuboid::default()))),
                         MeshMaterial3d(materials.add(Color::srgb(0.8, 0.7, 0.6))),
                         transform,
                     ))
@@ -201,6 +202,20 @@ fn server_update_system(
                 commands.entity(*player_entity).insert(input);
             }
         }
+        while let Some(message) =
+            server.receive_message(client_id, ClientChannel::PlayerStateNetwork)
+        {
+            let input: PlayerStateNetwork = bincode::deserialize(&message).unwrap();
+            let new_transform = Transform {
+                translation: input.transform.translation,
+                rotation: input.transform.rotation,
+                scale: input.transform.scale,
+            };
+
+            if let Some(player_entity) = lobby.players.get(&client_id) {
+                commands.entity(*player_entity).insert(new_transform);
+            }
+        }
     }
 }
 
@@ -233,6 +248,7 @@ fn server_network_sync(
     }
 
     let sync_message = bincode::serialize(&networked_entities).unwrap();
+    server.broadcast_message(ServerChannel::NetworkedEntities, sync_message);
 }
 
 fn move_players_system(mut query: Query<(&mut Velocity, &PlayerInput2)>) {

@@ -1,5 +1,6 @@
 //! This example compares Forward, Forward + Prepass, and Deferred rendering.
 mod player_input;
+mod send_data;
 mod third_person_camera;
 use bevy::{
     core_pipeline::{
@@ -14,35 +15,18 @@ use bevy::{
     },
     prelude::*,
 };
-use bevy::{ecs::world, log::LogPlugin};
 use bevy_rapier3d::prelude::*;
-use bevy_renet::{
-    RenetClientPlugin, client_connected,
-    renet::{ClientId, RenetClient},
-};
-use bincode;
-use cdda_bevy::PacketType;
-use cdda_bevy::PlayerInfo;
-use cdda_bevy::networking::{
-    ClientChannel, ClientPlugin, NetworkEvent, NetworkedEntities, PlayerCommand, PlayerInput2,
-    ServerChannel, ServerMessages, SocketAddrResource, Transport, UdpSocketResource,
-    connection_config, setup_level,
-};
-use std::collections::HashMap;
+use bevy_renet::RenetClientPlugin;
+//use bsatoollib as bsa;
+use cdda_bevy::networking::PlayerCommand;
+use cdda_bevy::serializer::PlayerState;
 
-use cdda_bevy::packet_type_from_u8;
 use player_input::*;
+use send_data::*;
 use std::f32::consts::*;
-use std::io::Cursor; // Import Cursor for easy byte slice reading
-use std::net::{SocketAddr, UdpSocket};
 use third_person_camera::*;
-use uuid::Uuid;
-//
 #[derive(Component)]
-struct ControlledPlayer;
-
-#[derive(Default, Resource)]
-struct NetworkMapping(HashMap<Entity, Entity>);
+struct HudText;
 
 #[derive(Debug)]
 struct PlayerInfo2 {
@@ -50,104 +34,54 @@ struct PlayerInfo2 {
     server_entity: Entity,
 }
 
-#[derive(Debug, Default, Resource)]
-struct ClientLobby {
-    players: HashMap<ClientId, PlayerInfo2>,
-}
-
-#[derive(Debug, Resource)]
-struct CurrentClientId(u64);
-
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct Connected;
 //
-#[derive(Event, Debug, Clone, PartialEq)] // Add the necessary traits
-struct PlayerPositionUpdateEvent(PlayerInfo);
-#[derive(Event)] // Add the necessary traits
-struct EntitySpawnEvent {
-    player_info: PlayerInfo,
-    packet_type: PacketType,
-}
 #[derive(Component)]
-struct Player {}
-#[derive(Resource, Default)]
-struct Players {
-    // Use a HashMap to store player information, keyed by Uuid
-    connected_players: std::collections::HashMap<Uuid, Entity>,
-}
-#[derive(Resource)]
-pub struct PacketTimer(Timer);
-#[derive(Component)]
-struct Speed(f32);
+pub struct Player;
 #[derive(Component)]
 struct NeedsSetup {
     id: u64,
     player_transform: Transform,
 }
-
+const NORMAL_BUTTON: Color = Color::srgb(0.15, 0.15, 0.15);
+//const HOVERED_BUTTON: Color = Color::srgb(0.25, 0.25, 0.25);
+//const PRESSED_BUTTON: Color = Color::srgb(0.35, 0.75, 0.35);
 fn main() {
-    /*let remote_addr: SocketAddr = "127.0.0.1:4567".parse().expect("could not parse addr");
-    let socket = UdpSocket::bind("[::]:0").expect("could not bind socket");
-    let packet_rate = 1.0 / 30.0;
-    socket
-        .connect(remote_addr)
-        .expect("could not connect to server");
-    socket
-        .set_nonblocking(true)
-        .expect("could not set socket to be nonblocking");*/
+    /*let bsa = bsa::BSAFile::new("Morrowind.bsa").unwrap();
+    for file in bsa.get_list().iter() {
+        println!("{}", file.name);
+    }*/
     let mut app = App::new();
     app.insert_resource(DefaultOpaqueRendererMethod::deferred())
         .insert_resource(DirectionalLightShadowMap { size: 4096 })
-        /*.insert_resource(SocketAddrResource::new(remote_addr))
-        .insert_resource(UdpSocketResource::new(socket))
-        .insert_resource(PacketTimer(Timer::from_seconds(
-            packet_rate,
-            TimerMode::Repeating,
-        )))*/
-        .insert_resource(Players::default()) // Initialize the Players resource *BEFORE* adding systems that use it
-        .init_resource::<PlayerInput>()
         .add_plugins((
             DefaultPlugins,
             ThirdPersonCameraPlugin,
             RapierPhysicsPlugin::<NoUserData>::default(),
             RenetClientPlugin,
         ))
-        .insert_resource(Pause(true))
-        .add_event::<PlayerPositionUpdateEvent>()
-        .add_event::<EntitySpawnEvent>();
-    app.add_event::<PlayerCommand>();
+        .insert_resource(Pause(true));
+    add_netcode_network(&mut app);
 
-    app.insert_resource(ClientLobby::default());
-    app.insert_resource(PlayerInput::default());
-    app.insert_resource(NetworkMapping::default());
-    app.insert_resource(PlayerInput2::default());
-    app.add_systems(Startup, setup);
-    app.add_systems(Update, keyboard_input);
-    app.add_systems(Update, player_movement)
+    app.add_event::<PlayerCommand>()
+        .insert_resource(PlayerInput::default())
+        .insert_resource(PlayerState::default())
+        .add_systems(Startup, setup)
+        .add_systems(Update, setup_player);
+    app.add_systems(Update, keyboard_input)
+        .add_systems(Update, player_movement)
         .add_systems(Update, (animate_light_direction, switch_mode))
         .configure_sets(PostUpdate, CameraSyncSet.after(PhysicsSet::StepSimulation)) // DO THIS!
         .run();
 }
+
 fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut spawn_writer: ResMut<Events<EntitySpawnEvent>>,
 ) {
-    let event = EntitySpawnEvent {
-        player_info: PlayerInfo {
-            id: 2,
-            name: "derp".to_string(),
-            last_position: Vec3::new(0.0, 0.0, 0.0),
-            current_position: Vec3::new(0.0, 0.0, 0.0),
-            last_update_time: 1.0,
-            current_update_time: 0.1,
-        },
-        packet_type: PacketType::FirstConnected,
-    };
-
-    spawn_writer.send(event);
     commands.spawn((
         Camera3d::default(),
         Camera {
@@ -178,7 +112,42 @@ fn setup(
         DeferredPrepass,
         Fxaa::default(),
     ));
-
+    commands
+        .spawn(Node {
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            ..default()
+        })
+        .with_children(|parent| {
+            parent
+                .spawn((
+                    Button,
+                    Node {
+                        width: Val::Px(150.0),
+                        height: Val::Px(65.0),
+                        border: UiRect::all(Val::Px(5.0)),
+                        // horizontally center child text
+                        justify_content: JustifyContent::Center,
+                        // vertically center child text
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    BorderColor(Color::BLACK),
+                    BorderRadius::MAX,
+                    BackgroundColor(NORMAL_BUTTON),
+                ))
+                .with_child((
+                    Text::new("Button"),
+                    TextFont {
+                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                        font_size: 33.0,
+                        ..default()
+                    },
+                    TextColor(Color::srgb(0.9, 0.9, 0.9)),
+                ));
+        });
     commands.spawn((
         DirectionalLight {
             illuminance: 15_000.,
@@ -202,6 +171,12 @@ fn setup(
     commands.spawn((
         SceneRoot(helmet_scene),
         Transform::from_xyz(-4.0, 0.0, -3.0),
+    ));
+    let woodelf_scene =
+        asset_server.load(GltfAssetLabel::Scene(0).from_asset("models/woodelf.glb"));
+    commands.spawn((
+        SceneRoot(woodelf_scene),
+        Transform::from_xyz(-2.0, 0.0, -3.0),
     ));
 
     let mut forward_mat: StandardMaterial = Color::srgb(0.1, 0.2, 0.1).into();
@@ -305,16 +280,27 @@ fn setup(
     ));
 
     // Example instructions
+    let font_handle = asset_server.load("fonts/FiraMono-Medium.ttf");
     commands.spawn((
-        Text::default(),
+        // Accepts a `String` or any type that converts into a `String`, such as `&str`
+        Text::new("test"),
+        TextFont {
+            // This font is loaded and will be used instead of the default font.
+            font: font_handle,
+            font_size: 25.0,
+            ..default()
+        },
+        // Set the justification of the Text
+        TextLayout::new_with_justify(JustifyText::Left),
+        // Set the style of the Node itself.
         Node {
             position_type: PositionType::Absolute,
             top: Val::Px(12.0),
             left: Val::Px(12.0),
             ..default()
         },
+        HudText,
     ));
-    setup_player(commands, materials, meshes, asset_server);
 }
 
 #[derive(Resource)]
@@ -337,46 +323,38 @@ fn setup_player(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
     asset_server: Res<AssetServer>,
+    mut query: Query<(Entity, &NeedsSetup), With<Player>>,
 ) {
-    let name = "test".to_string();
-    // The normal map. Note that to generate it in the GIMP image editor, you should
-    // open the depth map, and do Filters → Generic → Normal Map
-    // You should enable the "flip X" checkbox.
-    let normal_handle = asset_server.load_with_settings(
-        "textures/parallax_example/cube_normal.png",
-        // The normal map texture is in linear color space. Lighting won't look correct
-        // if `is_srgb` is `true`, which is the default.
-        |settings: &mut ImageLoaderSettings| settings.is_srgb = false,
-    );
+    for (entity, setup_info) in &mut query {
+        // The normal map. Note that to generate it in the GIMP image editor, you should
+        // open the depth map, and do Filters → Generic → Normal Map
+        // You should enable the "flip X" checkbox.
+        let normal_handle = asset_server.load_with_settings(
+            "textures/parallax_example/cube_normal.png",
+            // The normal map texture is in linear color space. Lighting won't look correct
+            // if `is_srgb` is `true`, which is the default.
+            |settings: &mut ImageLoaderSettings| settings.is_srgb = false,
+        );
 
-    let mut cube = Mesh::from(Cuboid::new(0.15, 0.15, 0.15));
+        let mut cube = Mesh::from(Cuboid::new(0.15, 0.15, 0.15));
 
-    // NOTE: for normal maps and depth maps to work, the mesh
-    // needs tangents generated.
-    cube.generate_tangents().unwrap();
+        // NOTE: for normal maps and depth maps to work, the mesh
+        // needs tangents generated.
+        cube.generate_tangents().unwrap();
 
-    let parallax_material = materials.add(StandardMaterial {
-        perceptual_roughness: 0.4,
-        base_color_texture: Some(asset_server.load("textures/parallax_example/cube_color.png")),
-        normal_map_texture: Some(normal_handle),
-        // The depth map is a grayscale texture where black is the highest level and
-        // white the lowest.
-        depth_map: Some(asset_server.load("textures/parallax_example/cube_depth.png")),
-        parallax_depth_scale: 0.09,
-        parallax_mapping_method: ParallaxMappingMethod::Relief { max_steps: 4 },
-        max_parallax_layer_count: ops::exp2(5.0f32),
-        ..default()
-    });
-    let player_info = PlayerInfo {
-        id: 0,
-        name,
-        last_position: Transform::from_xyz(0.0, 0.0, 0.0).translation,
-        current_position: Transform::from_xyz(0.0, 0.0, 0.0).translation,
-        last_update_time: 0.01,
-        current_update_time: 0.0,
-    };
-    let player_entity = commands
-        .spawn((
+        let parallax_material = materials.add(StandardMaterial {
+            perceptual_roughness: 0.4,
+            base_color_texture: Some(asset_server.load("textures/parallax_example/cube_color.png")),
+            normal_map_texture: Some(normal_handle),
+            // The depth map is a grayscale texture where black is the highest level and
+            // white the lowest.
+            depth_map: Some(asset_server.load("textures/parallax_example/cube_depth.png")),
+            parallax_depth_scale: 0.09,
+            parallax_mapping_method: ParallaxMappingMethod::Relief { max_steps: 4 },
+            max_parallax_layer_count: ops::exp2(5.0f32),
+            ..default()
+        });
+        commands.entity(entity).insert((
             Mesh3d(meshes.add(cube)),
             MeshMaterial3d(parallax_material),
             Transform::from_xyz(0.0, 0.0, 0.0),
@@ -387,56 +365,13 @@ fn setup_player(
                 ..default()
             },
             ExternalImpulse::default(),
-            player_info,
-            ThirdPersonCameraTarget,
-            Player {},
             Speed(4.0),
-        ))
-        .id();
-}
-fn player_movement(
-    player_input: Res<PlayerInput>,
-    time: Res<Time>,
-    mut player_query: Query<
-        (
-            &mut PlayerInfo,
-            &mut ExternalImpulse,
-            &mut Transform,
-            &Speed,
-        ),
-        (With<Player>, With<ThirdPersonCameraTarget>),
-    >,
-    camera_query: Query<&Transform, (With<Camera3d>, Without<Player>)>,
-) {
-    for (mut player_info, mut ext_impulse, mut player_transform, player_speed) in
-        player_query.iter_mut()
-    {
-        println!("time: {}", time.elapsed_secs());
-
-        player_info.current_position = player_transform.translation;
-        if let Ok(camera_transform) = camera_query.get_single() {
-            // Get camera's forward and right vectors (normalized)
-            let forward = camera_transform.forward().normalize();
-            let right = camera_transform.right().normalize();
-
-            // Project input onto the ground plane (remove y component)
-            let forward_flat = Vec3::new(forward.x, 0.0, forward.z).normalize_or_zero();
-            let right_flat = Vec3::new(right.x, 0.0, right.z).normalize_or_zero();
-
-            // Calculate movement vector relative to camera
-            let mut direction = (forward_flat * player_input.move_direction.y
-                + right_flat * player_input.move_direction.x)
-                * 5.0
-                * time.delta_secs();
-            direction.y = 0.0;
-            let movement = direction.normalize_or_zero() * player_speed.0 * time.delta_secs();
-            ext_impulse.impulse += movement;
-
-            player_transform.look_to(direction, Vec3::Y);
-            if player_input.jump {
-                ext_impulse.impulse += Vec3::new(0.0, 1., 0.0);
-            }
-        }
+        ));
+        println!(
+            "player id and transform: {}{}",
+            setup_info.id, setup_info.player_transform.translation
+        );
+        commands.entity(entity).remove::<NeedsSetup>();
     }
 }
 
@@ -450,7 +385,7 @@ enum DefaultRenderMode {
 
 #[allow(clippy::too_many_arguments)]
 fn switch_mode(
-    mut text: Single<&mut Text>,
+    mut query: Query<&mut Text, With<HudText>>, // Changed to a regular Query with a filter
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
     mut default_opaque_renderer_method: ResMut<DefaultOpaqueRendererMethod>,
@@ -460,6 +395,22 @@ fn switch_mode(
     mut hide_ui: Local<bool>,
     mut mode: Local<DefaultRenderMode>,
 ) {
+    let mut text = match query.get_single_mut() {
+        Ok(t) => t,
+        Err(e) => {
+            match e {
+                bevy::ecs::query::QuerySingleError::NoEntities(_) => {
+                    eprintln!("Warning: No UI text entity found with the HudText component.");
+                }
+                bevy::ecs::query::QuerySingleError::MultipleEntities(_) => {
+                    eprintln!(
+                        "Warning: Multiple UI text entities found with the HudText component. Expected only one."
+                    );
+                }
+            }
+            return; // Return early if there's an error
+        }
+    };
     text.clear();
 
     if keys.just_pressed(KeyCode::Space) {

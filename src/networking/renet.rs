@@ -28,6 +28,7 @@ pub enum PlayerCommand {
 pub enum ClientChannel {
     Input,
     Command,
+    PlayerStateNetwork,
 }
 pub enum ServerChannel {
     ServerMessages,
@@ -67,6 +68,7 @@ impl From<ClientChannel> for u8 {
         match channel_id {
             ClientChannel::Command => 0,
             ClientChannel::Input => 1,
+            ClientChannel::PlayerStateNetwork => 2,
         }
     }
 }
@@ -83,6 +85,13 @@ impl ClientChannel {
             },
             ChannelConfig {
                 channel_id: Self::Command.into(),
+                max_memory_usage_bytes: 5 * 1024 * 1024,
+                send_type: SendType::ReliableOrdered {
+                    resend_time: Duration::ZERO,
+                },
+            },
+            ChannelConfig {
+                channel_id: Self::PlayerStateNetwork.into(),
                 max_memory_usage_bytes: 5 * 1024 * 1024,
                 send_type: SendType::ReliableOrdered {
                     resend_time: Duration::ZERO,

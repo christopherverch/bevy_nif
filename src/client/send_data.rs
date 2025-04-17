@@ -51,7 +51,7 @@ pub fn add_netcode_network(app: &mut App) {
 
     let client = RenetClient::new(connection_config());
 
-    let server_addr = "107.136.161.231:5000".parse().unwrap();
+    let server_addr = "127.0.0.1:5000".parse().unwrap();
     let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
     let current_time = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)

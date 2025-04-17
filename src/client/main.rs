@@ -3,6 +3,7 @@ mod player_input;
 mod send_data;
 mod third_person_camera;
 use bevy::{
+    color::palettes::basic::*,
     core_pipeline::{
         fxaa::Fxaa,
         prepass::{DeferredPrepass, DepthPrepass, MotionVectorPrepass, NormalPrepass},
@@ -14,20 +15,27 @@ use bevy::{
         NotShadowCaster, NotShadowReceiver, OpaqueRendererMethod,
     },
     prelude::*,
+    ui::FocusPolicy,
 };
+
 use bevy_rapier3d::prelude::*;
 use bevy_renet::RenetClientPlugin;
 //use bsatoollib as bsa;
 use cdda_bevy::networking::PlayerCommand;
 use cdda_bevy::serializer::PlayerState;
-
 use player_input::*;
 use send_data::*;
 use std::f32::consts::*;
 use third_person_camera::*;
 #[derive(Component)]
 struct HudText;
-
+#[derive(Clone, Copy, Debug, Eq, PartialEq, States, Default, Hash)]
+pub enum GameState {
+    #[default]
+    MainMenu,
+    Connecting,
+    InGame,
+}
 #[derive(Debug)]
 struct PlayerInfo2 {
     client_entity: Entity,
@@ -44,9 +52,21 @@ struct NeedsSetup {
     id: u64,
     player_transform: Transform,
 }
+#[derive(Component)]
+struct MainMenuUI;
+
+#[derive(Component)]
+struct IpInputField;
+
+#[derive(Component)]
+struct ConnectButton;
+
+#[derive(Resource)]
+struct FocusedIpInput;
+
 const NORMAL_BUTTON: Color = Color::srgb(0.15, 0.15, 0.15);
-//const HOVERED_BUTTON: Color = Color::srgb(0.25, 0.25, 0.25);
-//const PRESSED_BUTTON: Color = Color::srgb(0.35, 0.75, 0.35);
+const HOVERED_BUTTON: Color = Color::srgb(0.25, 0.25, 0.25);
+const PRESSED_BUTTON: Color = Color::srgb(0.35, 0.75, 0.35);
 fn main() {
     /*let bsa = bsa::BSAFile::new("Morrowind.bsa").unwrap();
     for file in bsa.get_list().iter() {
@@ -67,9 +87,12 @@ fn main() {
     app.add_event::<PlayerCommand>()
         .insert_resource(PlayerInput::default())
         .insert_resource(PlayerState::default())
+        .init_state::<GameState>()
         .add_systems(Startup, setup)
-        .add_systems(Update, setup_player);
-    app.add_systems(Update, keyboard_input)
+        .add_systems(Update, setup_player)
+        .add_systems(Update, keyboard_input)
+        .add_systems(Update, button_system)
+        .add_systems(OnEnter(GameState::MainMenu), setup_main_menu)
         .add_systems(Update, player_movement)
         .add_systems(Update, (animate_light_direction, switch_mode))
         .configure_sets(PostUpdate, CameraSyncSet.after(PhysicsSet::StepSimulation)) // DO THIS!
@@ -112,42 +135,42 @@ fn setup(
         DeferredPrepass,
         Fxaa::default(),
     ));
-    commands
-        .spawn(Node {
-            width: Val::Percent(100.0),
-            height: Val::Percent(100.0),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            ..default()
-        })
-        .with_children(|parent| {
-            parent
-                .spawn((
-                    Button,
-                    Node {
-                        width: Val::Px(150.0),
-                        height: Val::Px(65.0),
-                        border: UiRect::all(Val::Px(5.0)),
-                        // horizontally center child text
-                        justify_content: JustifyContent::Center,
-                        // vertically center child text
-                        align_items: AlignItems::Center,
-                        ..default()
-                    },
-                    BorderColor(Color::BLACK),
-                    BorderRadius::MAX,
-                    BackgroundColor(NORMAL_BUTTON),
-                ))
-                .with_child((
-                    Text::new("Button"),
-                    TextFont {
-                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                        font_size: 33.0,
-                        ..default()
-                    },
-                    TextColor(Color::srgb(0.9, 0.9, 0.9)),
-                ));
-        });
+    /*commands
+    .spawn(Node {
+        width: Val::Percent(100.0),
+        height: Val::Percent(100.0),
+        align_items: AlignItems::Center,
+        justify_content: JustifyContent::Center,
+        ..default()
+    })
+    .with_children(|parent| {
+        parent
+            .spawn((
+                Button,
+                Node {
+                    width: Val::Px(150.0),
+                    height: Val::Px(65.0),
+                    border: UiRect::all(Val::Px(5.0)),
+                    // horizontally center child text
+                    justify_content: JustifyContent::Center,
+                    // vertically center child text
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+                BorderColor(Color::BLACK),
+                BorderRadius::MAX,
+                BackgroundColor(NORMAL_BUTTON),
+            ))
+            .with_child((
+                Text::new("Button"),
+                TextFont {
+                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font_size: 33.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(0.9, 0.9, 0.9)),
+            ));
+    });*/
     commands.spawn((
         DirectionalLight {
             illuminance: 15_000.,
@@ -301,6 +324,178 @@ fn setup(
         },
         HudText,
     ));
+}
+
+fn setup_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
+    println!("spawning menu");
+    commands
+        .spawn(Node {
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            ..default()
+        })
+        .with_children(|parent| {
+            parent
+                .spawn((
+                    Node {
+                        padding: UiRect::all(Val::Px(20.0)),
+                        flex_direction: FlexDirection::Column,
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    BackgroundColor(GRAY.into()), // Assuming NORMAL_BUTTON is Color::GREEN
+                ))
+                .with_children(|parent| {
+                    // Text label
+                    let font_handle = asset_server.load("fonts/FiraMono-Medium.ttf");
+                    parent.spawn((
+                        Text::new("Enter Server IP:"),
+                        TextFont {
+                            font: font_handle.clone(),
+                            font_size: 30.0,
+                            ..default()
+                        },
+                        TextColor(Color::WHITE),
+                        TextLayout::default(), // Default justification
+                    ));
+
+                    // Input field
+                    parent
+                        .spawn((
+                            Node {
+                                width: Val::Px(200.0),
+                                height: Val::Px(30.0),
+                                margin: UiRect::bottom(Val::Px(10.0)),
+                                padding: UiRect::all(Val::Px(5.0)),
+                                ..default()
+                            },
+                            BackgroundColor(WHITE.into()), // Assuming NORMAL_BUTTON is Color::GREEN
+                            IpInputField,
+                        ))
+                        .with_children(|parent| {
+                            parent.spawn((
+                                Text::new(""),
+                                TextFont {
+                                    font: font_handle.clone(),
+                                    font_size: 20.0,
+                                    ..default()
+                                },
+                                TextColor(Color::BLACK),
+                                TextLayout::default(),
+                            ));
+                        })
+                        .insert(Interaction::default())
+                        .insert(FocusPolicy::Pass); // Make it focusable
+
+                    // Connect button
+                    parent
+                        .spawn((
+                            Button,
+                            Node {
+                                // The main button Node
+                                width: Val::Px(150.0),
+                                height: Val::Px(65.0),
+                                justify_content: JustifyContent::Center,
+                                align_items: AlignItems::Center,
+                                border: UiRect::all(Val::Px(5.0)), // The Border component
+                                ..default()
+                            },
+                            BorderColor(Color::BLACK),
+                            BackgroundColor(GREEN.into()), // Assuming NORMAL_BUTTON is Color::GREEN
+                            BorderRadius::MAX,
+                            ConnectButton,
+                            Interaction::default(),
+                        ))
+                        .with_children(|parent| {
+                            parent.spawn((
+                                Text::new("Connect"),
+                                TextFont {
+                                    font: asset_server.load("fonts/FiraMono-Medium.ttf"),
+                                    font_size: 33.0,
+                                    ..default()
+                                },
+                                TextColor(Color::srgb(0.9, 0.9, 0.9)),
+                                TextLayout::default(),
+                            ));
+                        });
+                });
+        });
+}
+fn update_ip_input(
+    mut text_query: Query<&mut Text, With<IpInputField>>,
+    mut interaction_query: Query<
+        (&Interaction, &mut BackgroundColor),
+        (Changed<Interaction>, With<IpInputField>),
+    >,
+    mut text_input_evr: EventReader<TextInput>,
+    mut commands: Commands,
+    ip_resource: ResMut<ConnectionInfo>,
+    focused_input: Option<Res<FocusedIpInput>>,
+) {
+    if let Some(_focused) = focused_input.as_deref() {
+        for event in text_input_evr.read() {
+            for mut text_entity in &mut text_query.iter_mut().single().unwrap().children() {
+                if let Ok(mut text) = text_query.get_mut(*text_entity) {
+                    text.sections[0].value.push_str(&event.text);
+                    commands.insert_resource(ConnectionInfo {
+                        server_address: text.sections[0].value.clone(),
+                    });
+                }
+            }
+        }
+    }
+
+    for (interaction, mut bg_color) in &mut interaction_query {
+        match *interaction {
+            Interaction::Clicked => {
+                *bg_color = Color::YELLOW.into();
+                commands.insert_resource(FocusedIpInput);
+            }
+            Interaction::Hovered => {
+                *bg_color = Color::ALICE_BLUE.into();
+            }
+            Interaction::None => {
+                *bg_color = Color::WHITE.into();
+                commands.remove_resource::<FocusedIpInput>();
+            }
+        }
+    }
+}
+
+fn button_system(
+    mut interaction_query: Query<
+        (
+            &Interaction,
+            &mut BackgroundColor,
+            &mut BorderColor,
+            &Children,
+        ),
+        (Changed<Interaction>, With<Button>),
+    >,
+    mut text_query: Query<&mut Text>,
+) {
+    for (interaction, mut color, mut border_color, children) in &mut interaction_query {
+        let mut text = text_query.get_mut(children[0]).unwrap();
+        match *interaction {
+            Interaction::Pressed => {
+                **text = "Press".to_string();
+                *color = PRESSED_BUTTON.into();
+                border_color.0 = RED.into();
+            }
+            Interaction::Hovered => {
+                **text = "Hover".to_string();
+                *color = HOVERED_BUTTON.into();
+                border_color.0 = Color::WHITE;
+            }
+            Interaction::None => {
+                **text = "Button".to_string();
+                *color = NORMAL_BUTTON.into();
+                border_color.0 = Color::BLACK;
+            }
+        }
+    }
 }
 
 #[derive(Resource)]

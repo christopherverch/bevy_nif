@@ -1,5 +1,3 @@
-use std::{collections::HashMap, f32::consts::PI};
-
 use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     prelude::*,
@@ -14,6 +12,7 @@ use cdda_bevy::networking::{
     ServerChannel, ServerMessages, Velocity, setup_level, spawn_fireball,
 };
 use cdda_bevy::serializer::{PlayerStateNetwork, SerializableTransform};
+use std::{collections::HashMap, f32::consts::PI};
 
 #[derive(Debug, Default, Resource)]
 pub struct ServerLobby {

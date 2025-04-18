@@ -6,7 +6,8 @@ use bevy::{
     color::palettes::basic::*,
     core_pipeline::{
         fxaa::Fxaa,
-        prepass::{DeferredPrepass, DepthPrepass, MotionVectorPrepass, NormalPrepass},
+        prepass::{DeferredPrepass, DepthPrepass, MotionVectorPrepass},
+        //prepass::NormalPrepass
     },
     image::ImageLoaderSettings,
     math::ops,
@@ -21,12 +22,15 @@ use bevy::{
 use bevy_rapier3d::prelude::*;
 use bevy_renet::RenetClientPlugin;
 //use bsatoollib as bsa;
+use bevy::input::keyboard::{Key, KeyboardInput};
+use bevy_rapier3d::prelude::{RapierPhysicsPlugin, TimestepMode};
 use cdda_bevy::networking::PlayerCommand;
 use cdda_bevy::serializer::PlayerState;
 use player_input::*;
 use send_data::*;
 use std::f32::consts::*;
 use third_person_camera::*;
+
 #[derive(Component)]
 struct HudText;
 #[derive(Clone, Copy, Debug, Eq, PartialEq, States, Default, Hash)]
@@ -34,7 +38,8 @@ pub enum GameState {
     #[default]
     MainMenu,
     Connecting,
-    InGame,
+    Offline,
+    Connected,
 }
 #[derive(Debug)]
 struct PlayerInfo2 {
@@ -46,23 +51,37 @@ struct PlayerInfo2 {
 struct Connected;
 //
 #[derive(Component)]
+pub struct PlayerRoot;
+#[derive(Component)]
 pub struct Player;
+//we separate player and playerroot so we can have
+//separate entities as children and modify them independently
 #[derive(Component)]
 struct NeedsSetup {
     id: u64,
     player_transform: Transform,
 }
-#[derive(Component)]
-struct MainMenuUI;
 
 #[derive(Component)]
 struct IpInputField;
 
 #[derive(Component)]
+struct PlayerCamera;
+#[derive(Component)]
 struct ConnectButton;
 
 #[derive(Resource)]
-struct FocusedIpInput;
+struct ServerIP(String);
+#[derive(Component)]
+struct MainMenuRoot;
+#[derive(Component)]
+struct Weapon;
+#[derive(Component)]
+struct LocalPlayer;
+#[derive(Resource, Default)]
+struct FocusedIpInput {
+    entity: Option<Entity>, // Use Option<Entity>
+}
 
 const NORMAL_BUTTON: Color = Color::srgb(0.15, 0.15, 0.15);
 const HOVERED_BUTTON: Color = Color::srgb(0.25, 0.25, 0.25);
@@ -75,30 +94,80 @@ fn main() {
     let mut app = App::new();
     app.insert_resource(DefaultOpaqueRendererMethod::deferred())
         .insert_resource(DirectionalLightShadowMap { size: 4096 })
+        /*  .insert_resource(TimestepMode::Fixed {
+            dt: 1.0 / 64.0,
+            substeps: 1,
+        })*/
         .add_plugins((
             DefaultPlugins,
             ThirdPersonCameraPlugin,
-            RapierPhysicsPlugin::<NoUserData>::default(),
+            RapierPhysicsPlugin::<NoUserData>::default()
+                //   .in_fixed_schedule()
+                .with_length_unit(10.0),
             RenetClientPlugin,
         ))
         .insert_resource(Pause(true));
     add_netcode_network(&mut app);
-
+    /*  app.edit_schedule(FixedUpdate, |schedule| {
+        schedule.configure_sets(
+            (
+                PhysicsSet::SyncBackend,
+                PhysicsSet::StepSimulation,
+                PhysicsSet::Writeback,
+            )
+                .chain(),
+        );
+    });*/
     app.add_event::<PlayerCommand>()
         .insert_resource(PlayerInput::default())
         .insert_resource(PlayerState::default())
+        .insert_resource(FocusedIpInput::default())
+        .insert_resource(CurrentClientId(0))
         .init_state::<GameState>()
         .add_systems(Startup, setup)
         .add_systems(Update, setup_player)
         .add_systems(Update, keyboard_input)
-        .add_systems(Update, button_system)
+        /*       .add_systems(
+            PostUpdate,
+            camera_movement.after(PhysicsSet::StepSimulation),
+        )*/
+        .add_systems(
+            Update,
+            listen_keyboard_input_events.run_if(in_state(GameState::MainMenu)),
+        )
+        .add_systems(Update, button_system.run_if(in_state(GameState::MainMenu)))
+        .add_systems(Update, attach_camera_to_player)
         .add_systems(OnEnter(GameState::MainMenu), setup_main_menu)
+        .add_systems(OnEnter(GameState::MainMenu), set_initial_focus)
+        .add_systems(OnEnter(GameState::Connecting), connect_to_server)
+        .add_systems(OnEnter(GameState::Connecting), despawn_main_menu_ui)
+        .add_systems(OnEnter(GameState::Offline), spawn_player_offline)
         .add_systems(Update, player_movement)
-        .add_systems(Update, (animate_light_direction, switch_mode))
+        .add_systems(Update, (switch_mode, animate_light_direction))
         .configure_sets(PostUpdate, CameraSyncSet.after(PhysicsSet::StepSimulation)) // DO THIS!
         .run();
 }
+fn spawn_player_offline(mut commands: Commands) {
+    commands.spawn(NeedsSetup {
+        id: 0,
+        player_transform: Transform::from_xyz(0.0, 0.0, 0.0),
+    });
 
+    //let player_transform_server =
+    //  Transform::from_xyz(translation[0], translation[1], translation[2]);
+}
+fn attach_camera_to_player(
+    mut commands: Commands,
+    player_query: Query<Entity, Added<PlayerRoot>>,
+    mut camera_query: Query<(Entity, &mut Transform), With<PlayerCamera>>,
+) {
+    if let Ok(player_entity) = player_query.get_single() {
+        if let Ok((camera_entity, mut camera_transform)) = camera_query.get_single_mut() {
+            camera_transform.translation = Vec3::ZERO;
+            commands.entity(player_entity).add_child(camera_entity);
+        }
+    }
+}
 fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -112,6 +181,7 @@ fn setup(
             hdr: true,
             ..default()
         },
+        PlayerCamera,
         ThirdPersonCamera::default(),
         Transform::from_xyz(0.7, 0.7, 1.0).looking_at(Vec3::new(0.0, 0.3, 0.0), Vec3::Y),
         // MSAA needs to be off for Deferred rendering
@@ -119,8 +189,8 @@ fn setup(
         DistanceFog {
             color: Color::srgb_u8(43, 44, 47),
             falloff: FogFalloff::Linear {
-                start: 1.0,
-                end: 8.0,
+                start: 5.0,
+                end: 20.0,
             },
             ..default()
         },
@@ -134,6 +204,15 @@ fn setup(
         MotionVectorPrepass,
         DeferredPrepass,
         Fxaa::default(),
+    ));
+    let font = asset_server.load("fonts/FiraMono-Medium.ttf");
+    commands.spawn((
+        Text2d::new(""),
+        TextFont {
+            font,
+            font_size: 100.0,
+            ..default()
+        },
     ));
     /*commands
     .spawn(Node {
@@ -212,8 +291,15 @@ fn setup(
         MeshMaterial3d(forward_mat_h.clone()),
         Collider::cuboid(50.0 / 2.0, 0.0 / 2.0, 50.0 / 2.0),
     ));
-
+    let rotation = Quat::from_rotation_y(45f32.to_radians()); // Convert degrees to radians
     let cube_h = meshes.add(Cuboid::new(0.1, 0.1, 0.1));
+    let cube_h2 = meshes.add(Cuboid::new(2.0, 2.0, 2.0));
+    commands.spawn((
+        Mesh3d(cube_h2),
+        MeshMaterial3d(forward_mat_h.clone()),
+        Collider::cuboid(2.0 / 2.0, 2.0 / 2.0, 2.0 / 2.0),
+        Transform::from_rotation(Quat::from_euler(EulerRot::ZYX, 0.0, 0.0, -FRAC_PI_4)),
+    ));
     let sphere_h = meshes.add(Sphere::new(0.125).mesh().uv(32, 18));
 
     // Cubes
@@ -329,13 +415,16 @@ fn setup(
 fn setup_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
     println!("spawning menu");
     commands
-        .spawn(Node {
-            width: Val::Percent(100.0),
-            height: Val::Percent(100.0),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            ..default()
-        })
+        .spawn((
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                ..default()
+            },
+            MainMenuRoot,
+        ))
         .with_children(|parent| {
             parent
                 .spawn((
@@ -372,7 +461,6 @@ fn setup_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                                 ..default()
                             },
                             BackgroundColor(WHITE.into()), // Assuming NORMAL_BUTTON is Color::GREEN
-                            IpInputField,
                         ))
                         .with_children(|parent| {
                             parent.spawn((
@@ -384,6 +472,7 @@ fn setup_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                                 },
                                 TextColor(Color::BLACK),
                                 TextLayout::default(),
+                                IpInputField,
                             ));
                         })
                         .insert(Interaction::default())
@@ -423,42 +512,72 @@ fn setup_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                 });
         });
 }
-fn update_ip_input(
-    mut text_query: Query<&mut Text, With<IpInputField>>,
-    mut interaction_query: Query<
-        (&Interaction, &mut BackgroundColor),
-        (Changed<Interaction>, With<IpInputField>),
-    >,
-    mut text_input_evr: EventReader<TextInput>,
-    mut commands: Commands,
-    ip_resource: ResMut<ConnectionInfo>,
-    focused_input: Option<Res<FocusedIpInput>>,
+fn despawn_main_menu_ui(mut commands: Commands, mut query: Query<Entity, With<MainMenuRoot>>) {
+    for entity in &mut query {
+        commands.entity(entity).despawn_recursive();
+    }
+}
+
+fn set_initial_focus(
+    focused_input: Res<FocusedIpInput>,
+    mut interaction_query: Query<&mut Interaction>,
 ) {
-    if let Some(_focused) = focused_input.as_deref() {
-        for event in text_input_evr.read() {
-            for mut text_entity in &mut text_query.iter_mut().single().unwrap().children() {
-                if let Ok(mut text) = text_query.get_mut(*text_entity) {
-                    text.sections[0].value.push_str(&event.text);
-                    commands.insert_resource(ConnectionInfo {
-                        server_address: text.sections[0].value.clone(),
-                    });
-                }
-            }
+    if let Some(entity) = focused_input.entity {
+        // Directly access the Option<Entity>
+        if let Ok(mut interaction) = interaction_query.get_mut(entity) {
+            *interaction = Interaction::Pressed; // Simulate a click to focus.
         }
     }
+}
 
-    for (interaction, mut bg_color) in &mut interaction_query {
-        match *interaction {
-            Interaction::Clicked => {
-                *bg_color = Color::YELLOW.into();
-                commands.insert_resource(FocusedIpInput);
+fn listen_keyboard_input_events(
+    mut events: EventReader<KeyboardInput>,
+    text_query: Single<&mut Text, With<IpInputField>>,
+    focused_input: Option<Res<FocusedIpInput>>,
+    mut game_state: ResMut<NextState<GameState>>,
+    mut server_addr: ResMut<ServerIP>,
+) {
+    if focused_input.is_some() {
+        let mut text = text_query.into_inner();
+        for event in events.read() {
+            // Only trigger changes when the key is first pressed.
+            if !event.state.is_pressed() {
+                continue;
             }
-            Interaction::Hovered => {
-                *bg_color = Color::ALICE_BLUE.into();
-            }
-            Interaction::None => {
-                *bg_color = Color::WHITE.into();
-                commands.remove_resource::<FocusedIpInput>();
+
+            match &event.logical_key {
+                Key::Enter => {
+                    if text.is_empty() {
+                        server_addr.0 = "".to_string();
+                        game_state.set(GameState::Connecting);
+                        println!("ip: {}", server_addr.0);
+                        return;
+                        //   let old_value = mem::take(&mut **text);
+                    }
+                    match text.0.as_str() {
+                        "" => {
+                            server_addr.0 = text.0.clone();
+                        }
+                        "1" => {
+                            server_addr.0 = "127.0.0.1:5000".to_string();
+                        }
+                        _ => {
+                            server_addr.0 = "107.136.161.231:5000".to_string();
+                        }
+                    }
+                    game_state.set(GameState::Connecting);
+                    println!("server addr: {}", server_addr.0);
+                }
+                Key::Space => {
+                    text.push(' ');
+                }
+                Key::Backspace => {
+                    text.pop();
+                }
+                Key::Character(character) => {
+                    text.push_str(character);
+                }
+                _ => continue,
             }
         }
     }
@@ -474,7 +593,10 @@ fn button_system(
         ),
         (Changed<Interaction>, With<Button>),
     >,
-    mut text_query: Query<&mut Text>,
+    mut text_query: Query<&mut Text, Without<IpInputField>>,
+    mut game_state: ResMut<NextState<GameState>>,
+    mut server_addr: ResMut<ServerIP>,
+    ip_input_field: Single<&mut Text, With<IpInputField>>,
 ) {
     for (interaction, mut color, mut border_color, children) in &mut interaction_query {
         let mut text = text_query.get_mut(children[0]).unwrap();
@@ -483,6 +605,9 @@ fn button_system(
                 **text = "Press".to_string();
                 *color = PRESSED_BUTTON.into();
                 border_color.0 = RED.into();
+                game_state.set(GameState::Connecting);
+                server_addr.0 = ip_input_field.0.clone();
+                println!("ip: {}", server_addr.0);
             }
             Interaction::Hovered => {
                 **text = "Hover".to_string();
@@ -518,9 +643,26 @@ fn setup_player(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
     asset_server: Res<AssetServer>,
-    mut query: Query<(Entity, &NeedsSetup), With<Player>>,
+    mut query: Query<(Entity, &NeedsSetup)>,
+    client_id: Res<CurrentClientId>,
 ) {
     for (entity, setup_info) in &mut query {
+        println!("setting up");
+        commands.entity(entity).insert((
+            PlayerRoot,
+            Transform::default(),
+            Visibility::Visible,
+            InheritedVisibility::VISIBLE,
+        ));
+        let player = commands.spawn(Player).id();
+        commands.entity(entity).add_child(player);
+        //add player as a child so we won't rotate the camera when rotating the player
+
+        println!("client id: {} {}", client_id.0, setup_info.id);
+        if client_id.0 == setup_info.id {
+            commands.entity(player).insert(ThirdPersonCameraTarget);
+            commands.entity(player).insert(LocalPlayer);
+        }
         // The normal map. Note that to generate it in the GIMP image editor, you should
         // open the depth map, and do Filters → Generic → Normal Map
         // You should enable the "flip X" checkbox.
@@ -549,19 +691,40 @@ fn setup_player(
             max_parallax_layer_count: ops::exp2(5.0f32),
             ..default()
         });
-        commands.entity(entity).insert((
-            Mesh3d(meshes.add(cube)),
-            MeshMaterial3d(parallax_material),
-            Transform::from_xyz(0.0, 0.0, 0.0),
-            Collider::cuboid(0.25, 0.5, 0.25),
-            RigidBody::Dynamic,
-            Damping {
-                linear_damping: 5.0,
+        commands.entity(player).insert((
+            Mesh3d(meshes.add(cube.clone())),
+            MeshMaterial3d(parallax_material.clone()),
+            Transform::from_xyz(0.0, 1.0, 0.0),
+            Collider::capsule_y(0.5, 1.0),
+            KinematicCharacterController {
+                custom_mass: Some(5.0),
+                up: Vec3::Y,
+                offset: CharacterLength::Absolute(0.03),
+                slide: true,
+                autostep: Some(CharacterAutostep {
+                    max_height: CharacterLength::Relative(0.3),
+                    min_width: CharacterLength::Relative(0.5),
+                    include_dynamic_bodies: false,
+                }),
+                // Don’t allow climbing slopes larger than 45 degrees.
+                max_slope_climb_angle: 43.0_f32.to_radians(),
+                // Automatically slide down on slopes smaller than 30 degrees.
+                min_slope_slide_angle: 30.0_f32.to_radians(),
+                apply_impulse_to_dynamic_bodies: true,
+                snap_to_ground: Some(CharacterLength::Relative(0.2)),
                 ..default()
             },
-            ExternalImpulse::default(),
             Speed(4.0),
         ));
+        commands.entity(entity).with_children(|parent| {
+            parent.spawn((
+                Mesh3d(meshes.add(cube)),
+                Transform::from_xyz(-0.2, 0.0, -0.2),
+                MeshMaterial3d(parallax_material),
+                TransformInterpolation::default(),
+                Weapon,
+            ));
+        });
         println!(
             "player id and transform: {}{}",
             setup_info.id, setup_info.player_transform.translation
@@ -574,21 +737,13 @@ fn setup_player(
 enum DefaultRenderMode {
     #[default]
     Deferred,
-    Forward,
-    ForwardPrepass,
 }
 
 #[allow(clippy::too_many_arguments)]
 fn switch_mode(
     mut query: Query<&mut Text, With<HudText>>, // Changed to a regular Query with a filter
-    mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
-    mut default_opaque_renderer_method: ResMut<DefaultOpaqueRendererMethod>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    cameras: Query<Entity, With<Camera>>,
     mut pause: ResMut<Pause>,
-    mut hide_ui: Local<bool>,
-    mut mode: Local<DefaultRenderMode>,
 ) {
     let mut text = match query.get_single_mut() {
         Ok(t) => t,
@@ -611,7 +766,7 @@ fn switch_mode(
     if keys.just_pressed(KeyCode::Space) {
         pause.0 = !pause.0;
     }
-
+    /*
     if keys.just_pressed(KeyCode::Digit1) {
         *mode = DefaultRenderMode::Deferred;
         default_opaque_renderer_method.set_to_deferred();
@@ -682,5 +837,5 @@ fn switch_mode(
                 ""
             }
         ));
-    }
+    }*/
 }

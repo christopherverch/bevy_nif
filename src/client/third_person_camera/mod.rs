@@ -1,11 +1,12 @@
 mod mouse;
 
+use super::IsThirdPerson;
 use bevy::{
+    input::mouse::MouseWheel,
     prelude::*,
     window::{CursorGrabMode, PrimaryWindow},
 };
 use mouse::MousePlugin;
-
 /// # Examples
 ///
 /// ```
@@ -19,10 +20,14 @@ pub struct ThirdPersonCameraPlugin;
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CameraSyncSet;
+#[derive(Event)]
+pub struct ToggleCameraMode;
 
 impl Plugin for ThirdPersonCameraPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(MousePlugin)
+            .insert_resource(IsThirdPerson::default())
+            .add_event::<ToggleCameraMode>()
             .add_systems(
                 Update,
                 (
@@ -39,7 +44,6 @@ impl Plugin for ThirdPersonCameraPlugin {
             );
     }
 }
-
 /// # Examples
 ///
 /// ```
@@ -217,12 +221,14 @@ impl Offset {
 /// ```
 #[derive(Component)]
 pub struct ThirdPersonCameraTarget;
-
 fn sync_player_camera(
-    player_q: Query<&Transform, With<ThirdPersonCameraTarget>>,
+    mut player_q: Query<&mut Transform, With<ThirdPersonCameraTarget>>,
     mut cam_q: Query<(&mut ThirdPersonCamera, &mut Transform), Without<ThirdPersonCameraTarget>>,
+    is_third_person: Res<IsThirdPerson>,
+    mut last_ground_height: Local<f32>,
+    mut highest_air_height: Local<f32>,
 ) {
-    let Ok(player) = player_q.get_single() else {
+    let Ok(mut player) = player_q.get_single_mut() else {
         return;
     };
     let Ok((cam, mut cam_transform)) = cam_q.get_single_mut() else {
@@ -242,9 +248,39 @@ fn sync_player_camera(
         rotation_matrix.mul_vec3(Vec3::new(0.0, 0.0, cam.zoom.radius)) + offset;
 
     // Update the camera translation
-    cam_transform.translation = desired_translation + player.translation;
+    if is_third_person.0 {
+        cam_transform.translation = player.translation;
+    } else {
+        cam_transform.translation = player.translation + desired_translation;
+    }
+    let camera_forward = cam_transform.forward().normalize();
+
+    // Project the camera's forward vector onto the ground plane (remove y component)
+    let target_forward = Vec3::new(camera_forward.x, 0.0, camera_forward.z).normalize_or_zero();
+    let target_rotation = Quat::from_rotation_arc(Vec3::NEG_Z, target_forward);
+    player.rotation = target_rotation;
+    if *highest_air_height < player.translation.y {
+        *highest_air_height = player.translation.y;
+    }
+    if player.translation.y > *highest_air_height - 0.2 {
+        println!("camera reached {}", player.translation.y);
+    }
 }
 
+fn zoom_mouse(mut scroll_evr: EventReader<MouseWheel>, mut cam_q: Query<&mut ThirdPersonCamera>) {
+    let mut scroll = 0.0;
+    for ev in scroll_evr.read() {
+        scroll += ev.y;
+    }
+
+    if let Ok(mut cam) = cam_q.get_single_mut() {
+        if scroll.abs() > 0.0 {
+            let new_radius =
+                cam.zoom.radius - scroll * cam.zoom.radius * 0.1 * cam.zoom_sensitivity;
+            cam.zoom.radius = new_radius.clamp(cam.zoom.min, cam.zoom.max);
+        }
+    }
+}
 // only run aiming logic if `aim_enabled` is true
 fn aim_condition(cam_q: Query<&ThirdPersonCamera, With<ThirdPersonCamera>>) -> bool {
     let Ok(cam) = cam_q.get_single() else {

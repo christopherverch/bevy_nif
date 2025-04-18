@@ -1,74 +1,52 @@
+use super::{GameState, ServerIP};
 use bevy::prelude::*;
 use bevy::time::common_conditions::on_timer;
+use cdda_bevy::serializer::{PlayerStateNetwork, SerializableTransform};
 use std::time::Duration;
 
-use cdda_bevy::serializer::{PlayerStateNetwork, SerializableTransform};
-
-use super::{Connected, NeedsSetup, Player, PlayerInfo2, PlayerState, ThirdPersonCameraTarget};
+use super::{Connected, NeedsSetup, PlayerInfo2, PlayerRoot, PlayerState};
+use bevy_renet::netcode::{
+    ClientAuthentication, NetcodeClientPlugin, NetcodeClientTransport, NetcodeTransportError,
+};
 use bevy_renet::{
     client_connected,
     renet::{ClientId, RenetClient},
 };
+use cdda_bevy::networking::renet::PROTOCOL_ID;
 use cdda_bevy::networking::{
     ClientChannel, NetworkedEntities, PlayerCommand, ServerChannel, ServerMessages,
     connection_config,
 };
 use std::collections::HashMap;
+use std::{net::UdpSocket, time::SystemTime};
 
 #[derive(Default, Resource)]
 pub struct NetworkMapping(HashMap<Entity, Entity>);
 #[derive(Debug, Resource)]
-pub struct CurrentClientId(u64);
+pub struct CurrentClientId(pub u64);
 
 #[derive(Debug, Default, Resource)]
 pub struct ClientLobby {
     players: HashMap<ClientId, PlayerInfo2>,
 }
-pub fn add_netcode_network(app: &mut App) {
-    use bevy_renet::netcode::{
-        ClientAuthentication, NetcodeClientPlugin, NetcodeClientTransport, NetcodeTransportError,
-    };
-    use cdda_bevy::networking::renet::PROTOCOL_ID;
-    use std::{net::UdpSocket, time::SystemTime};
 
+pub fn add_netcode_network(app: &mut App) {
     app.add_plugins(NetcodeClientPlugin)
         .configure_sets(Update, Connected.run_if(client_connected))
         .insert_resource(NetworkMapping::default())
         .insert_resource(ClientLobby::default());
+    app.insert_resource(ServerIP(("127.0.0.1").to_string())); // Default IP Address
+
     app.add_systems(
         Update,
         (
             client_send_input,
             client_send_player_commands,
             client_sync_players,
+            serialize_player_system.run_if(on_timer(Duration::from_secs(30))),
         )
             .in_set(Connected),
-    )
-    .add_systems(
-        Update,
-        (serialize_player_system).run_if(on_timer(Duration::from_secs(30))),
     );
-
-    let client = RenetClient::new(connection_config());
-
-    let server_addr = "127.0.0.1:5000".parse().unwrap();
-    let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
-    let current_time = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap();
-    let client_id = current_time.as_millis() as u64;
-    let authentication = ClientAuthentication::Unsecure {
-        client_id,
-        protocol_id: PROTOCOL_ID,
-        server_addr,
-        user_data: None,
-    };
-
-    let transport = NetcodeClientTransport::new(current_time, authentication, socket).unwrap();
-
-    app.insert_resource(client)
-        .insert_resource(transport)
-        .insert_resource(CurrentClientId(client_id));
 
     // If any error is found we just panic
     #[allow(clippy::never_loop)]
@@ -79,6 +57,53 @@ pub fn add_netcode_network(app: &mut App) {
     }
 
     app.add_systems(Update, panic_on_error_system);
+}
+pub fn connect_to_server(
+    // New system to handle connection (and transport creation)
+    mut commands: Commands,
+    ip: Res<ServerIP>,
+    mut game_state: ResMut<NextState<GameState>>,
+    mut client_id: ResMut<CurrentClientId>,
+) {
+    game_state.set(GameState::Offline);
+
+    let current_time = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap();
+    let client_id_tmp = current_time.as_millis() as u64; //create temp var so we don't change it
+    //until we're sure connection is OK
+    let (server_addr, socket) = match (ip.0.parse(), UdpSocket::bind("0.0.0.0:0")) {
+        (Ok(addr), Ok(sock)) => (addr, sock),
+        (Err(e), _) => {
+            eprintln!("Failed to parse server address: {}", e);
+            return; // Exit the function on error
+        }
+        (_, Err(e)) => {
+            eprintln!("Failed to bind socket: {}", e);
+            return; // Exit the function on error
+        }
+    };
+    let client = RenetClient::new(connection_config());
+    commands.insert_resource(client);
+
+    let authentication = ClientAuthentication::Unsecure {
+        client_id: client_id_tmp,
+        protocol_id: PROTOCOL_ID,
+        server_addr,
+        user_data: None,
+    };
+
+    match NetcodeClientTransport::new(current_time, authentication, socket) {
+        Ok(transport) => {
+            commands.insert_resource(transport);
+        }
+        Err(e) => {
+            eprintln!("Failed to create transport: {}", e);
+            return; // Exit if transport creation fails
+        }
+    }
+    game_state.set(GameState::Connected);
+    client_id.0 = client_id_tmp;
 }
 pub fn client_send_input(player_state: Res<PlayerState>, mut client: ResMut<RenetClient>) {
     let player_state_network = PlayerStateNetwork {
@@ -136,22 +161,14 @@ pub fn client_sync_players(
                 println!("Player {} connected. {}", id, translation[1]);
                 let player_transform = Transform::from_xyz(1.0, 2.0, 1.0);
                 let player_entity = commands
-                    .spawn((
-                        NeedsSetup {
-                            id,
-                            player_transform,
-                        },
-                        Player,
-                    ))
+                    .spawn((NeedsSetup {
+                        id,
+                        player_transform,
+                    },))
                     .id();
 
                 //let player_transform_server =
                 //  Transform::from_xyz(translation[0], translation[1], translation[2]);
-                if client_id == id {
-                    commands
-                        .entity(player_entity)
-                        .insert(ThirdPersonCameraTarget);
-                }
 
                 let player_info = PlayerInfo2 {
                     server_entity: entity,

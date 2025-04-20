@@ -72,7 +72,7 @@ fn main() {
 
     add_netcode_network(&mut app);
     app.add_systems(
-        Update,
+        FixedUpdate,
         (
             server_update_system,
             server_network_sync,

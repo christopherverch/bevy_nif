@@ -1,4 +1,4 @@
-use bevy::input::mouse::MouseWheel;
+use super::PlayerState;
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 #[derive(Component)]
@@ -9,15 +9,22 @@ pub struct PlayerInput {
     pub jump: bool,
     // Add other input states as needed
 }
+use bevy::image::ImageLoaderSettings;
 #[derive(Resource, Default)]
 pub struct IsThirdPerson(pub bool);
 const GROUND_TIMER: f32 = 0.5;
-const JUMP_SPEED: f32 = 0.1;
-const GRAVITY: f32 = -0.07;
+const JUMP_SPEED: f32 = 0.06;
+const GRAVITY: f32 = -0.04;
 pub fn keyboard_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut player_input: ResMut<PlayerInput>,
     mut is_third_person: ResMut<IsThirdPerson>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
+    player_state: Res<PlayerState>,
+
+    mut commands: Commands,
 ) {
     let mut move_direction = Vec2::ZERO;
 
@@ -37,33 +44,70 @@ pub fn keyboard_input(
         is_third_person.0 = !is_third_person.0;
     }
     player_input.move_direction = move_direction.normalize_or_zero();
-    player_input.jump = keyboard_input.just_pressed(KeyCode::Space);
+    let normal_handle = asset_server.load_with_settings(
+        "textures/parallax_example/cube_normal.png",
+        // The normal map texture is in linear color space. Lighting won't look correct
+        // if `is_srgb` is `true`, which is the default.
+        |settings: &mut ImageLoaderSettings| settings.is_srgb = false,
+    );
+    if !player_input.jump {
+        player_input.jump = keyboard_input.just_pressed(KeyCode::Space);
+        if player_input.jump {
+            let parallax_material = materials.add(StandardMaterial {
+                perceptual_roughness: 0.4,
+                base_color_texture: Some(
+                    asset_server.load("textures/parallax_example/cube_color.png"),
+                ),
+                normal_map_texture: Some(normal_handle),
+                // The depth map is a grayscale texture where black is the highest level and
+                // white the lowest.
+                depth_map: Some(asset_server.load("textures/parallax_example/cube_depth.png")),
+                parallax_depth_scale: 0.09,
+                parallax_mapping_method: ParallaxMappingMethod::Relief { max_steps: 4 },
+                max_parallax_layer_count: ops::exp2(5.0f32),
+                ..default()
+            });
+            let mut cube_weapon = Mesh::from(Cuboid::new(0.15, 0.15, 0.15));
+            cube_weapon.generate_tangents().unwrap();
+            for _ in 0..1 {
+                commands.spawn((
+                    Mesh3d(meshes.add(cube_weapon.clone())),
+                    Transform::from_xyz(
+                        player_state.transform.translation.x,
+                        player_state.transform.translation.y,
+                        player_state.transform.translation.z,
+                    ),
+                    RigidBody::Dynamic,
+                    Collider::cuboid(0.1, 0.1, 0.1),
+                    MeshMaterial3d(parallax_material.clone()),
+                    TransformInterpolation::default(),
+                ));
+            }
+        }
+    }
 }
 pub fn player_movement(
-    player_input: Res<PlayerInput>,
+    mut player_input: ResMut<PlayerInput>,
     time: Res<Time<Fixed>>,
     mut player_query: Query<
         (
-            Entity,
             &mut Transform,
             &mut KinematicCharacterController,
             Option<&KinematicCharacterControllerOutput>,
             &Speed,
         ),
-        With<super::Player>,
+        With<super::LocalPlayer>,
     >,
 
-    camera_query: Query<&Transform, (With<Camera3d>, Without<super::Player>)>,
+    camera_query: Query<&Transform, (With<Camera3d>, Without<super::LocalPlayer>)>,
     mut player_state: ResMut<super::PlayerState>,
     mut vertical_movement: Local<f32>,
     mut grounded_timer: Local<f32>,
     mut last_ground_height: Local<f32>,
-    rapier_context: ReadRapierContext,
+    //   rapier_context: ReadRapierContext,
     mut highest_air_height: Local<f32>,
 ) {
-    for (entity, mut player_transform, mut controller, output, player_speed) in
-        player_query.iter_mut()
-    {
+    for (player_transform, mut controller, output, player_speed) in player_query.iter_mut() {
         player_state.transform = *player_transform;
         if let Ok(camera_transform) = camera_query.get_single() {
             let delta_time = time.delta_secs();
@@ -82,8 +126,8 @@ pub fn player_movement(
             direction.y = 0.0;
             let mut movement = direction.normalize_or_zero() * player_speed.0 / 100.0;
             let jump_speed = if player_input.jump { 1.0 } else { 0.0 } * JUMP_SPEED;
-            // Clear input
-            // Check physics ground check
+            //clear input
+            player_input.jump = false;
             *vertical_movement += GRAVITY * delta_time * controller.custom_mass.unwrap_or(1.0);
             let was_grounded = *grounded_timer > 0.0;
             if output.map(|o| o.grounded).unwrap_or(false) {
@@ -94,6 +138,7 @@ pub fn player_movement(
             // If we are grounded we can jump
             if *grounded_timer > 0.0 {
                 *grounded_timer -= delta_time;
+                /*
                 // Perform a raycast downwards from the player's position
                 let shape = Collider::cuboid(0.25, 0.5, 0.25);
                 let shape_pos = player_transform.translation + Vec3::new(0.0, 0.0, 0.0);
@@ -119,7 +164,7 @@ pub fn player_movement(
                     if let Some(h) = hit.details {
                         player_transform.translation.y = h.witness1.y + 0.53;
                     }
-                }
+                }*/
                 //record our height when we landed so we know if we should take fall damage
                 *last_ground_height = player_transform.translation.y;
                 // If we jump we clear the grounded tolerance
@@ -128,20 +173,16 @@ pub fn player_movement(
                     *grounded_timer = 0.0;
                 }
             }
-            println!("player transform: {}", player_transform.translation.y);
             movement.y = *vertical_movement;
             if *vertical_movement < -0.4 {
                 *vertical_movement = -0.4;
             }
 
-            if player_transform.translation.y == *highest_air_height {
-                println!("reached highest height");
-            }
             controller.translation = Some(movement);
             if *highest_air_height < player_transform.translation.y {
                 *highest_air_height = player_transform.translation.y;
             }
-            println!("Highest air height: {:.4}", *highest_air_height); // Printing with 4 decimal places
+            //println!("Highest air height: {:.4}", *highest_air_height); // Printing with 4 decimal places
         }
     }
 }

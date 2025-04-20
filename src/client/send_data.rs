@@ -4,7 +4,7 @@ use bevy::time::common_conditions::on_timer;
 use cdda_bevy::serializer::{PlayerStateNetwork, SerializableTransform};
 use std::time::Duration;
 
-use super::{Connected, NeedsSetup, PlayerInfo2, PlayerRoot, PlayerState};
+use super::{ClientServerEntity, Connected, NeedsSetup, PlayerState};
 use bevy_renet::netcode::{
     ClientAuthentication, NetcodeClientPlugin, NetcodeClientTransport, NetcodeTransportError,
 };
@@ -18,6 +18,7 @@ use cdda_bevy::networking::{
     connection_config,
 };
 use std::collections::HashMap;
+use std::time::Instant;
 use std::{net::UdpSocket, time::SystemTime};
 
 #[derive(Default, Resource)]
@@ -27,27 +28,36 @@ pub struct CurrentClientId(pub u64);
 
 #[derive(Debug, Default, Resource)]
 pub struct ClientLobby {
-    players: HashMap<ClientId, PlayerInfo2>,
+    players: HashMap<ClientId, ClientServerEntity>,
 }
-
+#[derive(Resource, Default)]
+pub struct InterpolationSpeeds(HashMap<Entity, f32>);
 pub fn add_netcode_network(app: &mut App) {
     app.add_plugins(NetcodeClientPlugin)
         .configure_sets(Update, Connected.run_if(client_connected))
+        .configure_sets(FixedUpdate, Connected.run_if(client_connected))
         .insert_resource(NetworkMapping::default())
-        .insert_resource(ClientLobby::default());
-    app.insert_resource(ServerIP(("127.0.0.1").to_string())); // Default IP Address
+        .insert_resource(ClientLobby::default())
+        .insert_resource(InterpolationSpeeds::default())
+        .insert_resource(ServerIP(("127.0.0.1").to_string())); // Default IP Address
 
     app.add_systems(
-        Update,
+        FixedUpdate,
         (
             client_send_input,
-            client_send_player_commands,
-            client_sync_players,
             serialize_player_system.run_if(on_timer(Duration::from_secs(30))),
         )
             .in_set(Connected),
+    )
+    .add_systems(
+        Update,
+        (
+            client_send_player_commands,
+            client_sync_players,
+            interpolate_players.after(client_sync_players),
+        )
+            .in_set(Connected),
     );
-
     // If any error is found we just panic
     #[allow(clippy::never_loop)]
     fn panic_on_error_system(mut renet_error: EventReader<NetcodeTransportError>) {
@@ -148,6 +158,8 @@ pub fn client_sync_players(
     client_id: Res<CurrentClientId>,
     mut lobby: ResMut<ClientLobby>,
     mut network_mapping: ResMut<NetworkMapping>,
+    mut player_state_query: Query<(Entity, &mut PlayerState)>,
+    mut interpolation_speeds: ResMut<InterpolationSpeeds>,
 ) {
     let client_id = client_id.0;
     while let Some(message) = client.receive_message(ServerChannel::ServerMessages) {
@@ -160,7 +172,7 @@ pub fn client_sync_players(
             } => {
                 println!("Player {} connected. {}", id, translation[1]);
                 let player_transform = Transform::from_xyz(1.0, 2.0, 1.0);
-                let player_entity = commands
+                let player_root = commands
                     .spawn((NeedsSetup {
                         id,
                         player_transform,
@@ -170,16 +182,16 @@ pub fn client_sync_players(
                 //let player_transform_server =
                 //  Transform::from_xyz(translation[0], translation[1], translation[2]);
 
-                let player_info = PlayerInfo2 {
+                let player_info = ClientServerEntity {
                     server_entity: entity,
-                    client_entity: player_entity,
+                    client_entity: player_root,
                 };
                 lobby.players.insert(id, player_info);
-                network_mapping.0.insert(entity, player_entity);
+                network_mapping.0.insert(entity, player_root);
             }
             ServerMessages::PlayerRemove { id } => {
                 println!("Player {} disconnected.", id);
-                if let Some(PlayerInfo2 {
+                if let Some(ClientServerEntity {
                     server_entity,
                     client_entity,
                 }) = lobby.players.remove(&id)
@@ -227,13 +239,52 @@ pub fn client_sync_players(
                             }
                         }
                         None => {
-                            println!("No value");
-                            // Handle the None case
+                            eprintln!("Server is not tracking local player position!");
                         }
                     }
-                    commands.entity(*entity).insert(transform);
+                    for (player_entity, mut player_state) in player_state_query.iter_mut() {
+                        println!("entity: {}", entity);
+                        //calculate the difference between the last 2 packets we got, so we know
+                        //how long to interpolate the movement
+                        let duration = Instant::now() - player_state.last_packet_time;
+                        let milliseconds = duration.as_millis() as f32;
+                        let interpolation_speed = if milliseconds != 0.0 {
+                            400.0 / milliseconds
+                        } else {
+                            // Handle division by zero as needed
+                            10.0
+                        };
+                        interpolation_speeds
+                            .0
+                            .insert(player_entity, interpolation_speed);
+                        player_state.last_packet_time = Instant::now();
+                        player_state.transform = transform;
+                    }
                 }
             }
+        }
+    }
+}
+pub fn interpolate_players(
+    mut state_query: Query<(Entity, &mut PlayerState, &mut Transform)>,
+    time: Res<Time>,
+    interpolation_speeds: ResMut<InterpolationSpeeds>,
+) {
+    for (entity, player_state, mut transform) in state_query.iter_mut() {
+        println!("tried entity: {} ", entity);
+        if let Some(interpolation_speed) = interpolation_speeds.0.get(&entity) {
+            /*           println!(
+                "nudging with {}, {}, {}",
+                &player_state.transform.translation,
+                *interpolation_speed,
+                time.delta_secs()
+            );
+            */
+            transform.translation.smooth_nudge(
+                &player_state.transform.translation,
+                *interpolation_speed,
+                time.delta_secs(),
+            );
         }
     }
 }

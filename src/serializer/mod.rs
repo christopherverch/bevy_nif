@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::time::Instant;
 #[derive(Serialize, Deserialize)]
 pub struct SerializableTransform {
     pub translation: Vec3,
@@ -15,11 +16,20 @@ impl From<&Transform> for SerializableTransform {
         }
     }
 }
-#[derive(Resource, Default)]
+#[derive(Resource, Component)]
 pub struct PlayerState {
     pub transform: Transform,
+    pub last_packet_time: Instant,
 }
 #[derive(Serialize, Deserialize, Resource)]
 pub struct PlayerStateNetwork {
     pub transform: SerializableTransform,
+}
+impl Default for PlayerState {
+    fn default() -> Self {
+        PlayerState {
+            transform: Transform::default(),
+            last_packet_time: Instant::now(),
+        }
+    }
 }

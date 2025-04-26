@@ -11,7 +11,8 @@ use cdda_bevy::networking::{
     ClientChannel, NetworkedEntities, Player, PlayerCommand, PlayerInput2, Projectile,
     ServerChannel, ServerMessages, Velocity, setup_level, spawn_fireball,
 };
-use cdda_bevy::serializer::{PlayerStateNetwork, SerializableTransform};
+use cdda_bevy::serializer::PlayerStateNetwork;
+use cdda_bevy::{AnimationState, AnimationWeights};
 use std::{collections::HashMap, f32::consts::PI};
 
 #[derive(Debug, Default, Resource)]
@@ -29,6 +30,8 @@ struct Bot {
 #[derive(Debug, Resource)]
 struct BotId(u64);
 
+#[derive(Resource)]
+struct PlayerStateNetworkHashMap(HashMap<Entity, PlayerStateNetwork>);
 fn add_netcode_network(app: &mut App) {
     use bevy_renet::netcode::{
         NetcodeServerPlugin, NetcodeServerTransport, ServerAuthentication, ServerConfig,
@@ -69,6 +72,7 @@ fn main() {
 
     app.insert_resource(ServerLobby::default());
     app.insert_resource(BotId(0));
+    app.insert_resource(PlayerStateNetworkHashMap(HashMap::new()));
 
     add_netcode_network(&mut app);
     app.add_systems(
@@ -98,6 +102,7 @@ fn server_update_system(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut lobby: ResMut<ServerLobby>,
     mut server: ResMut<RenetServer>,
+    mut player_states: ResMut<PlayerStateNetworkHashMap>,
     players: Query<(Entity, &Player, &Transform)>,
 ) {
     for event in server_events.read() {
@@ -212,6 +217,7 @@ fn server_update_system(
             };
 
             if let Some(player_entity) = lobby.players.get(&client_id) {
+                player_states.0.insert(*player_entity, input);
                 commands.entity(*player_entity).insert(new_transform);
             }
         }
@@ -236,14 +242,29 @@ fn update_visulizer_system(mut egui_contexts: EguiContexts, server: Res<RenetSer
 #[allow(clippy::type_complexity)]
 fn server_network_sync(
     mut server: ResMut<RenetServer>,
-    query: Query<(Entity, &Transform), Or<(With<Player>, With<Projectile>)>>,
+    query: Query<Entity, Or<(With<Player>, With<Projectile>)>>,
+    player_states: Res<PlayerStateNetworkHashMap>,
 ) {
     let mut networked_entities = NetworkedEntities::default();
-    for (entity, transform) in query.iter() {
-        networked_entities.entities.push(entity);
-        networked_entities
-            .translations
-            .push(transform.translation.into());
+    for entity in query.iter() {
+        if let Some(player_state) = player_states.0.get(&entity) {
+            networked_entities.entities.push(entity);
+            networked_entities
+                .transforms
+                .push(player_state.transform.into());
+            networked_entities
+                .animation_weights
+                .push(player_state.animation_weights);
+            networked_entities
+                .current_animations
+                .push(player_state.current_animation);
+            networked_entities
+                .secondary_animations
+                .push(player_state.current_secondary_animation);
+            networked_entities
+                .is_attacking
+                .push(player_state.is_attacking);
+        }
     }
 
     let sync_message = bincode::serialize(&networked_entities).unwrap();

@@ -1,10 +1,9 @@
-use super::{GameState, ServerIP};
+//use cdda_bevy::client::animation::play_animation_local;
+
+use super::GameState;
+use super::{ClientServerEntity, Connected};
 use bevy::prelude::*;
 use bevy::time::common_conditions::on_timer;
-use cdda_bevy::serializer::{PlayerStateNetwork, SerializableTransform};
-use std::time::Duration;
-
-use super::{ClientServerEntity, Connected, NeedsSetup, PlayerState};
 use bevy_renet::netcode::{
     ClientAuthentication, NetcodeClientPlugin, NetcodeClientTransport, NetcodeTransportError,
 };
@@ -12,19 +11,23 @@ use bevy_renet::{
     client_connected,
     renet::{ClientId, RenetClient},
 };
+use cdda_bevy::client::defs::{
+    CurrentClientId, NeedsSetup, NetworkedEntity, PlayerState, ServerIP,
+};
+use cdda_bevy::client::events::RequestAnimation;
 use cdda_bevy::networking::renet::PROTOCOL_ID;
 use cdda_bevy::networking::{
     ClientChannel, NetworkedEntities, PlayerCommand, ServerChannel, ServerMessages,
     connection_config,
 };
+use cdda_bevy::serializer::{PlayerStateNetwork, SerializableTransform};
 use std::collections::HashMap;
+use std::time::Duration;
 use std::time::Instant;
 use std::{net::UdpSocket, time::SystemTime};
 
 #[derive(Default, Resource)]
 pub struct NetworkMapping(HashMap<Entity, Entity>);
-#[derive(Debug, Resource)]
-pub struct CurrentClientId(pub u64);
 
 #[derive(Debug, Default, Resource)]
 pub struct ClientLobby {
@@ -118,6 +121,10 @@ pub fn connect_to_server(
 pub fn client_send_input(player_state: Res<PlayerState>, mut client: ResMut<RenetClient>) {
     let player_state_network = PlayerStateNetwork {
         transform: SerializableTransform::from(&player_state.transform),
+        animation_weights: player_state.animation_weights,
+        current_animation: player_state.current_animation,
+        current_secondary_animation: player_state.secondary_animation,
+        is_attacking: player_state.is_attacking,
     };
     let input_message = bincode::serialize(&player_state_network).unwrap();
     client.send_message(ClientChannel::PlayerStateNetwork, input_message);
@@ -136,6 +143,10 @@ pub fn client_send_player_commands(
 pub fn serialize_player_system(player_state: Res<PlayerState>, mut client: ResMut<RenetClient>) {
     let player_state = PlayerStateNetwork {
         transform: SerializableTransform::from(&player_state.transform),
+        animation_weights: player_state.animation_weights,
+        current_animation: player_state.current_animation,
+        current_secondary_animation: player_state.secondary_animation,
+        is_attacking: player_state.is_attacking,
     };
     // Serialize it
     match bincode::serialize(&player_state) {
@@ -158,7 +169,7 @@ pub fn client_sync_players(
     client_id: Res<CurrentClientId>,
     mut lobby: ResMut<ClientLobby>,
     mut network_mapping: ResMut<NetworkMapping>,
-    mut player_state_query: Query<(Entity, &mut PlayerState)>,
+    mut player_state_query: Query<(Entity, &NetworkedEntity, &mut PlayerState)>,
     mut interpolation_speeds: ResMut<InterpolationSpeeds>,
 ) {
     let client_id = client_id.0;
@@ -222,15 +233,14 @@ pub fn client_sync_players(
     while let Some(message) = client.receive_message(ServerChannel::NetworkedEntities) {
         let networked_entities: NetworkedEntities = bincode::deserialize(&message).unwrap();
 
+        //loop through all networked entities
         for i in 0..networked_entities.entities.len() {
             if i as u64 != client_id {
                 if let Some(entity) = network_mapping.0.get(&networked_entities.entities[i]) {
-                    let translation = networked_entities.translations[i].into();
-                    let transform = Transform {
-                        translation,
-                        ..Default::default()
-                    };
-
+                    let transform = networked_entities.transforms[i].into();
+                    let current_animation = networked_entities.current_animations[i].into();
+                    let secondary_animation = networked_entities.secondary_animations[i].into();
+                    let is_attacking = networked_entities.is_attacking[i].into();
                     let test = lobby.players.get(&client_id);
                     match test {
                         Some(value) => {
@@ -242,23 +252,50 @@ pub fn client_sync_players(
                             eprintln!("Server is not tracking local player position!");
                         }
                     }
-                    for (player_entity, mut player_state) in player_state_query.iter_mut() {
-                        println!("entity: {}", entity);
-                        //calculate the difference between the last 2 packets we got, so we know
-                        //how long to interpolate the movement
-                        let duration = Instant::now() - player_state.last_packet_time;
-                        let milliseconds = duration.as_millis() as f32;
-                        let interpolation_speed = if milliseconds != 0.0 {
-                            400.0 / milliseconds
-                        } else {
-                            // Handle division by zero as needed
-                            10.0
-                        };
-                        interpolation_speeds
-                            .0
-                            .insert(player_entity, interpolation_speed);
-                        player_state.last_packet_time = Instant::now();
-                        player_state.transform = transform;
+                    //loop through entities with the "networked entity" component, and if the
+                    //networked entity component has the same id as the current outer loop's
+                    //"networked entity", then we know it's signaling us to modify it instead of
+                    //the network entity
+                    for (player_entity, networked_entity, mut player_state) in
+                        player_state_query.iter_mut()
+                    {
+                        if networked_entity.0 == *entity {
+                            let duration = Instant::now() - player_state.last_packet_time;
+                            let milliseconds = duration.as_millis() as f32;
+                            let interpolation_speed = if milliseconds != 0.0 {
+                                400.0 / milliseconds
+                            } else {
+                                // Handle division by zero as needed
+                                10.0
+                            };
+                            interpolation_speeds
+                                .0
+                                .insert(player_entity, interpolation_speed);
+                            player_state.last_packet_time = Instant::now();
+                            player_state.transform = transform;
+                            player_state.is_attacking = is_attacking;
+                            if player_state.secondary_animation != secondary_animation {
+                                player_state.secondary_animation = secondary_animation;
+                                commands.trigger(RequestAnimation {
+                                    id: player_state.id,
+                                    animation_state: secondary_animation,
+                                });
+                            }
+                            if current_animation != player_state.current_animation {
+                                println!(
+                                    "requesting animation for player with id: {} {:?} {:?}",
+                                    player_state.id,
+                                    current_animation,
+                                    player_state.current_animation,
+                                );
+                                commands.trigger(RequestAnimation {
+                                    id: player_state.id,
+                                    animation_state: current_animation,
+                                });
+                            }
+                            player_state.current_animation = current_animation;
+                            break;
+                        }
                     }
                 }
             }
@@ -266,22 +303,26 @@ pub fn client_sync_players(
     }
 }
 pub fn interpolate_players(
-    mut state_query: Query<(Entity, &mut PlayerState, &mut Transform)>,
+    mut state_query: Query<(Entity, &mut PlayerState, &mut Transform), Without<super::LocalPlayer>>,
     time: Res<Time>,
     interpolation_speeds: ResMut<InterpolationSpeeds>,
 ) {
     for (entity, player_state, mut transform) in state_query.iter_mut() {
-        println!("tried entity: {} ", entity);
         if let Some(interpolation_speed) = interpolation_speeds.0.get(&entity) {
-            /*           println!(
-                "nudging with {}, {}, {}",
-                &player_state.transform.translation,
-                *interpolation_speed,
-                time.delta_secs()
-            );
+            /*println!(
+                            "nudging with {}, {}, {}",
+                            &player_state.transform.translation,
+                            *interpolation_speed,
+                            time.delta_secs()
+                        );
             */
             transform.translation.smooth_nudge(
                 &player_state.transform.translation,
+                *interpolation_speed,
+                time.delta_secs(),
+            );
+            transform.rotation.smooth_nudge(
+                &player_state.transform.rotation,
                 *interpolation_speed,
                 time.delta_secs(),
             );

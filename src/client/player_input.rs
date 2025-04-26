@@ -1,30 +1,20 @@
-use super::PlayerState;
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
-#[derive(Component)]
-pub struct Speed(pub f32);
-#[derive(Resource, Default)]
-pub struct PlayerInput {
-    pub move_direction: Vec2,
-    pub jump: bool,
-    // Add other input states as needed
-}
-use bevy::image::ImageLoaderSettings;
-#[derive(Resource, Default)]
-pub struct IsThirdPerson(pub bool);
+use cdda_bevy::AnimationState;
+use cdda_bevy::client::defs::{IsThirdPerson, LocalPlayer, PlayerInput, PlayerState, Speed};
+use cdda_bevy::client::events::RequestAnimation;
+use std::time::Instant;
 const GROUND_TIMER: f32 = 0.5;
 const JUMP_SPEED: f32 = 0.06;
 const GRAVITY: f32 = -0.04;
 pub fn keyboard_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
+    buttons: Res<ButtonInput<MouseButton>>,
     mut player_input: ResMut<PlayerInput>,
     mut is_third_person: ResMut<IsThirdPerson>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    asset_server: Res<AssetServer>,
-    player_state: Res<PlayerState>,
-
+    player_entity: Res<LocalPlayer>,
     mut commands: Commands,
+    mut player_state: ResMut<PlayerState>,
 ) {
     let mut move_direction = Vec2::ZERO;
 
@@ -40,50 +30,45 @@ pub fn keyboard_input(
     if keyboard_input.pressed(KeyCode::KeyD) {
         move_direction.x += 1.0;
     }
+    if keyboard_input.just_pressed(KeyCode::KeyF) {
+        player_state.is_ready_weapon = !player_state.is_ready_weapon;
+        commands.trigger(RequestAnimation {
+            id: player_state.id,
+            animation_state: AnimationState::Swinging,
+        });
+    }
     if keyboard_input.just_pressed(KeyCode::Tab) {
+        if let Some(player) = player_entity.0 {
+            if is_third_person.0 {
+                commands.entity(player).insert(Visibility::Visible);
+            } else {
+                commands.entity(player).insert(Visibility::Hidden);
+            }
+        }
         is_third_person.0 = !is_third_person.0;
     }
     player_input.move_direction = move_direction.normalize_or_zero();
-    let normal_handle = asset_server.load_with_settings(
-        "textures/parallax_example/cube_normal.png",
-        // The normal map texture is in linear color space. Lighting won't look correct
-        // if `is_srgb` is `true`, which is the default.
-        |settings: &mut ImageLoaderSettings| settings.is_srgb = false,
-    );
     if !player_input.jump {
         player_input.jump = keyboard_input.just_pressed(KeyCode::Space);
-        if player_input.jump {
-            let parallax_material = materials.add(StandardMaterial {
-                perceptual_roughness: 0.4,
-                base_color_texture: Some(
-                    asset_server.load("textures/parallax_example/cube_color.png"),
-                ),
-                normal_map_texture: Some(normal_handle),
-                // The depth map is a grayscale texture where black is the highest level and
-                // white the lowest.
-                depth_map: Some(asset_server.load("textures/parallax_example/cube_depth.png")),
-                parallax_depth_scale: 0.09,
-                parallax_mapping_method: ParallaxMappingMethod::Relief { max_steps: 4 },
-                max_parallax_layer_count: ops::exp2(5.0f32),
-                ..default()
-            });
-            let mut cube_weapon = Mesh::from(Cuboid::new(0.15, 0.15, 0.15));
-            cube_weapon.generate_tangents().unwrap();
-            for _ in 0..1 {
-                commands.spawn((
-                    Mesh3d(meshes.add(cube_weapon.clone())),
-                    Transform::from_xyz(
-                        player_state.transform.translation.x,
-                        player_state.transform.translation.y,
-                        player_state.transform.translation.z,
-                    ),
-                    RigidBody::Dynamic,
-                    Collider::cuboid(0.1, 0.1, 0.1),
-                    MeshMaterial3d(parallax_material.clone()),
-                    TransformInterpolation::default(),
-                ));
-            }
-        }
+    }
+    if buttons.just_pressed(MouseButton::Left) {
+        player_state.started_attacking = Instant::now();
+        player_state.is_attacking = true;
+        commands.trigger(RequestAnimation {
+            id: player_state.id,
+            animation_state: AnimationState::Swinging,
+        });
+    }
+    if buttons.pressed(MouseButton::Left) {}
+    if buttons.just_released(MouseButton::Left) {
+        player_state.is_attacking = false;
+        //TEMPORARY, JUST TO MAKE IT SHOW THE ANIMATION ONLINE
+        player_state.secondary_animation = AnimationState::Idle;
+        commands.trigger(RequestAnimation {
+            id: player_state.id,
+            animation_state: AnimationState::Idle,
+        });
+        println!("attack!");
     }
 }
 pub fn player_movement(
@@ -98,17 +83,41 @@ pub fn player_movement(
         ),
         With<super::LocalPlayer>,
     >,
-
-    camera_query: Query<&Transform, (With<Camera3d>, Without<super::LocalPlayer>)>,
+    mut commands: Commands,
     mut player_state: ResMut<super::PlayerState>,
+    camera_query: Query<&Transform, (With<Camera3d>, Without<super::LocalPlayer>)>,
     mut vertical_movement: Local<f32>,
     mut grounded_timer: Local<f32>,
     mut last_ground_height: Local<f32>,
     //   rapier_context: ReadRapierContext,
     mut highest_air_height: Local<f32>,
 ) {
-    for (player_transform, mut controller, output, player_speed) in player_query.iter_mut() {
+    for (mut player_transform, mut controller, output, player_speed) in player_query.iter_mut() {
         player_state.transform = *player_transform;
+        //handle animations
+        //if we're on the ground
+        if output.map(|o| o.grounded).unwrap_or(false) {
+            //if we just transitioned to idle:
+            if player_input.move_direction.x == 0.0 && player_input.move_direction.y == 0.0 {
+                if player_state.current_animation != AnimationState::Idle {
+                    player_state.current_animation = AnimationState::Idle;
+                    commands.trigger(RequestAnimation {
+                        id: player_state.id,
+                        animation_state: AnimationState::Idle,
+                    });
+                }
+            } else {
+                //if we just transitioned to running:
+                if player_state.current_animation != AnimationState::Running {
+                    player_state.current_animation = AnimationState::Running;
+
+                    commands.trigger(RequestAnimation {
+                        id: player_state.id,
+                        animation_state: AnimationState::Running,
+                    });
+                }
+            }
+        }
         if let Ok(camera_transform) = camera_query.get_single() {
             let delta_time = time.delta_secs();
             let forward = camera_transform.forward().normalize();
@@ -169,6 +178,10 @@ pub fn player_movement(
                 *last_ground_height = player_transform.translation.y;
                 // If we jump we clear the grounded tolerance
                 if jump_speed > 0.0 {
+                    commands.trigger(RequestAnimation {
+                        id: player_state.id,
+                        animation_state: AnimationState::Jumping,
+                    });
                     *vertical_movement = jump_speed;
                     *grounded_timer = 0.0;
                 }
@@ -179,6 +192,16 @@ pub fn player_movement(
             }
 
             controller.translation = Some(movement);
+            player_state.transform.translation = player_transform.translation;
+            // apply the offset if offset_enabled is true
+
+            let camera_forward = camera_transform.forward().normalize();
+
+            // Project the camera's forward vector onto the ground plane (remove y component)
+            let target_forward =
+                Vec3::new(-camera_forward.x, 0.0, -camera_forward.z).normalize_or_zero();
+            let target_rotation = Quat::from_rotation_arc(Vec3::NEG_Z, target_forward);
+            player_transform.rotation = target_rotation;
             if *highest_air_height < player_transform.translation.y {
                 *highest_air_height = player_transform.translation.y;
             }

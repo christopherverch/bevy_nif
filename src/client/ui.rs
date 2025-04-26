@@ -1,4 +1,4 @@
-use super::{CurrentClientId, GameState, ServerIP};
+use crate::client::defs::{CurrentClientId, GameState, ServerIP};
 use bevy::color::palettes::basic::*;
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;

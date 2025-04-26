@@ -4,6 +4,10 @@ use bevy::prelude::*;
 use bevy_renet::renet::{ChannelConfig, ClientId, ConnectionConfig, SendType};
 use serde::{Deserialize, Serialize};
 
+use crate::AnimationState;
+use crate::AnimationWeights;
+use crate::serializer::SerializableTransform;
+
 pub const PRIVATE_KEY: &[u8; bevy_renet::netcode::NETCODE_KEY_BYTES] =
     b"an example very very secret key."; // 32-bytes
 pub const PROTOCOL_ID: u64 = 7;
@@ -60,7 +64,11 @@ pub enum ServerMessages {
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct NetworkedEntities {
     pub entities: Vec<Entity>,
-    pub translations: Vec<[f32; 3]>,
+    pub transforms: Vec<SerializableTransform>,
+    pub animation_weights: Vec<AnimationWeights>,
+    pub current_animations: Vec<AnimationState>,
+    pub secondary_animations: Vec<AnimationState>,
+    pub is_attacking: Vec<bool>,
 }
 
 impl From<ClientChannel> for u8 {

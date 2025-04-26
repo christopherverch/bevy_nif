@@ -1,9 +1,4 @@
 //! This example compares Forward, Forward + Prepass, and Deferred rendering.
-mod player_input;
-mod send_data;
-mod setup_funcs;
-mod third_person_camera;
-mod ui;
 use bevy::{
     pbr::{DefaultOpaqueRendererMethod, DirectionalLightShadowMap},
     prelude::*,
@@ -12,25 +7,22 @@ use bevy::{
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_rapier3d::prelude::*;
 use bevy_renet::RenetClientPlugin;
-use setup_funcs::*;
-use ui::*;
+use cdda_bevy::client::third_person_camera::*;
+use cdda_bevy::client::ui::*;
 //use bsatoollib as bsa;
 use bevy_rapier3d::prelude::RapierPhysicsPlugin; //, TimestepMode};
+use cdda_bevy::client::defs::*;
+use cdda_bevy::client::modular_characters::*;
 use cdda_bevy::networking::PlayerCommand;
-use cdda_bevy::serializer::PlayerState;
-use player_input::*;
-use send_data::*;
 use std::f32::consts::*;
 use std::time::Instant;
-use third_person_camera::*;
-#[derive(Clone, Copy, Debug, Eq, PartialEq, States, Default, Hash)]
-pub enum GameState {
-    #[default]
-    MainMenu,
-    Connecting,
-    Offline,
-    Connected,
-}
+mod player_input;
+mod send_data;
+mod setup_funcs;
+use cdda_bevy::client::animation::*;
+use player_input::*;
+use send_data::*;
+use setup_funcs::*;
 #[derive(Debug)]
 struct ClientServerEntity {
     client_entity: Entity,
@@ -40,31 +32,12 @@ struct ClientServerEntity {
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct Connected;
 //
-#[derive(Component)]
-pub struct PlayerRoot;
-#[derive(Component)]
-pub struct Player;
-#[derive(Component)]
+/*#[derive(Component)]
 struct HasWeapon {
     weapon_entity: Option<Entity>,
-}
+}*/
 //we separate player and playerroot so we can have
 //separate entities as children and modify them independently
-#[derive(Component)]
-struct NeedsSetup {
-    id: u64,
-    player_transform: Transform,
-}
-
-#[derive(Component)]
-struct PlayerCamera;
-
-#[derive(Component)]
-struct Weapon;
-#[derive(Component)]
-struct LocalPlayer;
-#[derive(Resource)]
-struct ServerIP(String);
 
 fn main() {
     /*let bsa = bsa::BSAFile::new("Morrowind.bsa").unwrap();
@@ -85,9 +58,9 @@ fn main() {
             RapierPhysicsPlugin::<NoUserData>::default()
                 .in_fixed_schedule()
                 .with_length_unit(1.0),
-            //RapierDebugRenderPlugin::default(),
-            WorldInspectorPlugin::new(),
             RenetClientPlugin,
+            WorldInspectorPlugin::new(),
+            RapierDebugRenderPlugin::default(),
         ))
         .insert_resource(Pause(true));
     app.edit_schedule(FixedUpdate, |schedule| {
@@ -102,15 +75,26 @@ fn main() {
     });
     add_netcode_network(&mut app);
     app.add_event::<PlayerCommand>()
-        .add_event::<SceneInstanceReady>()
         .insert_resource(PlayerInput::default())
         .insert_resource(PlayerState::default())
+        .insert_resource(LocalPlayer::default())
+        .insert_resource(Animations::default())
+        .insert_resource(SceneEntitiesByName::default())
         .init_state::<GameState>()
+        .init_state::<SpawnSceneState>()
         .add_systems(Startup, setup)
-        .add_systems(Update, paint_cubes_on_joints)
-        .add_systems(Update, on_scene_ready)
         .add_systems(Update, setup_player)
+        .add_systems(Update, setup_scene_once_loaded.after(detect_gltf_children))
+        .add_systems(
+            Update,
+            insert_animation_links.before(setup_scene_once_loaded),
+        )
+        .add_event::<SceneInstanceReady>()
         .add_systems(Update, keyboard_input)
+        .add_observer(detect_gltf_children)
+        .add_observer(assemble_parts)
+        .add_observer(handle_animation_request)
+        .insert_resource(GameAssets::default())
         /*       .add_systems(
             PostUpdate,
             camera_movement.after(PhysicsSet::StepSimulation),
@@ -155,8 +139,8 @@ fn animate_light_direction(
 ) {
     *frames_passed += 1;
     if *frames_passed == 60 {
-        let framerate = Instant::now() - *last_instant.get_or_insert(Instant::now());
-        println!("framerate: {}", 60000.0 / framerate.as_millis() as f32);
+        //let framerate = Instant::now() - *last_instant.get_or_insert(Instant::now());
+        // println!("framerate: {}", 60000.0 / framerate.as_millis() as f32);
         *last_instant = Some(Instant::now());
         *frames_passed = 0;
     }

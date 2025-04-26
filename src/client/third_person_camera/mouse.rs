@@ -1,12 +1,11 @@
 use std::f32::consts::PI;
 
+use super::{ThirdPersonCamera, zoom_condition};
 use bevy::{
     input::mouse::{MouseMotion, MouseWheel},
     prelude::*,
     window::PrimaryWindow,
 };
-
-use crate::{ThirdPersonCamera, zoom_condition};
 
 pub struct MousePlugin;
 

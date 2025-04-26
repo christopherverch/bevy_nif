@@ -1,10 +1,10 @@
 mod mouse;
-use super::IsThirdPerson;
-use super::PhysicsSet;
+use crate::client::defs::IsThirdPerson;
 use bevy::{
     prelude::*,
     window::{CursorGrabMode, PrimaryWindow},
 };
+use bevy_rapier3d::prelude::PhysicsSet;
 use mouse::MousePlugin;
 /// # Examples
 ///
@@ -138,13 +138,13 @@ impl Default for ThirdPersonCamera {
             sensitivity: Vec2::new(1.0, 1.0),
             mouse_orbit_button_enabled: false,
             mouse_orbit_button: MouseButton::Middle,
-            offset_enabled: false,
-            offset: Offset::new(0.5, 0.4),
+            offset_enabled: true,
+            offset: Offset::new(0.0, 0.6),
             offset_toggle_enabled: false,
             offset_toggle_speed: 5.0,
             offset_toggle_key: KeyCode::KeyE,
             zoom_enabled: true,
-            zoom: Zoom::new(1.5, 3.0),
+            zoom: Zoom::new(3.0, 5.0),
             zoom_sensitivity: 1.0,
         }
     }
@@ -163,7 +163,7 @@ impl Zoom {
         Self {
             min,
             max,
-            radius: (min + max) / 2.0,
+            radius: min,
             radius_copy: None,
         }
     }
@@ -222,11 +222,11 @@ impl Offset {
 #[derive(Component)]
 pub struct ThirdPersonCameraTarget;
 fn sync_player_camera(
-    mut player_q: Query<&mut Transform, With<ThirdPersonCameraTarget>>,
+    player_q: Query<&Transform, With<ThirdPersonCameraTarget>>,
     mut cam_q: Query<(&mut ThirdPersonCamera, &mut Transform), Without<ThirdPersonCameraTarget>>,
     is_third_person: Res<IsThirdPerson>,
 ) {
-    let Ok(mut player) = player_q.get_single_mut() else {
+    let Ok(player) = player_q.get_single() else {
         return;
     };
     let Ok((cam, mut cam_transform)) = cam_q.get_single_mut() else {
@@ -247,16 +247,10 @@ fn sync_player_camera(
 
     // Update the camera translation
     if is_third_person.0 {
-        cam_transform.translation = player.translation;
+        cam_transform.translation = player.translation + offset;
     } else {
         cam_transform.translation = player.translation + desired_translation;
     }
-    let camera_forward = cam_transform.forward().normalize();
-
-    // Project the camera's forward vector onto the ground plane (remove y component)
-    let target_forward = Vec3::new(camera_forward.x, 0.0, camera_forward.z).normalize_or_zero();
-    let target_rotation = Quat::from_rotation_arc(Vec3::NEG_Z, target_forward);
-    player.rotation = target_rotation;
 }
 
 /*fn zoom_mouse(mut scroll_evr: EventReader<MouseWheel>, mut cam_q: Query<&mut ThirdPersonCamera>) {

@@ -1,8 +1,11 @@
-use crate::client::defs::{AnimateableEntity, SceneEntitiesByName, SceneName};
+use crate::client::defs::{
+    AnimateableEntity, FirstPersonMeshEntityLinks, SceneEntitiesByName, SceneName,
+};
 use bevy::prelude::*;
 use bevy::scene::SceneInstanceReady;
 use std::collections::HashMap;
 use std::collections::VecDeque;
+
 pub fn assemble_parts(
     _: Trigger<SceneInstanceReady>,
     mut commands: Commands,
@@ -13,23 +16,51 @@ pub fn assemble_parts(
     names: Query<&Name>,
 ) {
     println!("added gltf");
+    let mut entities_to_parent: HashMap<Entity, Vec<Entity>> = HashMap::new();
     for ((scene_entity_name, unique_entity_id), _) in scene_entities_by_name.0.iter() {
-        if scene_entity_name.contains("main_skeleton.glb") {
-            println!("found skeleton with id: {}", unique_entity_id);
-            let (main_skeleton_bones, main_armature_entity) = get_main_skeleton_bones_and_armature(
-                &scene_entities_by_name,
-                &all_entities_with_children,
-                *unique_entity_id,
-                &names,
-            );
-
-            for (part_scene_entity, part_scene_name) in &scene_query {
-                if part_scene_name.id != *unique_entity_id {
-                    continue;
+        for (part_scene_entity, part_scene_name) in &scene_query {
+            if part_scene_name.id != *unique_entity_id {
+                //only attach meshes if the mesh id matches the player id
+                continue;
+            }
+            if scene_entity_name.contains("casual_torso_arms.glb") {
+                if let Some(arms) = find_child_with_name_containing(
+                    &all_entities_with_children,
+                    &names,
+                    &part_scene_entity,
+                    "Casual_Body_Arms",
+                ) {
+                    commands.entity(arms).insert(Visibility::Visible);
+                    entities_to_parent
+                        .entry(part_scene_name.parent)
+                        .or_default()
+                        .push(arms);
+                    //add a link to the arms so we can unhide them
                 }
-                if part_scene_name.scene_name == "sword.glb".to_string() {
+            }
+            if part_scene_name.scene_name.contains("sword.glb") {
+                commands.entity(part_scene_entity);
+                println!("parenting sword");
+                entities_to_parent
+                    .entry(part_scene_name.parent)
+                    .or_default()
+                    .push(part_scene_entity);
+            }
+            if scene_entity_name.contains("main_skeleton.glb") {
+                println!("found skeleton with id: {}", unique_entity_id);
+                let (main_skeleton_bones, main_armature_entity) =
+                    get_main_skeleton_bones_and_armature(
+                        &scene_entities_by_name,
+                        &all_entities_with_children,
+                        *unique_entity_id,
+                        &names,
+                    );
+
+                if part_scene_name.scene_name.contains("sword.glb") {
+                    println!("found sword entity");
                     let mut sword_entity_commands = commands.entity(part_scene_entity);
                     if let Some(handle_bone) = main_skeleton_bones.get("EquipmentHandle.R") {
+                        println!("found sword entity2");
                         sword_entity_commands.set_parent(*handle_bone);
                     }
                 } else if !part_scene_name.scene_name.contains("main_skeleton.glb") {
@@ -47,7 +78,12 @@ pub fn assemble_parts(
             }
         }
     }
-    scene_entities_by_name.0.clear();
+    for (parent, entities) in entities_to_parent {
+        commands
+            .entity(parent)
+            .insert(FirstPersonMeshEntityLinks(entities));
+        scene_entities_by_name.0.clear();
+    }
 }
 
 pub fn get_main_skeleton_bones_and_armature(

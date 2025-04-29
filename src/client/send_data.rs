@@ -12,7 +12,8 @@ use bevy_renet::{
     renet::{ClientId, RenetClient},
 };
 use cdda_bevy::client::defs::{
-    CurrentClientId, NeedsSetup, NetworkedEntity, PlayerState, ServerIP,
+    CurrentClientId, LocalPlayer, MeshEntityLink, NeedsSetup, NetworkedEntity, PlayerState,
+    ServerIP,
 };
 use cdda_bevy::client::events::RequestAnimation;
 use cdda_bevy::networking::renet::PROTOCOL_ID;
@@ -20,7 +21,7 @@ use cdda_bevy::networking::{
     ClientChannel, NetworkedEntities, PlayerCommand, ServerChannel, ServerMessages,
     connection_config,
 };
-use cdda_bevy::serializer::{PlayerStateNetwork, SerializableTransform};
+use cdda_bevy::serializer::PlayerStateNetwork;
 use std::collections::HashMap;
 use std::time::Duration;
 use std::time::Instant;
@@ -118,18 +119,16 @@ pub fn connect_to_server(
     game_state.set(GameState::Connected);
     client_id.0 = client_id_tmp;
 }
-pub fn client_send_input(player_state: Res<PlayerState>, mut client: ResMut<RenetClient>) {
-    let player_state_network = PlayerStateNetwork {
-        transform: SerializableTransform::from(&player_state.transform),
-        animation_weights: player_state.animation_weights,
-        current_animation: player_state.current_animation,
-        current_secondary_animation: player_state.secondary_animation,
-        is_attacking: player_state.is_attacking,
-    };
-    let input_message = bincode::serialize(&player_state_network).unwrap();
-    client.send_message(ClientChannel::PlayerStateNetwork, input_message);
+pub fn client_send_input(
+    local_player_state_query: Query<&PlayerState, (With<LocalPlayer>, Changed<PlayerState>)>,
+    mut client: ResMut<RenetClient>,
+) {
+    if let Ok(local_player_state) = local_player_state_query.get_single() {
+        let player_state_network = PlayerStateNetwork::from(&*local_player_state);
+        let input_message = bincode::serialize(&player_state_network).unwrap();
+        client.send_message(ClientChannel::PlayerStateNetwork, input_message);
+    }
 }
-
 pub fn client_send_player_commands(
     mut player_commands: EventReader<PlayerCommand>,
     mut client: ResMut<RenetClient>,
@@ -140,14 +139,11 @@ pub fn client_send_player_commands(
     }
 }
 
-pub fn serialize_player_system(player_state: Res<PlayerState>, mut client: ResMut<RenetClient>) {
-    let player_state = PlayerStateNetwork {
-        transform: SerializableTransform::from(&player_state.transform),
-        animation_weights: player_state.animation_weights,
-        current_animation: player_state.current_animation,
-        current_secondary_animation: player_state.secondary_animation,
-        is_attacking: player_state.is_attacking,
-    };
+pub fn serialize_player_system(
+    local_player_state: Single<&PlayerState, (With<LocalPlayer>, Changed<PlayerState>)>,
+    mut client: ResMut<RenetClient>,
+) {
+    let player_state = PlayerStateNetwork::from(local_player_state.into_inner());
     // Serialize it
     match bincode::serialize(&player_state) {
         Ok(serialized) => {
@@ -161,153 +157,16 @@ pub fn serialize_player_system(player_state: Res<PlayerState>, mut client: ResMu
     }
 }
 
-pub fn client_sync_players(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut client: ResMut<RenetClient>,
-    client_id: Res<CurrentClientId>,
-    mut lobby: ResMut<ClientLobby>,
-    mut network_mapping: ResMut<NetworkMapping>,
-    mut player_state_query: Query<(Entity, &NetworkedEntity, &mut PlayerState)>,
-    mut interpolation_speeds: ResMut<InterpolationSpeeds>,
-) {
-    let client_id = client_id.0;
-    while let Some(message) = client.receive_message(ServerChannel::ServerMessages) {
-        let server_message = bincode::deserialize(&message).unwrap();
-        match server_message {
-            ServerMessages::PlayerCreate {
-                id,
-                translation,
-                entity,
-            } => {
-                println!("Player {} connected. {}", id, translation[1]);
-                let player_transform = Transform::from_xyz(1.0, 2.0, 1.0);
-                let player_root = commands
-                    .spawn((NeedsSetup {
-                        id,
-                        player_transform,
-                    },))
-                    .id();
-
-                //let player_transform_server =
-                //  Transform::from_xyz(translation[0], translation[1], translation[2]);
-
-                let player_info = ClientServerEntity {
-                    server_entity: entity,
-                    client_entity: player_root,
-                };
-                lobby.players.insert(id, player_info);
-                network_mapping.0.insert(entity, player_root);
-            }
-            ServerMessages::PlayerRemove { id } => {
-                println!("Player {} disconnected.", id);
-                if let Some(ClientServerEntity {
-                    server_entity,
-                    client_entity,
-                }) = lobby.players.remove(&id)
-                {
-                    commands.entity(client_entity).despawn();
-                    network_mapping.0.remove(&server_entity);
-                }
-            }
-            ServerMessages::SpawnProjectile {
-                entity,
-                translation,
-            } => {
-                let projectile_entity = commands.spawn((
-                    Mesh3d(meshes.add(Mesh::from(Sphere::new(0.1)))),
-                    MeshMaterial3d(materials.add(Color::srgb(1.0, 0.0, 0.0))),
-                    Transform::from_translation(translation.into()),
-                ));
-                network_mapping.0.insert(entity, projectile_entity.id());
-            }
-            ServerMessages::DespawnProjectile { entity } => {
-                if let Some(entity) = network_mapping.0.remove(&entity) {
-                    commands.entity(entity).despawn();
-                }
-            }
-        }
-    }
-
-    while let Some(message) = client.receive_message(ServerChannel::NetworkedEntities) {
-        let networked_entities: NetworkedEntities = bincode::deserialize(&message).unwrap();
-
-        //loop through all networked entities
-        for i in 0..networked_entities.entities.len() {
-            if i as u64 != client_id {
-                if let Some(entity) = network_mapping.0.get(&networked_entities.entities[i]) {
-                    let transform = networked_entities.transforms[i].into();
-                    let current_animation = networked_entities.current_animations[i].into();
-                    let secondary_animation = networked_entities.secondary_animations[i].into();
-                    let is_attacking = networked_entities.is_attacking[i].into();
-                    let test = lobby.players.get(&client_id);
-                    match test {
-                        Some(value) => {
-                            if entity == &value.client_entity {
-                                continue;
-                            }
-                        }
-                        None => {
-                            eprintln!("Server is not tracking local player position!");
-                        }
-                    }
-                    //loop through entities with the "networked entity" component, and if the
-                    //networked entity component has the same id as the current outer loop's
-                    //"networked entity", then we know it's signaling us to modify it instead of
-                    //the network entity
-                    for (player_entity, networked_entity, mut player_state) in
-                        player_state_query.iter_mut()
-                    {
-                        if networked_entity.0 == *entity {
-                            let duration = Instant::now() - player_state.last_packet_time;
-                            let milliseconds = duration.as_millis() as f32;
-                            let interpolation_speed = if milliseconds != 0.0 {
-                                400.0 / milliseconds
-                            } else {
-                                // Handle division by zero as needed
-                                10.0
-                            };
-                            interpolation_speeds
-                                .0
-                                .insert(player_entity, interpolation_speed);
-                            player_state.last_packet_time = Instant::now();
-                            player_state.transform = transform;
-                            player_state.is_attacking = is_attacking;
-                            if player_state.secondary_animation != secondary_animation {
-                                player_state.secondary_animation = secondary_animation;
-                                commands.trigger(RequestAnimation {
-                                    id: player_state.id,
-                                    animation_state: secondary_animation,
-                                });
-                            }
-                            if current_animation != player_state.current_animation {
-                                println!(
-                                    "requesting animation for player with id: {} {:?} {:?}",
-                                    player_state.id,
-                                    current_animation,
-                                    player_state.current_animation,
-                                );
-                                commands.trigger(RequestAnimation {
-                                    id: player_state.id,
-                                    animation_state: current_animation,
-                                });
-                            }
-                            player_state.current_animation = current_animation;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
 pub fn interpolate_players(
-    mut state_query: Query<(Entity, &mut PlayerState, &mut Transform), Without<super::LocalPlayer>>,
+    mut state_query: Query<
+        (Entity, &MeshEntityLink, &mut PlayerState, &mut Transform),
+        Without<super::LocalPlayer>,
+    >,
+    mut commands: Commands,
     time: Res<Time>,
     interpolation_speeds: ResMut<InterpolationSpeeds>,
 ) {
-    for (entity, player_state, mut transform) in state_query.iter_mut() {
+    for (entity, mesh_entity, player_state, mut transform) in state_query.iter_mut() {
         if let Some(interpolation_speed) = interpolation_speeds.0.get(&entity) {
             /*println!(
                             "nudging with {}, {}, {}",
@@ -326,6 +185,270 @@ pub fn interpolate_players(
                 *interpolation_speed,
                 time.delta_secs(),
             );
+            if let Some(mesh_entity) = mesh_entity.0 {
+                let mut mesh_transform = *transform;
+                mesh_transform.translation.y -= 1.0;
+                commands.entity(mesh_entity).insert(mesh_transform);
+            }
         }
+    }
+}
+pub fn client_sync_players(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut client: ResMut<RenetClient>,
+    client_id: Res<CurrentClientId>,
+    mut lobby: ResMut<ClientLobby>,
+    mut network_mapping: ResMut<NetworkMapping>,
+    mut player_state_query: Query<(Entity, &NetworkedEntity, &mut PlayerState)>,
+    mut interpolation_speeds: ResMut<InterpolationSpeeds>,
+) {
+    let client_id = client_id.0;
+
+    // Process server messages (player creation, removal, projectiles)
+    process_server_messages(
+        &mut client,
+        &mut lobby,
+        &mut network_mapping,
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+    );
+
+    // Process networked entities and update player state
+    process_networked_entities(
+        &mut client,
+        &mut player_state_query,
+        &mut network_mapping,
+        &mut interpolation_speeds,
+        &mut commands,
+        &mut lobby,
+        client_id,
+    );
+}
+
+fn process_server_messages(
+    client: &mut RenetClient,
+    lobby: &mut ClientLobby,
+    network_mapping: &mut NetworkMapping,
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+) {
+    while let Some(message) = client.receive_message(ServerChannel::ServerMessages) {
+        let server_message = bincode::deserialize(&message).unwrap();
+        match server_message {
+            ServerMessages::PlayerCreate {
+                id,
+                translation,
+                entity,
+            } => {
+                create_player(id, translation, entity, lobby, network_mapping, commands);
+            }
+            ServerMessages::PlayerRemove { id } => {
+                remove_player(id, lobby, network_mapping, commands);
+            }
+            ServerMessages::SpawnProjectile {
+                entity,
+                translation,
+            } => {
+                spawn_projectile(
+                    entity,
+                    translation,
+                    network_mapping,
+                    commands,
+                    meshes,
+                    materials,
+                );
+            }
+            ServerMessages::DespawnProjectile { entity } => {
+                despawn_projectile(entity, network_mapping, commands);
+            }
+        }
+    }
+}
+
+fn process_networked_entities(
+    client: &mut RenetClient,
+    player_state_query: &mut Query<(Entity, &NetworkedEntity, &mut PlayerState)>,
+    network_mapping: &mut NetworkMapping,
+    interpolation_speeds: &mut ResMut<InterpolationSpeeds>,
+    commands: &mut Commands,
+    lobby: &mut ClientLobby,
+    client_id: u64,
+) {
+    while let Some(message) = client.receive_message(ServerChannel::NetworkedEntities) {
+        let networked_entities: NetworkedEntities = bincode::deserialize(&message).unwrap();
+
+        for (networked_entity, player_state_network) in
+            networked_entities.entities_and_states.into_iter()
+        {
+            if let Some(local_entity) = network_mapping.0.get(&networked_entity) {
+                if !should_process_local_entity(local_entity, lobby, client_id) {
+                    continue;
+                }
+
+                update_player_state(
+                    local_entity,
+                    player_state_network,
+                    player_state_query,
+                    commands,
+                    interpolation_speeds,
+                );
+            }
+        }
+    }
+}
+
+// Player creation logic
+fn create_player(
+    id: u64,
+    translation: [f32; 3],
+    entity: Entity,
+    lobby: &mut ClientLobby,
+    network_mapping: &mut NetworkMapping,
+    commands: &mut Commands,
+) {
+    println!("Player {} connected. {}", id, translation[1]);
+    let player_transform = Transform::from_xyz(1.0, 2.0, 1.0);
+    let player_root = commands
+        .spawn((NeedsSetup {
+            id,
+            player_transform,
+        },))
+        .id();
+
+    let player_info = ClientServerEntity {
+        server_entity: entity,
+        client_entity: player_root,
+    };
+    lobby.players.insert(id, player_info);
+    network_mapping.0.insert(entity, player_root);
+}
+
+// Player removal logic
+fn remove_player(
+    id: u64,
+    lobby: &mut ClientLobby,
+    network_mapping: &mut NetworkMapping,
+    commands: &mut Commands,
+) {
+    println!("Player {} disconnected.", id);
+    if let Some(ClientServerEntity {
+        server_entity,
+        client_entity,
+    }) = lobby.players.remove(&id)
+    {
+        commands.entity(client_entity).despawn();
+        network_mapping.0.remove(&server_entity);
+    }
+}
+
+// Spawn projectile logic
+fn spawn_projectile(
+    entity: Entity,
+    translation: [f32; 3],
+    network_mapping: &mut NetworkMapping,
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+) {
+    let projectile_entity = commands.spawn((
+        Mesh3d(meshes.add(Mesh::from(Sphere::new(0.1)))),
+        MeshMaterial3d(materials.add(Color::srgb(1.0, 0.0, 0.0))),
+        Transform::from_translation(translation.into()),
+    ));
+    network_mapping.0.insert(entity, projectile_entity.id());
+}
+
+// Despawn projectile logic
+fn despawn_projectile(
+    entity: Entity,
+    network_mapping: &mut NetworkMapping,
+    commands: &mut Commands,
+) {
+    if let Some(entity) = network_mapping.0.remove(&entity) {
+        commands.entity(entity).despawn();
+    }
+}
+
+// Check whether the local entity should be processed
+fn should_process_local_entity(
+    local_entity: &Entity,
+    lobby: &mut ClientLobby,
+    client_id: u64,
+) -> bool {
+    if let Some(client_server_entity) = lobby.players.get(&client_id) {
+        if local_entity == &client_server_entity.client_entity {
+            return false;
+        }
+    } else {
+        eprintln!("Server is not tracking local player position!");
+    }
+    true
+}
+
+// Update player state and animations
+fn update_player_state(
+    local_entity: &Entity,
+    player_state_network: PlayerStateNetwork,
+    player_state_query: &mut Query<(Entity, &NetworkedEntity, &mut PlayerState)>,
+    commands: &mut Commands,
+    interpolation_speeds: &mut ResMut<InterpolationSpeeds>,
+) {
+    for (player_entity, networked_entity, mut player_state) in player_state_query.iter_mut() {
+        if networked_entity.0 != *local_entity {
+            continue;
+        }
+        //past this we should have the player_state corresponding to the networked entity
+
+        // Update interpolation speed
+        let elapsed = player_state.last_packet_time.elapsed().as_millis() as f32;
+        let speed = if elapsed > 0.0 { 400.0 / elapsed } else { 10.0 };
+        interpolation_speeds.0.insert(player_entity, speed);
+        player_state.last_packet_time = Instant::now();
+
+        // Trigger animations if changed
+
+        //if the server sent us a packet that this player's animation is different, play it
+        if player_state_network.requested_primary_animation
+            != player_state.requested_primary_animation
+        {
+            dbg!(&player_state.requested_primary_animation);
+            dbg!(&player_state_network.requested_primary_animation);
+            if let Some(animation) = player_state_network.requested_primary_animation {
+                println!(
+                    "requesting prim animation for player with id: {} {:?} -> {:?}",
+                    player_state.id,
+                    player_state.requested_primary_animation,
+                    player_state_network.requested_primary_animation,
+                );
+                commands.trigger(RequestAnimation {
+                    entity: player_entity,
+                    requested_animation: animation,
+                });
+            }
+        }
+
+        if player_state_network.requested_secondary_animation
+            != player_state.requested_secondary_animation
+        {
+            if let Some(animation) = player_state_network.requested_secondary_animation {
+                println!(
+                    "requesting second animation for player with id: {} {:?} -> {:?}",
+                    player_state.id,
+                    player_state.requested_secondary_animation,
+                    player_state_network.requested_secondary_animation,
+                );
+                commands.trigger(RequestAnimation {
+                    entity: player_entity,
+                    requested_animation: animation,
+                });
+            }
+        }
+        // Update the player state from the network
+        player_state.update_from_network(player_state_network);
+        break;
     }
 }

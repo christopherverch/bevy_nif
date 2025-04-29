@@ -94,6 +94,8 @@ fn main() {
         .add_observer(detect_gltf_children)
         .add_observer(assemble_parts)
         .add_observer(handle_animation_request)
+        .add_observer(observe_swing_finished)
+        .add_observer(set_third_person_animation_weights)
         .insert_resource(GameAssets::default())
         /*       .add_systems(
             PostUpdate,

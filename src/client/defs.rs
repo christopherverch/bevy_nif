@@ -1,6 +1,7 @@
-use crate::AnimationState;
-use crate::AnimationWeights;
+use crate::serializer::PlayerStateNetwork;
+use crate::{AnimationState, RequestedAnimation};
 use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Instant;
 #[derive(Resource, Component)]
@@ -11,9 +12,11 @@ pub struct PlayerState {
     pub started_attacking: Instant,
     pub is_attacking: bool,
     pub is_ready_weapon: bool,
-    pub animation_weights: AnimationWeights,
+    pub attack_state: AttackState,
     pub current_animation: AnimationState,
     pub secondary_animation: AnimationState,
+    pub requested_primary_animation: Option<RequestedAnimation>,
+    pub requested_secondary_animation: Option<RequestedAnimation>,
 }
 impl Default for PlayerState {
     fn default() -> Self {
@@ -21,18 +24,36 @@ impl Default for PlayerState {
             id: 0,
             transform: Transform::default(),
             last_packet_time: Instant::now(),
-            current_animation: AnimationState::Idle,
-            secondary_animation: AnimationState::Idle,
             started_attacking: Instant::now(),
             is_attacking: false,
             is_ready_weapon: false,
-            animation_weights: AnimationWeights {
-                idle: 1.0,
-                run: 0.0,
-                swing: 0.0,
-            },
+            attack_state: AttackState::Inactive,
+            current_animation: AnimationState::Idle,
+            secondary_animation: AnimationState::Idle,
+            requested_primary_animation: None,
+            requested_secondary_animation: None,
         }
     }
+}
+impl PlayerState {
+    pub fn update_from_network(&mut self, net: PlayerStateNetwork) {
+        self.transform = net.transform.into();
+        self.current_animation = net.current_animation;
+        self.secondary_animation = net.current_secondary_animation;
+        self.attack_state = net.attack_state;
+        self.requested_primary_animation = net.requested_primary_animation;
+        self.requested_secondary_animation = net.requested_secondary_animation;
+    }
+}
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+pub enum AttackState {
+    Inactive,
+    Ready,
+    Charging,
+    ChargeImmediateRelease,
+    Releasing,
+    Returning,
+    FrozenBack,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq, States, Default, Hash)]
 pub enum SpawnSceneState {
@@ -40,6 +61,8 @@ pub enum SpawnSceneState {
     Spawning,
     Spawned,
 }
+#[derive(Component, Debug)]
+pub struct FirstPersonMeshEntityLinks(pub Vec<Entity>);
 #[derive(Default, Resource)]
 pub struct Animations {
     pub animations: Vec<AnimationNodeIndex>,
@@ -67,6 +90,7 @@ pub enum AnimationNodeConfig {
         speed: f32,
     },
 }
+
 #[derive(Default, Resource, Debug)]
 pub struct SceneEntitiesByName(pub HashMap<(String, u64), Entity>);
 #[derive(Resource)]
@@ -80,7 +104,12 @@ pub enum GameState {
     Connected,
 }
 #[derive(Component)]
+pub struct TestingComponent;
+#[derive(Component)]
+#[require(PlayerState)]
 pub struct PlayerRoot;
+#[derive(Component)]
+pub struct PlayerEntityLink(pub Option<Entity>);
 #[derive(Component)]
 pub struct NetworkedEntity(pub Entity);
 #[derive(Component)]
@@ -102,7 +131,13 @@ pub struct PlayerCamera;
 #[derive(Component)]
 pub struct Weapon;
 #[derive(Component, Default, Resource)]
-pub struct LocalPlayer(pub Option<Entity>);
+pub struct LocalPlayer {
+    pub id: u64,
+}
+#[derive(Component, Default)]
+pub struct MeshEntityLink(pub Option<Entity>);
+#[derive(Component, Default, Resource)]
+pub struct LocalPlayerMesh;
 #[derive(Resource)]
 pub struct ServerIP(pub String);
 #[derive(Resource, Default)]
@@ -115,6 +150,9 @@ pub struct PlayerInput {
 pub struct SceneName {
     pub scene_name: String,
     pub id: u64,
+    pub parent: Entity,
 }
 #[derive(Component)]
 pub struct AnimateableEntity;
+pub const COLLIDER_HEIGHT: f32 = 1.2;
+pub const MESH_HEIGHT_OFFSET: f32 = 0.9;

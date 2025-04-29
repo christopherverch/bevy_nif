@@ -1,8 +1,10 @@
 use cdda_bevy::client::defs::{
-    AnimateableEntity, AnimationNodeConfig, Animations, Animator, CurrentClientId, LocalPlayer,
-    MaskGroup, NeedsSetup, NetworkedEntity, Pause, Player, PlayerCamera, PlayerRoot, PlayerState,
-    SceneEntitiesByName, SceneName, SpawnSceneState, Speed, Weapon,
+    AnimateableEntity, AnimationNodeConfig, Animator, CurrentClientId, LocalPlayer,
+    LocalPlayerMesh, MaskGroup, MeshEntityLink, NeedsSetup, NetworkedEntity, Pause, Player,
+    PlayerCamera, PlayerEntityLink, PlayerRoot, PlayerState, SceneEntitiesByName, SceneName,
+    SpawnSceneState, Speed, TestingComponent, Weapon,
 };
+use cdda_bevy::client::events::OnSwingFinished;
 use cdda_bevy::client::third_person_camera::{ThirdPersonCamera, ThirdPersonCameraTarget};
 
 use bevy::gltf::Gltf;
@@ -58,8 +60,8 @@ const MASK_GROUP_PATHS_ARMS: [(&str, &str); 12] = [
         "Thumb1.L/Thumb2.L/Thumb3.L/Thumb4.L",
     ),
     (
-        "CharacterArmature.001/Root/Body/Hips/Abdomen/Torso/Chest",
-        "Shoulder.R/UpperArm.R/LowerArm.R/Wrist.R",
+        "CharacterArmature.001/Root/Body/Hips/Abdomen/Torso/Chest/Shoulder.R",
+        "UpperArm.R/LowerArm.R/Wrist.R",
     ),
     (
         "CharacterArmature.001/Root/Body/Hips/Abdomen/Torso/Chest/Shoulder.R/UpperArm.R/LowerArm.R/Wrist.R",
@@ -94,31 +96,39 @@ const MASK_GROUP_PATHS_BODY_WITHOUT_ARMS: [(&str, &str); 7] = [
     ("CharacterArmature.001/Root/Body", "UpperLeg.L/LowerLeg.L"),
     ("CharacterArmature.001/Root/Body", "UpperLeg.R/LowerLeg.R"),
 ];
-const PLAYER_ASSETS: [&str; 5] = [
+const PLAYER_ASSETS: [&str; 7] = [
     "models/main_skeleton.glb",
-    "models/casual_torso.glb",
+    "models/casual_torso_arms.glb",
     "models/casual_legs.glb",
     "models/casual_head.glb",
     "models/casual_feet.glb",
+    "models/sword.glb",
+    "models/untitled.glb",
 ];
 pub fn spawn_gltf_as_child(
     gltfs: &Res<Assets<Gltf>>,
     asset_handles: &Res<GameAssets>,
     scene_entities_by_name: &mut ResMut<SceneEntitiesByName>,
     entity: Entity,
+    parent_entity: Entity,
     commands: &mut Commands,
     client_id: u64,
-    transform: Transform,
+    mut transform: Transform,
     asset_names: Vec<&str>,
 ) {
     for asset_name in asset_names {
+        let scale = if asset_name == "models/sword.glb" {
+            0.1
+        } else {
+            1.0
+        };
         println!("trying to spawn asset: {}", asset_name);
         if let Some(handle) = asset_handles.gltf_files.get(asset_name) {
             if let Some(gltf) = gltfs.get(handle) {
                 let scene = gltf.default_scene.clone().unwrap();
                 println!("player id: {}", entity);
-
                 commands.entity(entity).with_children(|parent| {
+                    transform.scale = Vec3::new(scale, scale, scale);
                     let player_skeleton_entity = parent
                         .spawn((
                             SceneRoot(scene.clone()),
@@ -126,6 +136,7 @@ pub fn spawn_gltf_as_child(
                             SceneName {
                                 scene_name: asset_name.to_string(),
                                 id: client_id,
+                                parent: parent_entity,
                             },
                         ))
                         .id();
@@ -149,7 +160,6 @@ pub fn setup_player(
     gltfs: Res<Assets<Gltf>>,
     asset_handles: Res<GameAssets>,
     mut scene_entities_by_name: ResMut<SceneEntitiesByName>,
-    mut player_state_local: ResMut<PlayerState>,
     mut player_entity: ResMut<LocalPlayer>,
 ) {
     let collider_height = 1.2;
@@ -157,41 +167,50 @@ pub fn setup_player(
         println!("setting up");
         commands.entity(entity).insert((
             PlayerRoot,
-            Transform::default(),
-            Visibility::Visible,
-            InheritedVisibility::VISIBLE,
-        ));
-        let player = commands.spawn((Player, AnimateableEntity)).id();
-        spawn_gltf_as_child(
-            &gltfs,
-            &asset_handles,
-            &mut scene_entities_by_name,
-            player,
-            &mut commands,
-            setup_info.id,
-            Transform::from_xyz(0.0, -collider_height / 1.3, 0.0), //shift down half height of collider
-            PLAYER_ASSETS.to_vec(),
-        );
-        commands.entity(entity).add_child(player);
-        //add player as a child so we won't rotate the camera when rotating the player
-
-        commands.entity(player).insert((
+            Player,
             PlayerState {
                 id: setup_info.id,
                 ..Default::default()
             },
+            AnimateableEntity,
+            Transform::default(),
+            Visibility::Visible,
             InheritedVisibility::VISIBLE,
             NetworkedEntity(entity),
         ));
+        let player_mesh = commands
+            .spawn((
+                PlayerEntityLink(Some(entity)),
+                Visibility::Visible,
+                InheritedVisibility::VISIBLE,
+                Transform::from_xyz(0.0, -collider_height / 1.3, 0.0),
+            ))
+            .id();
+        commands
+            .entity(entity)
+            .insert(MeshEntityLink(Some(player_mesh)));
+        spawn_gltf_as_child(
+            &gltfs,
+            &asset_handles,
+            &mut scene_entities_by_name,
+            player_mesh,
+            entity,
+            &mut commands,
+            setup_info.id,
+            Transform::from_xyz(0.0, 0.0, 0.0), //shift down half height of collider
+            PLAYER_ASSETS.to_vec(),
+        );
+        //add player as a child so we won't rotate the camera when rotating the player
+
         println!("client id: {} {}", client_id.0, setup_info.id);
         if client_id.0 == setup_info.id {
             //if this is the local player
-            commands.entity(player).insert(ThirdPersonCameraTarget);
+            commands.entity(player_mesh).insert(LocalPlayerMesh);
+            commands.entity(entity).insert(ThirdPersonCameraTarget);
             commands
-                .entity(player)
-                .insert(LocalPlayer { 0: Some(player) });
-            player_entity.0 = Some(player);
-            player_state_local.id = setup_info.id;
+                .entity(entity)
+                .insert(LocalPlayer { id: setup_info.id });
+            player_entity.id = setup_info.id;
         }
 
         // The normal map. Note that to generate it in the GIMP image editor, you should
@@ -222,7 +241,7 @@ pub fn setup_player(
             max_parallax_layer_count: ops::exp2(5.0f32),
             ..default()
         });
-        commands.entity(player).insert((
+        commands.entity(entity).insert((
             Transform::from_xyz(0.0, 2.0, 0.0),
             Collider::capsule_y(collider_height / 2.0, 0.3),
             KinematicCharacterController {
@@ -247,7 +266,7 @@ pub fn setup_player(
             Speed(4.0),
         ));
         let cube_weapon = Mesh::from(Cuboid::new(0.04, 0.2, 0.04));
-        commands.entity(player).with_children(|parent| {
+        commands.entity(entity).with_children(|parent| {
             parent.spawn((
                 Mesh3d(meshes.add(cube_weapon)),
                 Transform::from_xyz(0.1, 0.0, -0.2),
@@ -319,6 +338,7 @@ pub fn setup(
         DeferredPrepass,
         Fxaa::default(),
     ));
+    commands.spawn((TestingComponent, Transform::default()));
     let font = asset_server.load("fonts/FiraMono-Medium.ttf");
     commands.spawn((
         Text2d::new(""),
@@ -519,11 +539,26 @@ enum DefaultRenderMode {
 }
 pub fn setup_scene_once_loaded(
     mut commands: Commands,
-    player_query: Query<(&Animator, &AnimationEntityLink)>,
+    mesh_query: Query<(&PlayerEntityLink, &Animator, &AnimationEntityLink)>,
+    graphs: Res<Assets<AnimationGraph>>,
     mut animation_players: Query<(Entity, &mut AnimationPlayer), Added<AnimationPlayer>>,
+    mut clips: ResMut<Assets<AnimationClip>>,
 ) {
+    fn get_clip<'a>(
+        node: AnimationNodeIndex,
+        graph: &AnimationGraph,
+        clips: &'a mut Assets<AnimationClip>,
+    ) -> &'a mut AnimationClip {
+        let node = graph.get(node).unwrap();
+        let clip = match &node.node_type {
+            AnimationNodeType::Clip(handle) => clips.get_mut(handle),
+            _ => unreachable!(),
+        };
+        clip.unwrap()
+    }
+
     for (entity, mut player) in &mut animation_players {
-        for (animator, animation_entity_link) in player_query.iter() {
+        for (player_entity_link, animator, animation_entity_link) in mesh_query.iter() {
             if animation_entity_link.0 == entity {
                 println!("animation player added on entity: {}", entity);
 
@@ -531,8 +566,23 @@ pub fn setup_scene_once_loaded(
                     return;
                 }
                 for node_index in 0..animator.animations.len() {
-                    player.play(animator.animations[node_index]).repeat();
+                    if node_index != AnimationState::Swinging as usize {
+                        player.play(animator.animations[node_index]).repeat();
+                    }
                 }
+
+                let graph = graphs.get(&animator.graph).unwrap();
+                let swinging_animation = get_clip(
+                    animator.animations[AnimationState::Swinging as usize],
+                    graph,
+                    &mut clips,
+                );
+                swinging_animation.add_event(
+                    0.0,
+                    OnSwingFinished {
+                        entity: player_entity_link.0.unwrap(),
+                    },
+                );
 
                 println!("adding animationntransitions on entity: {}", entity);
                 commands
@@ -594,7 +644,7 @@ fn build_animation_graph(
 pub fn detect_gltf_children(
     trigger: Trigger<SceneInstanceReady>,
     all_entities_with_children: Query<&Children>,
-    players_without_animators: Query<Entity, (With<Player>, Without<Animator>)>,
+    players_without_animators: Query<Entity, (With<PlayerEntityLink>, Without<Animator>)>,
     assets_gltf: Res<Assets<Gltf>>,
     mesh_query: Query<&Mesh3d>,
     meshes: ResMut<Assets<Mesh>>,
@@ -621,7 +671,7 @@ pub fn detect_gltf_children(
             }
         }
         println!("found glb {:?}", handle);
-        let animation_names = ["Idle", "Run", "Swing_Weapon", "Jump"];
+        let animation_names = ["Idle", "Run", "Swing_Weapon", "Jump", "First_Person_Moving"];
         // Collect relevant animation clips
         let clips_to_process: Vec<(Box<str>, Handle<AnimationClip>)> = gltf
             .named_animations
@@ -653,10 +703,6 @@ pub fn detect_gltf_children(
             for chain_length in 1..=suffix.len() {
                 let animation_target_id = AnimationTargetId::from_names(
                     prefix.iter().chain(suffix[0..chain_length].iter()),
-                );
-                println!(
-                    "animation target id name: {:?}",
-                    prefix.iter().chain(suffix[0..chain_length].iter())
                 );
                 animation_graph
                     .add_target_to_mask_group(animation_target_id, MaskGroup::ARMS as u32);

@@ -1,8 +1,12 @@
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
-use cdda_bevy::AnimationState;
-use cdda_bevy::client::defs::{IsThirdPerson, LocalPlayer, PlayerInput, PlayerState, Speed};
-use cdda_bevy::client::events::RequestAnimation;
+use cdda_bevy::client::animation::trigger_request_animation;
+use cdda_bevy::client::defs::{
+    AttackState, FirstPersonMeshEntityLinks, IsThirdPerson, LocalPlayer, LocalPlayerMesh,
+    PlayerInput, PlayerState, Speed,
+};
+use cdda_bevy::client::events::ToggledThirdPerson;
+use cdda_bevy::{AnimationState, RequestedAnimation};
 use std::time::Instant;
 const GROUND_TIMER: f32 = 0.5;
 const JUMP_SPEED: f32 = 0.06;
@@ -12,10 +16,18 @@ pub fn keyboard_input(
     buttons: Res<ButtonInput<MouseButton>>,
     mut player_input: ResMut<PlayerInput>,
     mut is_third_person: ResMut<IsThirdPerson>,
-    player_entity: Res<LocalPlayer>,
     mut commands: Commands,
-    mut player_state: ResMut<PlayerState>,
+    mut player_state_query: Query<
+        (Entity, &mut PlayerState, &FirstPersonMeshEntityLinks),
+        With<LocalPlayer>,
+    >,
+    mesh_query: Query<Entity, With<LocalPlayerMesh>>,
 ) {
+    let Some((player_entity, mut player_state, first_person_entities)) =
+        player_state_query.iter_mut().next()
+    else {
+        return; // Exit early if no player is found
+    };
     let mut move_direction = Vec2::ZERO;
 
     if keyboard_input.pressed(KeyCode::KeyW) {
@@ -32,42 +44,84 @@ pub fn keyboard_input(
     }
     if keyboard_input.just_pressed(KeyCode::KeyF) {
         player_state.is_ready_weapon = !player_state.is_ready_weapon;
-        commands.trigger(RequestAnimation {
-            id: player_state.id,
-            animation_state: AnimationState::Swinging,
-        });
+        let requested_anim: RequestedAnimation;
+        if player_state.is_ready_weapon {
+            player_state.attack_state = AttackState::Ready;
+            requested_anim = RequestedAnimation::SwingReady;
+        } else {
+            player_state.attack_state = AttackState::Inactive;
+            requested_anim = RequestedAnimation::SwingInactive;
+        }
+        hide_player_conditionally(
+            &first_person_entities.0,
+            is_third_person.0,
+            &player_state,
+            &mesh_query,
+            commands.reborrow(),
+        );
+        trigger_request_animation(
+            commands.reborrow(),
+            player_entity,
+            requested_anim,
+            &mut player_state,
+        );
     }
     if keyboard_input.just_pressed(KeyCode::Tab) {
-        if let Some(player) = player_entity.0 {
-            if is_third_person.0 {
-                commands.entity(player).insert(Visibility::Visible);
-            } else {
-                commands.entity(player).insert(Visibility::Hidden);
-            }
-        }
         is_third_person.0 = !is_third_person.0;
+        commands.trigger(ToggledThirdPerson {
+            entity: player_entity,
+            is_third_person: is_third_person.0,
+        });
+        hide_player_conditionally(
+            &first_person_entities.0,
+            is_third_person.0,
+            &player_state,
+            &mesh_query,
+            commands.reborrow(),
+        );
     }
     player_input.move_direction = move_direction.normalize_or_zero();
     if !player_input.jump {
         player_input.jump = keyboard_input.just_pressed(KeyCode::Space);
     }
     if buttons.just_pressed(MouseButton::Left) {
-        player_state.started_attacking = Instant::now();
-        player_state.is_attacking = true;
-        commands.trigger(RequestAnimation {
-            id: player_state.id,
-            animation_state: AnimationState::Swinging,
-        });
+        if player_state.attack_state == AttackState::Ready {
+            player_state.started_attacking = Instant::now();
+            player_state.attack_state = AttackState::Charging;
+            trigger_request_animation(
+                commands.reborrow(),
+                player_entity,
+                RequestedAnimation::SwingCharging,
+                &mut player_state,
+            );
+        }
     }
     if buttons.pressed(MouseButton::Left) {}
-    if buttons.just_released(MouseButton::Left) {
-        player_state.is_attacking = false;
-        //TEMPORARY, JUST TO MAKE IT SHOW THE ANIMATION ONLINE
-        player_state.secondary_animation = AnimationState::Idle;
-        commands.trigger(RequestAnimation {
-            id: player_state.id,
-            animation_state: AnimationState::Idle,
-        });
+    if player_state.attack_state == AttackState::ChargeImmediateRelease {
+        if player_state.started_attacking.elapsed().as_millis() >= 300 {
+            player_state.attack_state = AttackState::Charging;
+            trigger_attack(player_entity, &mut player_state, commands);
+        }
+    } else {
+        if buttons.just_released(MouseButton::Left) {
+            if player_state.started_attacking.elapsed().as_millis() < 300 {
+                //if we released it faster than the minimum attack delay
+                player_state.attack_state = AttackState::ChargeImmediateRelease;
+            } else {
+                trigger_attack(player_entity, &mut player_state, commands);
+            }
+        }
+    }
+}
+fn trigger_attack(player_entity: Entity, player_state: &mut PlayerState, mut commands: Commands) {
+    if player_state.attack_state == AttackState::Charging {
+        player_state.attack_state = AttackState::Releasing;
+        trigger_request_animation(
+            commands.reborrow(),
+            player_entity,
+            RequestedAnimation::SwingReleasing,
+            player_state,
+        );
         println!("attack!");
     }
 }
@@ -76,23 +130,39 @@ pub fn player_movement(
     time: Res<Time<Fixed>>,
     mut player_query: Query<
         (
+            Entity,
             &mut Transform,
             &mut KinematicCharacterController,
             Option<&KinematicCharacterControllerOutput>,
+            &mut PlayerState,
             &Speed,
         ),
-        With<super::LocalPlayer>,
+        (With<super::LocalPlayer>, Without<LocalPlayerMesh>),
+    >,
+    camera_query: Query<
+        &Transform,
+        (
+            With<Camera3d>,
+            Without<super::LocalPlayer>,
+            Without<LocalPlayerMesh>,
+        ),
     >,
     mut commands: Commands,
-    mut player_state: ResMut<super::PlayerState>,
-    camera_query: Query<&Transform, (With<Camera3d>, Without<super::LocalPlayer>)>,
     mut vertical_movement: Local<f32>,
     mut grounded_timer: Local<f32>,
     mut last_ground_height: Local<f32>,
     //   rapier_context: ReadRapierContext,
     mut highest_air_height: Local<f32>,
 ) {
-    for (mut player_transform, mut controller, output, player_speed) in player_query.iter_mut() {
+    for (
+        player_entity,
+        mut player_transform,
+        mut controller,
+        output,
+        mut player_state,
+        player_speed,
+    ) in player_query.iter_mut()
+    {
         player_state.transform = *player_transform;
         //handle animations
         //if we're on the ground
@@ -101,20 +171,24 @@ pub fn player_movement(
             if player_input.move_direction.x == 0.0 && player_input.move_direction.y == 0.0 {
                 if player_state.current_animation != AnimationState::Idle {
                     player_state.current_animation = AnimationState::Idle;
-                    commands.trigger(RequestAnimation {
-                        id: player_state.id,
-                        animation_state: AnimationState::Idle,
-                    });
+                    trigger_request_animation(
+                        commands.reborrow(),
+                        player_entity,
+                        AnimationState::Idle.into(),
+                        &mut player_state,
+                    );
                 }
             } else {
                 //if we just transitioned to running:
                 if player_state.current_animation != AnimationState::Running {
                     player_state.current_animation = AnimationState::Running;
 
-                    commands.trigger(RequestAnimation {
-                        id: player_state.id,
-                        animation_state: AnimationState::Running,
-                    });
+                    trigger_request_animation(
+                        commands.reborrow(),
+                        player_entity,
+                        AnimationState::Running.into(),
+                        &mut player_state,
+                    );
                 }
             }
         }
@@ -147,41 +221,16 @@ pub fn player_movement(
             // If we are grounded we can jump
             if *grounded_timer > 0.0 {
                 *grounded_timer -= delta_time;
-                /*
-                // Perform a raycast downwards from the player's position
-                let shape = Collider::cuboid(0.25, 0.5, 0.25);
-                let shape_pos = player_transform.translation + Vec3::new(0.0, 0.0, 0.0);
-                let shape_rot = Quat::from_rotation_z(0.0);
-                let shape_vel = Vec3::new(0.0, -0.005, 0.0);
-                let filter = QueryFilter::default().exclude_collider(entity);
-                let options = ShapeCastOptions {
-                    max_time_of_impact: 10.0,
-                    target_distance: 0.0,
-                    stop_at_penetration: false,
-                    compute_impact_geometry_on_penetration: false,
-                };
-                let context = rapier_context.single();
-                if let Some((entity, hit)) =
-                    context.cast_shape(shape_pos, shape_rot, shape_vel, &shape, options, filter)
-                {
-                    println!(
-                        "Hit the entity {:?} with the configuration: {:?}",
-                        entity, hit
-                    );
-                    // The first collider hit has the entity `entity`. The `hit` is a
-                    // structure containing details about the hit configuration.
-                    if let Some(h) = hit.details {
-                        player_transform.translation.y = h.witness1.y + 0.53;
-                    }
-                }*/
                 //record our height when we landed so we know if we should take fall damage
                 *last_ground_height = player_transform.translation.y;
                 // If we jump we clear the grounded tolerance
                 if jump_speed > 0.0 {
-                    commands.trigger(RequestAnimation {
-                        id: player_state.id,
-                        animation_state: AnimationState::Jumping,
-                    });
+                    trigger_request_animation(
+                        commands.reborrow(),
+                        player_entity,
+                        AnimationState::Jumping.into(),
+                        &mut player_state,
+                    );
                     *vertical_movement = jump_speed;
                     *grounded_timer = 0.0;
                 }
@@ -193,7 +242,6 @@ pub fn player_movement(
 
             controller.translation = Some(movement);
             player_state.transform.translation = player_transform.translation;
-            // apply the offset if offset_enabled is true
 
             let camera_forward = camera_transform.forward().normalize();
 
@@ -202,10 +250,39 @@ pub fn player_movement(
                 Vec3::new(-camera_forward.x, 0.0, -camera_forward.z).normalize_or_zero();
             let target_rotation = Quat::from_rotation_arc(Vec3::NEG_Z, target_forward);
             player_transform.rotation = target_rotation;
+
+            if *highest_air_height < player_transform.translation.y {
+                *highest_air_height = player_transform.translation.y;
+            }
+            //println!("Highest air height: {:.4}", *highest_air_height); // Printing with 4 decimal places
+
             if *highest_air_height < player_transform.translation.y {
                 *highest_air_height = player_transform.translation.y;
             }
             //println!("Highest air height: {:.4}", *highest_air_height); // Printing with 4 decimal places
         }
+    }
+}
+fn hide_player_conditionally(
+    first_person_entities: &Vec<Entity>,
+    is_third_person: bool,
+    player_state: &PlayerState,
+    mesh_query: &Query<Entity, With<LocalPlayerMesh>>,
+    mut commands: Commands,
+) {
+    if let Some(torso_entity) = mesh_query.iter().next() {
+        let (first_person_visibility, torso_visibility) = if is_third_person {
+            (Visibility::Visible, Visibility::Visible)
+        } else if player_state.is_ready_weapon {
+            (Visibility::Visible, Visibility::Hidden)
+        } else {
+            (Visibility::Hidden, Visibility::Hidden)
+        };
+
+        for entity in first_person_entities {
+            commands.entity(*entity).insert(first_person_visibility);
+        }
+
+        commands.entity(torso_entity).insert(torso_visibility);
     }
 }

@@ -12,7 +12,6 @@ use cdda_bevy::networking::{
     ServerChannel, ServerMessages, Velocity, setup_level, spawn_fireball,
 };
 use cdda_bevy::serializer::PlayerStateNetwork;
-use cdda_bevy::{AnimationState, AnimationWeights};
 use std::{collections::HashMap, f32::consts::PI};
 
 #[derive(Debug, Default, Resource)]
@@ -248,22 +247,9 @@ fn server_network_sync(
     let mut networked_entities = NetworkedEntities::default();
     for entity in query.iter() {
         if let Some(player_state) = player_states.0.get(&entity) {
-            networked_entities.entities.push(entity);
             networked_entities
-                .transforms
-                .push(player_state.transform.into());
-            networked_entities
-                .animation_weights
-                .push(player_state.animation_weights);
-            networked_entities
-                .current_animations
-                .push(player_state.current_animation);
-            networked_entities
-                .secondary_animations
-                .push(player_state.current_secondary_animation);
-            networked_entities
-                .is_attacking
-                .push(player_state.is_attacking);
+                .entities_and_states
+                .push((entity, player_state.clone()));
         }
     }
 

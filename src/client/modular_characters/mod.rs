@@ -122,7 +122,7 @@ pub fn get_main_skeleton_bones_and_armature(
         &mut main_bones,
     );
 
-    //println!("main bones: {:#?}", main_bones);
+    println!("main bones: {:#?}", main_bones);
 
     (main_bones, main_skeleton_armature)
 }
@@ -137,7 +137,7 @@ pub fn attach_part_to_main_skeleton(
     main_skeleton_bones: &HashMap<String, Entity>,
 ) {
     println!("attaching part: {}", part_scene_name);
-
+    walk_tree(all_entities_with_children, names, part_scene_entity, 0);
     let root_bone_option = find_child_with_name_containing(
         all_entities_with_children,
         names,
@@ -176,6 +176,7 @@ pub fn attach_part_to_main_skeleton(
         for (name, part_bone) in part_bones {
             let mut entity_commands = commands.entity(part_bone);
             let new_parent_option = main_skeleton_bones.get(&name);
+            println!("FOUND BONE: {} {:?}", name, new_parent_option);
 
             if let Some(new_parent) = new_parent_option {
                 if let Ok(mut transform) = transforms.get_mut(part_bone) {
@@ -234,7 +235,7 @@ pub fn collect_bones(
         }
     }
 }
-/*pub fn walk_tree(
+pub fn walk_tree(
     all_entities_with_children: &Query<&Children>,
     names: &Query<&Name>,
     entity: &Entity,
@@ -257,7 +258,6 @@ pub fn collect_bones(
         }
     }
 }
-*/
 pub fn paint_cubes_on_joints(
     all_entities_with_children: &Query<&Children>,
     //names: &Query<&Name>,
@@ -287,17 +287,22 @@ pub fn paint_cubes_on_joints(
 }
 
 #[derive(Component, Debug)]
-pub struct AnimationEntityLink(pub Entity);
+pub struct AnimationEntityLink(pub HashMap<String, Entity>);
 
 pub fn get_top_parent(
     mut curr_entity: Entity,
     all_entities_with_parents_query: &Query<&Parent>,
     all_entities_with_animateable_query: &Query<Entity, With<AnimateableEntity>>,
-) -> Entity {
+    entities_with_scene_name: &Query<&SceneName, Without<AnimationEntityLink>>,
+) -> (Entity, String) {
     //Loop up all the way to the top parent
+    let mut scene_name_string = "none".to_string();
     loop {
         if let Ok(ref_to_parent) = all_entities_with_parents_query.get(curr_entity) {
             //if the parent has AnimateableEntity component
+            if let Ok(scene_name) = entities_with_scene_name.get(curr_entity) {
+                scene_name_string = scene_name.scene_name.clone();
+            }
             curr_entity = ref_to_parent.get();
             if (all_entities_with_animateable_query.get(ref_to_parent.get())).is_ok() {
                 break;
@@ -306,35 +311,56 @@ pub fn get_top_parent(
             break;
         }
     }
-    curr_entity
+    (curr_entity, scene_name_string)
 }
 
 pub fn insert_animation_links(
     animation_players_query: Query<Entity, Added<AnimationPlayer>>,
     all_entities_with_parents_query: Query<&Parent>,
     all_entities_with_animateable_query: Query<Entity, With<AnimateableEntity>>,
-    animations_entity_link_query: Query<&AnimationEntityLink>,
+    existing_animation_entity_links: Query<&AnimationEntityLink>,
+    entities_with_scene_name: Query<&SceneName, Without<AnimationEntityLink>>,
     mut commands: Commands,
 ) {
+    //HashMap<top_entity, Vec<animation_name, entity_with_animation_player>>;
+    let mut to_insert: HashMap<Entity, HashMap<String, Entity>> = HashMap::new();
     // Get all the Animation players which can be deep and hidden in the heirachy
     for entity_with_animation_player in animation_players_query.iter() {
-        let top_entity = get_top_parent(
+        let (top_entity, top_entity_scene_name) = get_top_parent(
             entity_with_animation_player,
             &all_entities_with_parents_query,
             &all_entities_with_animateable_query,
+            &entities_with_scene_name,
         );
 
         // If the top parent has an animation config ref then link the player to the config
-        if animations_entity_link_query.get(top_entity).is_ok() {
+        if existing_animation_entity_links.get(top_entity).is_ok() {
             warn!("Problem with multiple animation players for the same top parent");
         } else {
             println!(
                 "linking entity {:#?} to animation_player entity {:#?}",
                 top_entity, entity_with_animation_player
             );
-            commands
-                .entity(top_entity)
-                .insert(AnimationEntityLink(entity_with_animation_player.clone()));
+            if let Some(existing_link) = to_insert.get_mut(&top_entity) {
+                println!(
+                    "adding to existing: {} {} ",
+                    top_entity_scene_name, top_entity
+                );
+                existing_link.insert(top_entity_scene_name, entity_with_animation_player);
+            } else {
+                println!("adding new: {} {} ", top_entity_scene_name, top_entity);
+                to_insert.insert(
+                    top_entity,
+                    //make 2 values into a hashmap
+                    std::iter::once((top_entity_scene_name, entity_with_animation_player))
+                        .collect(),
+                );
+            }
         }
+    }
+    for (entity, animation_entity_links) in to_insert {
+        commands
+            .entity(entity)
+            .insert(AnimationEntityLink(animation_entity_links));
     }
 }

@@ -55,7 +55,11 @@ pub fn handle_animation_request(
             "animation triggered with id {} and animationstate {:?}",
             trigger.entity, requested_animation,
         );
-        let Ok((_, mut animation_player)) = animation_query.get_mut(animation_entity_link.0) else {
+        let Some(animation_entity) = animation_entity_link.0.get("models/main_skeleton.glb") else {
+            return;
+        };
+        println!("animating with {:?}", animation_entity);
+        let Ok((_, mut animation_player)) = animation_query.get_mut(*animation_entity) else {
             return;
         };
         //TODO:: add a transition between animations
@@ -211,7 +215,10 @@ pub fn set_third_person_animation_weights(
         println!("failed to find mesh!");
         return;
     };
-    if let Ok((_, mut animation_player)) = animation_query.get_mut(animation_entity_link.0) {
+    let Some(animation_entity) = animation_entity_link.0.get("models/main_skeleton.glb") else {
+        return;
+    };
+    if let Ok((_, mut animation_player)) = animation_query.get_mut(*animation_entity) {
         for &index in animator.animations.iter() {
             if let Some(clip) = animation_player.animation_mut(index) {
                 if index == animator.animations[player_state.current_animation as usize] {

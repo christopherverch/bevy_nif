@@ -7,6 +7,7 @@ use bevy::{
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_rapier3d::prelude::*;
 use bevy_renet::RenetClientPlugin;
+use cdda_bevy::client::nif_loading::*;
 use cdda_bevy::client::third_person_camera::*;
 use cdda_bevy::client::ui::*;
 //use bsatoollib as bsa;

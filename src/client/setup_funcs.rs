@@ -96,14 +96,13 @@ const MASK_GROUP_PATHS_BODY_WITHOUT_ARMS: [(&str, &str); 7] = [
     ("CharacterArmature.001/Root/Body", "UpperLeg.L/LowerLeg.L"),
     ("CharacterArmature.001/Root/Body", "UpperLeg.R/LowerLeg.R"),
 ];
-const PLAYER_ASSETS: [&str; 7] = [
+const PLAYER_ASSETS: [&str; 6] = [
     "models/main_skeleton.glb",
     "models/casual_torso_arms.glb",
     "models/casual_legs.glb",
-    "models/casual_head.glb",
     "models/casual_feet.glb",
+    "models/casual_head.glb",
     "models/sword.glb",
-    "models/untitled.glb",
 ];
 pub fn spawn_gltf_as_child(
     gltfs: &Res<Assets<Gltf>>,
@@ -377,6 +376,18 @@ pub fn setup(
         SceneRoot(woodelf_scene),
         Transform::from_xyz(-2.0, 0.0, -3.0),
     ));
+    let darkelf_scene = asset_server
+        .load(GltfAssetLabel::Scene(0).from_asset("models/m2/dark_elf/B_N_Dark_Elf_M_Hair_01.glb"));
+    commands.spawn((
+        SceneRoot(darkelf_scene),
+        Transform::from_xyz(-3.0, 1.8, -3.0),
+    ));
+    let darkelf_scene = asset_server
+        .load(GltfAssetLabel::Scene(0).from_asset("models/m2/dark_elf/B_N_Dark_Elf_M_Head_01.glb"));
+    commands.spawn((
+        SceneRoot(darkelf_scene),
+        Transform::from_xyz(-3.0, 1.8, -3.0),
+    ));
 
     let mut forward_mat: StandardMaterial = Color::srgb(0.1, 0.2, 0.1).into();
     forward_mat.opaque_render_method = OpaqueRendererMethod::Forward;
@@ -559,7 +570,11 @@ pub fn setup_scene_once_loaded(
 
     for (entity, mut player) in &mut animation_players {
         for (player_entity_link, animator, animation_entity_link) in mesh_query.iter() {
-            if animation_entity_link.0 == entity {
+            let Some(animation_entity) = animation_entity_link.0.get("models/main_skeleton.glb")
+            else {
+                return;
+            };
+            if *animation_entity == entity {
                 println!("animation player added on entity: {}", entity);
 
                 if animator.animations.len() == 0 {
@@ -678,6 +693,7 @@ pub fn detect_gltf_children(
             .iter()
             .filter_map(|(name, clip)| {
                 let name_str: &str = &name;
+                println!("Processing animation clip: {}", name_str);
                 if animation_names.contains(&name_str) {
                     println!("Processing animation clip: {}", name);
                     Some((name.clone(), clip.clone())) // Keep the name for potential ordering

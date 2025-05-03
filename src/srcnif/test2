@@ -1,0 +1,571 @@
+cursor pos: 30
+len: 6
+-> Processing Block 0 (Type: 'NiNode')
+   Parsing NiNode fields...
+    Parsing NiObjectNET fields...
+      -> Name: 'A_Glass_Helmet', ExtraLink: None, ControllerLink: None
+    Parsing NiAVObject fields...
+      -> Flags: 0x000A, Properties: 0 links, HasBounds: false
+   -> Successfully parsed NiNode fields.
+cursor pos: c6
+len: 10
+-> Processing Block 1 (Type: 'NiTriShape')
+   Parsing NiTriShape fields...
+    Parsing NiObjectNET fields...
+      -> Name: 'Tri A_Glass_Helmet 0', ExtraLink: None, ControllerLink: None
+    Parsing NiAVObject fields...
+      -> Flags: 0x0002, Properties: 2 links, HasBounds: false
+   Reading NiTriShape specific fields...
+     Data Link: Some(5)
+     Skin Link: None
+   -> Successfully parsed NiTriShape fields (basic).
+cursor pos: 14e
+len: 19
+-> Processing Block 2 (Type: 'NiTexturingProperty')
+   Parsing NiTexturingProperty fields [NifSkope View Logic]...
+    Parsing NiObjectNET fields...
+      -> Name: '', ExtraLink: None, ControllerLink: None
+     -> Read Header Fields. Flags: 0x0000, ApplyMode: Modulate, TextureCount: 7
+     Reading Base Texture Slot (Index 0)...
+       -> Has Base Texture: true (Byte: 0xBCC518)
+         -> Read SourceLink:Some(3), Clamp:WrapSWrapT, Filter:NearestMipNearest, UVSet:0, PS2L:0, PS2K:-75, Unk1:0
+     Reading only 'Has Texture' flags for subsequent slots...
+       -> Has Dark Texture: false
+       -> Has Detail Texture: false
+       -> Has Gloss Texture: false
+       -> Has Glow Texture: false
+       -> Has Bump Map Texture: false
+       -> Has Decal 0 Texture: false
+   -> Parsed NiTexturingProperty fields [NifSkope View Logic]. Cursor ending MISALIGNED at: 0x1AD
+cursor pos: 1ad
+len: 15
+-> Processing Block 3 (Type: 'NiSourceTexture')
+   Parsing NiSourceTexture fields for block 3...
+    Parsing NiObjectNET fields...
+      -> Name: '', ExtraLink: None, ControllerLink: None
+     -> Use External: true (Byte: 0x01)
+     -> External File Name: 'TX_A_Glass_h00.bmp'
+     -> PixelLayout: Palettized4, UseMipmaps: Yes, AlphaFormat: Default
+     -> Is Static: true (Byte: 0x01)
+   -> Successfully parsed NiSourceTexture fields.
+cursor pos: 1f0
+len: 18
+-> Processing Block 4 (Type: 'NiMaterialProperty')
+   Parsing NiMaterialProperty fields for block 4...
+    Parsing NiObjectNET fields...
+      -> Name: 'Material #2', ExtraLink: None, ControllerLink: None
+     -> Flags: 0x0001, Gloss: 0, Alpha: 1
+   -> Successfully parsed NiMaterialProperty fields.
+cursor pos: 257
+len: 14
+-> Processing Block 5 (Type: 'NiTriShapeData')
+   Parsing NiTriShapeData fields for block 5...
+     Parsing NiGeometryData fields...
+       -> Num Vertices: 89
+       -> Has Vertices: true
+         (Read 89 vertices)
+       -> Has Normals: true
+         (Read 89 normals)
+       -> Bounding Sphere: Center=[4.7683716e-7, 1.9967201, 6.9635086], Radius=14.006968
+       -> Has Vertex Colors: false
+       -> Data Flags: 0x0001 (Num UV Sets: 1)
+       -> Has UV flag: true
+         (Read 89 UVs for Set 0)
+     Parsing NiTriBasedGeomData fields...
+       -> Num Triangles: 61
+     Read Num Triangle Points: 183
+       -> Read 183 triangle indices.
+     Read Num Match Groups: 0
+     No Match Groups data to read.
+   -> Successfully parsed NiTriShapeData fields.
+cursor pos: f23
+len: 10
+-> Processing Block 6 (Type: 'NiTriShape')
+   Parsing NiTriShape fields...
+    Parsing NiObjectNET fields...
+      -> Name: 'Tri A_Glass_Helmet 1', ExtraLink: None, ControllerLink: None
+    Parsing NiAVObject fields...
+      -> Flags: 0x0002, Properties: 2 links, HasBounds: false
+   Reading NiTriShape specific fields...
+     Data Link: Some(10)
+     Skin Link: None
+   -> Successfully parsed NiTriShape fields (basic).
+cursor pos: fab
+len: 19
+-> Processing Block 7 (Type: 'NiTexturingProperty')
+   Parsing NiTexturingProperty fields [NifSkope View Logic]...
+    Parsing NiObjectNET fields...
+      -> Name: '', ExtraLink: None, ControllerLink: None
+     -> Read Header Fields. Flags: 0x0000, ApplyMode: Modulate, TextureCount: 7
+     Reading Base Texture Slot (Index 0)...
+       -> Has Base Texture: true (Byte: 0xBC3F38)
+         -> Read SourceLink:Some(8), Clamp:WrapSWrapT, Filter:NearestMipNearest, UVSet:0, PS2L:0, PS2K:-75, Unk1:0
+     Reading only 'Has Texture' flags for subsequent slots...
+       -> Has Dark Texture: false
+       -> Has Detail Texture: false
+       -> Has Gloss Texture: false
+       -> Has Glow Texture: false
+       -> Has Bump Map Texture: false
+       -> Has Decal 0 Texture: false
+   -> Parsed NiTexturingProperty fields [NifSkope View Logic]. Cursor ending MISALIGNED at: 0x100A
+cursor pos: 100a
+len: 15
+-> Processing Block 8 (Type: 'NiSourceTexture')
+   Parsing NiSourceTexture fields for block 8...
+    Parsing NiObjectNET fields...
+      -> Name: '', ExtraLink: None, ControllerLink: None
+     -> Use External: true (Byte: 0x01)
+     -> External File Name: 'TX_A_Glass_h02.bmp'
+     -> PixelLayout: Palettized4, UseMipmaps: Yes, AlphaFormat: Default
+     -> Is Static: true (Byte: 0x01)
+   -> Successfully parsed NiSourceTexture fields.
+cursor pos: 104d
+len: 18
+-> Processing Block 9 (Type: 'NiMaterialProperty')
+   Parsing NiMaterialProperty fields for block 9...
+    Parsing NiObjectNET fields...
+      -> Name: 'Material #3', ExtraLink: None, ControllerLink: None
+     -> Flags: 0x0001, Gloss: 0, Alpha: 1
+   -> Successfully parsed NiMaterialProperty fields.
+cursor pos: 10b4
+len: 14
+-> Processing Block 10 (Type: 'NiTriShapeData')
+   Parsing NiTriShapeData fields for block 10...
+     Parsing NiGeometryData fields...
+       -> Num Vertices: 82
+       -> Has Vertices: true
+         (Read 82 vertices)
+       -> Has Normals: true
+         (Read 82 normals)
+       -> Bounding Sphere: Center=[4.7683716e-7, 2.579804, 5.483329], Radius=14.843785
+       -> Has Vertex Colors: true
+         (Read 82 vertex colors)
+       -> Data Flags: 0x0001 (Num UV Sets: 1)
+       -> Has UV flag: true
+         (Read 82 UVs for Set 0)
+     Parsing NiTriBasedGeomData fields...
+       -> Num Triangles: 57
+     Read Num Triangle Points: 171
+       -> Read 171 triangle indices.
+     Read Num Match Groups: 0
+     No Match Groups data to read.
+   -> Successfully parsed NiTriShapeData fields.
+cursor pos: 21a8
+len: 10
+-> Processing Block 11 (Type: 'NiTriShape')
+   Parsing NiTriShape fields...
+    Parsing NiObjectNET fields...
+      -> Name: 'Tri A_Glass_Helmet 2', ExtraLink: None, ControllerLink: None
+    Parsing NiAVObject fields...
+      -> Flags: 0x0002, Properties: 2 links, HasBounds: false
+   Reading NiTriShape specific fields...
+     Data Link: Some(15)
+     Skin Link: None
+   -> Successfully parsed NiTriShape fields (basic).
+cursor pos: 2230
+len: 19
+-> Processing Block 12 (Type: 'NiTexturingProperty')
+   Parsing NiTexturingProperty fields [NifSkope View Logic]...
+    Parsing NiObjectNET fields...
+      -> Name: '', ExtraLink: None, ControllerLink: None
+     -> Read Header Fields. Flags: 0x0000, ApplyMode: Modulate, TextureCount: 7
+     Reading Base Texture Slot (Index 0)...
+       -> Has Base Texture: true (Byte: 0xBCA660)
+         -> Read SourceLink:Some(13), Clamp:WrapSWrapT, Filter:NearestMipNearest, UVSet:0, PS2L:0, PS2K:-75, Unk1:0
+     Reading only 'Has Texture' flags for subsequent slots...
+       -> Has Dark Texture: false
+       -> Has Detail Texture: false
+       -> Has Gloss Texture: false
+       -> Has Glow Texture: false
+       -> Has Bump Map Texture: false
+       -> Has Decal 0 Texture: false
+   -> Parsed NiTexturingProperty fields [NifSkope View Logic]. Cursor ending MISALIGNED at: 0x228F
+cursor pos: 228f
+len: 15
+-> Processing Block 13 (Type: 'NiSourceTexture')
+   Parsing NiSourceTexture fields for block 13...
+    Parsing NiObjectNET fields...
+      -> Name: '', ExtraLink: None, ControllerLink: None
+     -> Use External: true (Byte: 0x01)
+     -> External File Name: 'TX_A_Glass_H_back.bmp'
+     -> PixelLayout: Palettized4, UseMipmaps: Yes, AlphaFormat: Default
+     -> Is Static: true (Byte: 0x01)
+   -> Successfully parsed NiSourceTexture fields.
+cursor pos: 22d5
+len: 18
+-> Processing Block 14 (Type: 'NiMaterialProperty')
+   Parsing NiMaterialProperty fields for block 14...
+    Parsing NiObjectNET fields...
+      -> Name: 'Material #14', ExtraLink: None, ControllerLink: None
+     -> Flags: 0x0001, Gloss: 0, Alpha: 1
+   -> Successfully parsed NiMaterialProperty fields.
+cursor pos: 233d
+len: 14
+-> Processing Block 15 (Type: 'NiTriShapeData')
+   Parsing NiTriShapeData fields for block 15...
+     Parsing NiGeometryData fields...
+       -> Num Vertices: 31
+       -> Has Vertices: true
+         (Read 31 vertices)
+       -> Has Normals: true
+         (Read 31 normals)
+       -> Bounding Sphere: Center=[0.0, 1.8239715, -1.6175885], Radius=10.489229
+       -> Has Vertex Colors: true
+         (Read 31 vertex colors)
+       -> Data Flags: 0x0001 (Num UV Sets: 1)
+       -> Has UV flag: true
+         (Read 31 UVs for Set 0)
+     Parsing NiTriBasedGeomData fields...
+       -> Num Triangles: 18
+     Read Num Triangle Points: 54
+       -> Read 54 triangle indices.
+     Read Num Match Groups: 0
+     No Match Groups data to read.
+   -> Successfully parsed NiTriShapeData fields.
+cursor pos: 29b7
+len: 10
+-> Processing Block 16 (Type: 'NiTriShape')
+   Parsing NiTriShape fields...
+    Parsing NiObjectNET fields...
+      -> Name: 'Tri A_Glass_Helmet 3', ExtraLink: None, ControllerLink: None
+    Parsing NiAVObject fields...
+      -> Flags: 0x0002, Properties: 2 links, HasBounds: false
+   Reading NiTriShape specific fields...
+     Data Link: Some(19)
+     Skin Link: None
+   -> Successfully parsed NiTriShape fields (basic).
+cursor pos: 2a3f
+len: 19
+-> Processing Block 17 (Type: 'NiTexturingProperty')
+   Parsing NiTexturingProperty fields [NifSkope View Logic]...
+    Parsing NiObjectNET fields...
+      -> Name: '', ExtraLink: None, ControllerLink: None
+     -> Read Header Fields. Flags: 0x0000, ApplyMode: Modulate, TextureCount: 7
+     Reading Base Texture Slot (Index 0)...
+       -> Has Base Texture: true (Byte: 0xBCAC20)
+         -> Read SourceLink:Some(13), Clamp:WrapSWrapT, Filter:NearestMipNearest, UVSet:0, PS2L:0, PS2K:-75, Unk1:0
+     Reading only 'Has Texture' flags for subsequent slots...
+       -> Has Dark Texture: false
+       -> Has Detail Texture: false
+       -> Has Gloss Texture: false
+       -> Has Glow Texture: false
+       -> Has Bump Map Texture: false
+       -> Has Decal 0 Texture: false
+   -> Parsed NiTexturingProperty fields [NifSkope View Logic]. Cursor ending MISALIGNED at: 0x2A9E
+cursor pos: 2a9e
+len: 18
+-> Processing Block 18 (Type: 'NiMaterialProperty')
+   Parsing NiMaterialProperty fields for block 18...
+    Parsing NiObjectNET fields...
+      -> Name: 'Material #14', ExtraLink: None, ControllerLink: None
+     -> Flags: 0x0001, Gloss: 0, Alpha: 1
+   -> Successfully parsed NiMaterialProperty fields.
+cursor pos: 2b06
+len: 14
+-> Processing Block 19 (Type: 'NiTriShapeData')
+   Parsing NiTriShapeData fields for block 19...
+     Parsing NiGeometryData fields...
+       -> Num Vertices: 15
+       -> Has Vertices: true
+         (Read 15 vertices)
+       -> Has Normals: true
+         (Read 15 normals)
+       -> Bounding Sphere: Center=[3.1481154, 0.21658516, 2.1087704], Radius=7.655581
+       -> Has Vertex Colors: true
+         (Read 15 vertex colors)
+       -> Data Flags: 0x0001 (Num UV Sets: 1)
+       -> Has UV flag: true
+         (Read 15 UVs for Set 0)
+     Parsing NiTriBasedGeomData fields...
+       -> Num Triangles: 5
+     Read Num Triangle Points: 15
+       -> Read 15 triangle indices.
+     Read Num Match Groups: 0
+     No Match Groups data to read.
+   -> Successfully parsed NiTriShapeData fields.
+cursor pos: 2e32
+len: 10
+-> Processing Block 20 (Type: 'NiTriShape')
+   Parsing NiTriShape fields...
+    Parsing NiObjectNET fields...
+      -> Name: 'Tri A_Glass_Helmet 4', ExtraLink: None, ControllerLink: None
+    Parsing NiAVObject fields...
+      -> Flags: 0x0002, Properties: 2 links, HasBounds: false
+   Reading NiTriShape specific fields...
+     Data Link: Some(24)
+     Skin Link: None
+   -> Successfully parsed NiTriShape fields (basic).
+cursor pos: 2eba
+len: 19
+-> Processing Block 21 (Type: 'NiTexturingProperty')
+   Parsing NiTexturingProperty fields [NifSkope View Logic]...
+    Parsing NiObjectNET fields...
+      -> Name: '', ExtraLink: None, ControllerLink: None
+     -> Read Header Fields. Flags: 0x0000, ApplyMode: Modulate, TextureCount: 7
+     Reading Base Texture Slot (Index 0)...
+       -> Has Base Texture: true (Byte: 0xBBE720)
+         -> Read SourceLink:Some(22), Clamp:WrapSWrapT, Filter:NearestMipNearest, UVSet:0, PS2L:0, PS2K:-75, Unk1:0
+     Reading only 'Has Texture' flags for subsequent slots...
+       -> Has Dark Texture: false
+       -> Has Detail Texture: false
+       -> Has Gloss Texture: false
+       -> Has Glow Texture: false
+       -> Has Bump Map Texture: false
+       -> Has Decal 0 Texture: false
+   -> Parsed NiTexturingProperty fields [NifSkope View Logic]. Cursor ending MISALIGNED at: 0x2F19
+cursor pos: 2f19
+len: 15
+-> Processing Block 22 (Type: 'NiSourceTexture')
+   Parsing NiSourceTexture fields for block 22...
+    Parsing NiObjectNET fields...
+      -> Name: '', ExtraLink: None, ControllerLink: None
+     -> Use External: true (Byte: 0x01)
+     -> External File Name: 'TX_A_Glass_h03.bmp'
+     -> PixelLayout: Palettized4, UseMipmaps: Yes, AlphaFormat: Default
+     -> Is Static: true (Byte: 0x01)
+   -> Successfully parsed NiSourceTexture fields.
+cursor pos: 2f5c
+len: 18
+-> Processing Block 23 (Type: 'NiMaterialProperty')
+   Parsing NiMaterialProperty fields for block 23...
+    Parsing NiObjectNET fields...
+      -> Name: 'Material #1', ExtraLink: None, ControllerLink: None
+     -> Flags: 0x0001, Gloss: 0, Alpha: 1
+   -> Successfully parsed NiMaterialProperty fields.
+cursor pos: 2fc3
+len: 14
+-> Processing Block 24 (Type: 'NiTriShapeData')
+   Parsing NiTriShapeData fields for block 24...
+     Parsing NiGeometryData fields...
+       -> Num Vertices: 536
+       -> Has Vertices: true
+         (Read 536 vertices)
+       -> Has Normals: true
+         (Read 536 normals)
+       -> Bounding Sphere: Center=[2.3841858e-7, -4.5535827, 3.03232], Radius=10.589054
+       -> Has Vertex Colors: true
+         (Read 536 vertex colors)
+       -> Data Flags: 0x0001 (Num UV Sets: 1)
+       -> Has UV flag: true
+         (Read 536 UVs for Set 0)
+     Parsing NiTriBasedGeomData fields...
+       -> Num Triangles: 372
+     Read Num Triangle Points: 1116
+       -> Read 1116 triangle indices.
+     Read Num Match Groups: 0
+     No Match Groups data to read.
+   -> Successfully parsed NiTriShapeData fields.
+cursor pos: 9d39
+len: 10
+-> Processing Block 25 (Type: 'NiTriShape')
+   Parsing NiTriShape fields...
+    Parsing NiObjectNET fields...
+      -> Name: 'Tri A_Glass_Helmet 5', ExtraLink: None, ControllerLink: None
+    Parsing NiAVObject fields...
+      -> Flags: 0x0002, Properties: 2 links, HasBounds: false
+   Reading NiTriShape specific fields...
+     Data Link: Some(28)
+     Skin Link: None
+   -> Successfully parsed NiTriShape fields (basic).
+cursor pos: 9dc1
+len: 19
+-> Processing Block 26 (Type: 'NiTexturingProperty')
+   Parsing NiTexturingProperty fields [NifSkope View Logic]...
+    Parsing NiObjectNET fields...
+      -> Name: '', ExtraLink: None, ControllerLink: None
+     -> Read Header Fields. Flags: 0x0000, ApplyMode: Modulate, TextureCount: 7
+     Reading Base Texture Slot (Index 0)...
+       -> Has Base Texture: true (Byte: 0x1880B28)
+         -> Read SourceLink:Some(13), Clamp:WrapSWrapT, Filter:NearestMipNearest, UVSet:0, PS2L:0, PS2K:-75, Unk1:0
+     Reading only 'Has Texture' flags for subsequent slots...
+       -> Has Dark Texture: false
+       -> Has Detail Texture: false
+       -> Has Gloss Texture: false
+       -> Has Glow Texture: false
+       -> Has Bump Map Texture: false
+       -> Has Decal 0 Texture: false
+   -> Parsed NiTexturingProperty fields [NifSkope View Logic]. Cursor ending MISALIGNED at: 0x9E20
+cursor pos: 9e20
+len: 18
+-> Processing Block 27 (Type: 'NiMaterialProperty')
+   Parsing NiMaterialProperty fields for block 27...
+    Parsing NiObjectNET fields...
+      -> Name: 'Material #14', ExtraLink: None, ControllerLink: None
+     -> Flags: 0x0001, Gloss: 0, Alpha: 1
+   -> Successfully parsed NiMaterialProperty fields.
+cursor pos: 9e88
+len: 14
+-> Processing Block 28 (Type: 'NiTriShapeData')
+   Parsing NiTriShapeData fields for block 28...
+     Parsing NiGeometryData fields...
+       -> Num Vertices: 15
+       -> Has Vertices: true
+         (Read 15 vertices)
+       -> Has Normals: true
+         (Read 15 normals)
+       -> Bounding Sphere: Center=[-3.1481152, 0.21658516, 2.1087704], Radius=7.655581
+       -> Has Vertex Colors: false
+       -> Data Flags: 0x0001 (Num UV Sets: 1)
+       -> Has UV flag: true
+         (Read 15 UVs for Set 0)
+     Parsing NiTriBasedGeomData fields...
+       -> Num Triangles: 5
+     Read Num Triangle Points: 15
+       -> Read 15 triangle indices.
+     Read Num Match Groups: 0
+     No Match Groups data to read.
+   -> Successfully parsed NiTriShapeData fields.
+cursor pos: a0c4
+len: 10
+-> Processing Block 29 (Type: 'NiTriShape')
+   Parsing NiTriShape fields...
+    Parsing NiObjectNET fields...
+      -> Name: 'Tri A_Glass_Helmet 6', ExtraLink: None, ControllerLink: None
+    Parsing NiAVObject fields...
+      -> Flags: 0x0002, Properties: 2 links, HasBounds: false
+   Reading NiTriShape specific fields...
+     Data Link: Some(33)
+     Skin Link: None
+   -> Successfully parsed NiTriShape fields (basic).
+cursor pos: a14c
+len: 19
+-> Processing Block 30 (Type: 'NiTexturingProperty')
+   Parsing NiTexturingProperty fields [NifSkope View Logic]...
+    Parsing NiObjectNET fields...
+      -> Name: '', ExtraLink: None, ControllerLink: None
+     -> Read Header Fields. Flags: 0x0000, ApplyMode: Modulate, TextureCount: 7
+     Reading Base Texture Slot (Index 0)...
+       -> Has Base Texture: true (Byte: 0xBCFB88)
+         -> Read SourceLink:Some(31), Clamp:WrapSWrapT, Filter:NearestMipNearest, UVSet:0, PS2L:0, PS2K:-75, Unk1:0
+     Reading only 'Has Texture' flags for subsequent slots...
+       -> Has Dark Texture: false
+       -> Has Detail Texture: false
+       -> Has Gloss Texture: false
+       -> Has Glow Texture: false
+       -> Has Bump Map Texture: false
+       -> Has Decal 0 Texture: false
+   -> Parsed NiTexturingProperty fields [NifSkope View Logic]. Cursor ending MISALIGNED at: 0xA1AB
+cursor pos: a1ab
+len: 15
+-> Processing Block 31 (Type: 'NiSourceTexture')
+   Parsing NiSourceTexture fields for block 31...
+    Parsing NiObjectNET fields...
+      -> Name: '', ExtraLink: None, ControllerLink: None
+     -> Use External: true (Byte: 0x01)
+     -> External File Name: 'TX_A_Glass_H_sideside.bmp'
+     -> PixelLayout: Palettized4, UseMipmaps: Yes, AlphaFormat: Default
+     -> Is Static: true (Byte: 0x01)
+   -> Successfully parsed NiSourceTexture fields.
+cursor pos: a1f5
+len: 18
+-> Processing Block 32 (Type: 'NiMaterialProperty')
+   Parsing NiMaterialProperty fields for block 32...
+    Parsing NiObjectNET fields...
+      -> Name: 'Material #4', ExtraLink: None, ControllerLink: None
+     -> Flags: 0x0001, Gloss: 0, Alpha: 1
+   -> Successfully parsed NiMaterialProperty fields.
+cursor pos: a25c
+len: 14
+-> Processing Block 33 (Type: 'NiTriShapeData')
+   Parsing NiTriShapeData fields for block 33...
+     Parsing NiGeometryData fields...
+       -> Num Vertices: 16
+       -> Has Vertices: true
+         (Read 16 vertices)
+       -> Has Normals: true
+         (Read 16 normals)
+       -> Bounding Sphere: Center=[4.7683716e-7, 0.838259, 3.7615633], Radius=12.054707
+       -> Has Vertex Colors: false
+       -> Data Flags: 0x0001 (Num UV Sets: 1)
+       -> Has UV flag: true
+         (Read 16 UVs for Set 0)
+     Parsing NiTriBasedGeomData fields...
+       -> Num Triangles: 12
+     Read Num Triangle Points: 36
+       -> Read 36 triangle indices.
+     Read Num Match Groups: 0
+     No Match Groups data to read.
+   -> Successfully parsed NiTriShapeData fields.
+cursor pos: a4e2
+len: 10
+-> Processing Block 34 (Type: 'NiTriShape')
+   Parsing NiTriShape fields...
+    Parsing NiObjectNET fields...
+      -> Name: 'Tri A_Glass_Helmet 7', ExtraLink: None, ControllerLink: None
+    Parsing NiAVObject fields...
+      -> Flags: 0x0002, Properties: 2 links, HasBounds: false
+   Reading NiTriShape specific fields...
+     Data Link: Some(38)
+     Skin Link: None
+   -> Successfully parsed NiTriShape fields (basic).
+cursor pos: a56a
+len: 19
+-> Processing Block 35 (Type: 'NiTexturingProperty')
+   Parsing NiTexturingProperty fields [NifSkope View Logic]...
+    Parsing NiObjectNET fields...
+      -> Name: '', ExtraLink: None, ControllerLink: None
+     -> Read Header Fields. Flags: 0x0000, ApplyMode: Modulate, TextureCount: 7
+     Reading Base Texture Slot (Index 0)...
+       -> Has Base Texture: true (Byte: 0xBCE760)
+         -> Read SourceLink:Some(36), Clamp:WrapSWrapT, Filter:NearestMipNearest, UVSet:0, PS2L:0, PS2K:-75, Unk1:0
+     Reading only 'Has Texture' flags for subsequent slots...
+       -> Has Dark Texture: false
+       -> Has Detail Texture: false
+       -> Has Gloss Texture: false
+       -> Has Glow Texture: false
+       -> Has Bump Map Texture: false
+       -> Has Decal 0 Texture: false
+   -> Parsed NiTexturingProperty fields [NifSkope View Logic]. Cursor ending MISALIGNED at: 0xA5C9
+cursor pos: a5c9
+len: 15
+-> Processing Block 36 (Type: 'NiSourceTexture')
+   Parsing NiSourceTexture fields for block 36...
+    Parsing NiObjectNET fields...
+      -> Name: '', ExtraLink: None, ControllerLink: None
+     -> Use External: true (Byte: 0x01)
+     -> External File Name: 'TX_W_waraxe_glass_00.bmp'
+     -> PixelLayout: Palettized4, UseMipmaps: Yes, AlphaFormat: Default
+     -> Is Static: true (Byte: 0x01)
+   -> Successfully parsed NiSourceTexture fields.
+cursor pos: a612
+len: 18
+-> Processing Block 37 (Type: 'NiMaterialProperty')
+   Parsing NiMaterialProperty fields for block 37...
+    Parsing NiObjectNET fields...
+      -> Name: 'Material #4', ExtraLink: None, ControllerLink: None
+     -> Flags: 0x0001, Gloss: 0, Alpha: 1
+   -> Successfully parsed NiMaterialProperty fields.
+cursor pos: a679
+len: 14
+-> Processing Block 38 (Type: 'NiTriShapeData')
+   Parsing NiTriShapeData fields for block 38...
+     Parsing NiGeometryData fields...
+       -> Num Vertices: 7
+       -> Has Vertices: true
+         (Read 7 vertices)
+       -> Has Normals: true
+         (Read 7 normals)
+       -> Bounding Sphere: Center=[-9.536743e-7, -7.838643, 2.7969525], Radius=2.829729
+       -> Has Vertex Colors: false
+       -> Data Flags: 0x0001 (Num UV Sets: 1)
+       -> Has UV flag: true
+         (Read 7 UVs for Set 0)
+     Parsing NiTriBasedGeomData fields...
+       -> Num Triangles: 6
+     Read Num Triangle Points: 18
+       -> Read 18 triangle indices.
+     Read Num Match Groups: 0
+     No Match Groups data to read.
+   -> Successfully parsed NiTriShapeData fields.
+
+--- NIF parsing function finished ---
+TRIGGERED
+INDEX IS: 5
+INDEX IS: 10
+INDEX IS: 15
+INDEX IS: 19
+INDEX IS: 24
+INDEX IS: 28
+INDEX IS: 33
+INDEX IS: 38
+asset event: Added { id: AssetId<bevy_nif::structs::ParsedNifData>{ index: 0, generation: 0} }

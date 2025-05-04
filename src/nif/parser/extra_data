@@ -1,0 +1,22 @@
+
+
+pub fn parse_niextradata_fields(cursor: &mut Cursor<&[u8]>) -> Result<NiExtraData> {
+    println!("     Parsing NiExtraData fields...");
+    let mut name_len = cursor.read_u32::<LittleEndian>()?;
+    if name_len == 0xFFFFFFFF {
+        name_len = 0;
+    }
+    let name = read_nif_string(cursor, name_len)?;
+    println!("       -> Name: '{}'", name);
+    let mut next_extra_data = None;
+    if name_len > 0 {
+        next_extra_data = read_link(cursor)?;
+    }
+    println!("       -> Next Extra Data: {:?}", next_extra_data);
+
+    let _unknown_int_1 = cursor.read_u32::<LittleEndian>()?;
+    Ok(NiExtraData {
+        name,
+        next_extra_data,
+    })
+}

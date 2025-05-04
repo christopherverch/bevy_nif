@@ -1,0 +1,889 @@
+#![allow(dead_code)]
+use super::base::{RecordLink, Vector3};
+use bevy::prelude::*;
+use bevy::reflect::TypePath;
+use std::fmt::Debug;
+
+// Using Bevy's Quat directly if possible, otherwise define alias
+pub type Quaternion = bevy::math::Quat; // Assuming you use Bevy's Quat elsewhere
+#[derive(Asset, Clone, Debug, Default, TypePath)] // Add Asset, TypePath if this is a top-level asset
+pub struct NiKeyframeController {
+    // Corresponds to NiTimeController base fields for this version
+    pub next_controller: RecordLink, // Link to next NiTimeController in the chain
+    pub flags: u16,                  // Animation flags (active, looping mode, etc.)
+    pub frequency: f32,
+    pub phase: f32,
+    pub start_time: f32,
+    pub stop_time: f32,
+    pub target: RecordLink, // Link to the controlled object (usually NiAVObject/NiNode)
+    // Field specific to NiKeyframeController in v4.0.0.2
+    pub keyframe_data: RecordLink, // Link to NiKeyframeData holding the actual keys
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum KeyType {
+    // Interpolation type for keys
+    #[default]
+    Linear,
+    Quadratic,   // Bezier interpolation
+    TBC,         // Tension Bias Continuity interpolation
+    XyzRotation, // Euler angles (Deprecated)
+    Const,       // Step function - value is constant between keys
+    Unknown(u32),
+}
+
+impl From<u32> for KeyType {
+    fn from(value: u32) -> Self {
+        match value {
+            1 => KeyType::Linear,
+            2 => KeyType::Quadratic,
+            3 => KeyType::TBC,
+            4 => KeyType::XyzRotation,
+            5 => KeyType::Const,
+            _ => KeyType::Unknown(value),
+        }
+    }
+}
+
+#[derive(Asset, TypePath, Debug, Clone, Copy, Default)]
+pub struct KeyFloat {
+    pub time: f32,
+    pub value: f32,
+    // --- ADDED/MODIFIED: Store extra data ---
+    pub forward_tangent: Option<f32>,  // For Quadratic keys
+    pub backward_tangent: Option<f32>, // For Quadratic keys
+    pub tension: Option<f32>,          // For TBC keys
+    pub bias: Option<f32>,             // For TBC keys
+    pub continuity: Option<f32>,       // For TBC keys
+}
+
+#[derive(Asset, TypePath, Debug, Clone, Copy, Default)]
+pub struct KeyVec3 {
+    pub time: f32,
+    pub value: Vector3,
+    // --- ADDED/MODIFIED: Store extra data ---
+    pub forward_tangent: Option<Vector3>,  // For Quadratic keys
+    pub backward_tangent: Option<Vector3>, // For Quadratic keys
+    pub tension: Option<f32>,              // For TBC keys
+    pub bias: Option<f32>,                 // For TBC keys
+    pub continuity: Option<f32>,           // For TBC keys
+}
+
+#[derive(Asset, TypePath, Debug, Clone, Copy, Default)]
+pub struct KeyQuaternion {
+    pub time: f32,
+    pub value: Quaternion,
+    // --- ADDED/MODIFIED: Store extra data ---
+    // Assuming tangents are also Quaternions for Quadratic keys
+    pub forward_tangent: Option<Quaternion>,
+    pub backward_tangent: Option<Quaternion>,
+    // TBC parameters
+    pub tension: Option<f32>,
+    pub bias: Option<f32>,
+    pub continuity: Option<f32>,
+}
+
+#[derive(Asset, TypePath, Clone, Debug, Default)] // Added Asset, TypePath
+pub struct NiKeyframeData {
+    pub rotation_type: Option<KeyType>, // Rotation type (if keys exist)
+    pub quaternion_keys: Vec<KeyQuaternion>,
+    pub translation_interp: KeyType, // Interpolation type for ALL translation keys
+    pub translations: Vec<KeyVec3>,
+    pub scale_interp: KeyType, // Interpolation type for ALL scale keys
+    pub scales: Vec<KeyFloat>,
+}
+
+// Represents a single text keyframe
+#[derive(Asset, Clone, Debug, Default, TypePath)]
+pub struct TextKey {
+    pub time: f32,
+    pub value: String,
+}
+
+#[derive(Asset, Clone, Debug, Default, TypePath)]
+pub struct NiGeomMorpherController {
+    // Fields from NiTimeController base for NIF v4.0.0.2
+    pub next_controller: RecordLink,
+    pub flags: u16,
+    pub frequency: f32,
+    pub phase: f32,
+    pub start_time: f32,
+    pub stop_time: f32,
+    pub target: RecordLink, // Link to the NiNode/NiTriShape being morphed
+    // Field specific to NiGeomMorpherController in NIF v4.0.0.2
+    pub morph_data: RecordLink, // Link to NiMorphData
+    pub always_update: bool,    // Read as byte, store as bool
+}
+#[derive(Asset, Clone, Debug, Default, TypePath)]
+pub struct MorphTarget {
+    // Added fields based on NifSkope view for NiMorphData structure
+    pub num_keys: u32, // Number of interpolation keys for this target's weight
+    pub interpolation: KeyType, // Interpolation type for the keys
+    pub keys: Vec<KeyFloat>, // Interpolation keys (time/value pairs, maybe more for non-linear)
+    // Vertex data remains
+    pub vertices: Vec<Vector3>, // The actual vertex data for this target
+}
+
+// --- NiMorphData struct stays the same ---
+#[derive(Asset, Clone, Debug, Default, TypePath)]
+pub struct NiMorphData {
+    pub num_morph_targets: u32,
+    pub num_vertices: u32,
+    pub relative_targets: bool,
+    pub morph_targets: Vec<MorphTarget>, // Holds the struct above
+}
+#![allow(dead_code)]
+use bevy::prelude::*;
+use bevy::reflect::TypePath;
+use std::fmt::Debug;
+
+/// Represents links to other records (usually by index in the main Vec<NifRecord>)
+pub type RecordLink = Option<usize>;
+
+#[derive(Asset, Clone, Debug, Default, TypePath)]
+pub struct NifHeader {
+    pub version_string: String,
+    pub file_version: u32, // Represents the uint version read (e.g., 0x04000002)
+    pub num_blocks: u32,
+}
+
+// --- Newtype Wrappers for Arrays (to implement Default) ---
+
+#[derive(Debug, Clone, Copy)]
+pub struct Vector3(pub [f32; 3]); // Wrap the array
+
+impl Default for Vector3 {
+    fn default() -> Self {
+        Vector3([0.0, 0.0, 0.0])
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Vector2(pub [f32; 2]); // For UV coordinates
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Vector4(pub [f32; 4]); // For RGBA vertex colors
+
+#[derive(Debug, Clone, Copy)]
+pub struct Matrix3x3(pub [[f32; 3]; 3]); // Wrap the 2D array
+
+impl Default for Matrix3x3 {
+    fn default() -> Self {
+        Matrix3x3([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Matrix4x4(pub [[f32; 4]; 4]); // Row-major or column-major? Assume standard [row][col] for now
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Plane {
+    pub normal: Vector3,
+    pub constant: f32,
+}
+
+/// Represents the C++ NiTransform struct
+#[derive(Debug, Clone, Default)]
+pub struct NiTransform {
+    pub rotation: Matrix3x3,
+    pub translation: Vector3,
+    pub scale: f32,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct BoundingSphere {
+    pub center: Vector3,
+    pub radius: f32,
+}
+#![allow(dead_code)]
+use super::base::{Matrix3x3, Plane, RecordLink, Vector3};
+use super::scene::NiAVObject;
+use super::textures::{ClampMode, FilterMode};
+use bevy::prelude::*;
+use bevy::reflect::TypePath;
+use std::fmt::Debug;
+use std::ops::Deref;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum EffectType {
+    #[default]
+    ProjectedLight,
+    ProjectedShadow,
+    EnvironmentMap,
+    FogMap,
+    Unknown(u32),
+}
+impl From<u32> for EffectType {
+    fn from(value: u32) -> Self {
+        match value {
+            0 => Self::ProjectedLight,
+            1 => Self::ProjectedShadow,
+            2 => Self::EnvironmentMap,
+            3 => Self::FogMap,
+            _ => Self::Unknown(value),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CoordGenType {
+    #[default]
+    WorldParallel, // TexCoordGen::WORLD_PARALLEL
+    WorldPerspective, // TexCoordGen::WORLD_PERSPECTIVE
+    SphereMap,        // TexCoordGen::SPHERE_MAP
+    SpecularCubeMap,  // TexCoordGen::SPECULAR_CUBE_MAP
+    DiffuseCubeMap,   // TexCoordGen::DIFFUSE_CUBE_MAP
+    Unknown(u32),
+}
+impl From<u32> for CoordGenType {
+    fn from(value: u32) -> Self {
+        match value {
+            0 => Self::WorldParallel,
+            1 => Self::WorldPerspective,
+            2 => Self::SphereMap,
+            3 => Self::SpecularCubeMap,
+            4 => Self::DiffuseCubeMap,
+            _ => Self::Unknown(value),
+        }
+    }
+}
+
+// ClippingPlane enum isn't strictly needed if we just store the bool + Plane struct
+#[derive(Asset, Clone, Debug, Default, TypePath)]
+pub struct NiDynamicEffect {
+    pub av_base: NiAVObject,     // Composition of NiAVObject
+    pub num_affected_nodes: u32, // Count read from file
+    pub affected_nodes: Vec<RecordLink>, // Links to NiNode(s) affected
+                                 // Switch State is not present in v4.0.0.2
+}
+
+// --- MODIFIED: NiTextureEffect Struct ---
+#[derive(Asset, Clone, Debug, Default, TypePath)]
+pub struct NiTextureEffect {
+    // *** CHANGED: Contains NiDynamicEffect now ***
+    pub dynamic_effect_base: NiDynamicEffect,
+    // *** Specific fields remain the same ***
+    pub model_projection_matrix: Matrix3x3,
+    pub model_projection_translation: Vector3,
+    pub texture_filtering: FilterMode,
+    pub texture_clamping: ClampMode,
+    pub texture_type: EffectType,
+    pub coordinate_generation_type: CoordGenType,
+    pub source_texture: RecordLink,
+    pub enable_plane: bool,
+    pub plane: Option<Plane>,
+    pub ps2_l: i16,
+    pub ps2_k: i16,
+    pub unknown_short: u16,
+}
+
+// --- Deref Implementations ---
+// Add Deref for NiDynamicEffect -> NiAVObject
+impl Deref for NiDynamicEffect {
+    type Target = NiAVObject;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.av_base
+    }
+}
+
+// Modify Deref for NiTextureEffect -> NiDynamicEffect
+impl Deref for NiTextureEffect {
+    type Target = NiDynamicEffect; // <<< Changed target
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.dynamic_effect_base // <<< Changed field
+    }
+}
+#![allow(dead_code)]
+use super::animation::TextKey;
+use super::base::RecordLink;
+use bevy::prelude::*;
+use bevy::reflect::TypePath;
+use std::fmt::Debug;
+use std::ops::Deref;
+
+// Represents the base NiExtraData object (which just has a name in this version)
+#[derive(Asset, Clone, Debug, Default, TypePath)]
+pub struct NiExtraData {
+    pub name: String,
+    pub next_extra_data: RecordLink, // *** ADDED this field ***
+                                     // Unknown Int 1 is NOT read for v4.0.0.2
+}
+
+// NiTextKeyExtraData struct (No changes needed here, uses corrected base)
+#[derive(Asset, Clone, Debug, Default, TypePath)]
+pub struct NiTextKeyExtraData {
+    pub base: NiExtraData, // Composition
+    pub num_keys: u32,
+    pub keys: Vec<TextKey>, // Assumes TextKey struct is defined correctly
+}
+
+// Keep Deref for NiTextKeyExtraData -> NiExtraData
+impl Deref for NiTextKeyExtraData {
+    type Target = NiExtraData;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
+}
+#![allow(dead_code)]
+use super::base::{BoundingSphere, Vector2, Vector3, Vector4};
+use std::fmt::Debug;
+use std::ops::Deref;
+
+// Base class for geometry data blocks
+#[derive(Debug, Clone, Default)]
+pub struct NiGeometryData {
+    // Note: No NiObjectNET base here normally
+    pub num_vertices: u16,
+    pub has_vertices: bool,
+    pub vertices: Option<Vec<Vector3>>, // Make Option<> for conditional reading
+    pub has_normals: bool,
+    pub normals: Option<Vec<Vector3>>,
+    pub bounding_sphere: BoundingSphere,
+    pub has_vertex_colors: bool,
+    pub vertex_colors: Option<Vec<Vector4>>, // RGBA
+    pub num_uv_sets: u16,                    // Derived from flags in 4.0.0.2
+    pub uv_sets: Vec<Vec<Vector2>>,          // List of UV sets (each set is a Vec)
+}
+
+// Inherits (conceptually) from NiGeometryData
+#[derive(Debug, Clone, Default)]
+pub struct NiTriBasedGeomData {
+    pub geom_base: NiGeometryData, // Composition
+    pub num_triangles: u16,
+}
+
+// Specific triangle soup data
+#[derive(Debug, Clone, Default)]
+pub struct NiTriShapeData {
+    pub tri_base: NiTriBasedGeomData, // Composition
+    pub num_triangle_points: u32,     // Read from file, should == num_triangles * 3
+    pub triangles: Vec<u16>,          // Triangle indices (vertex indices)
+    pub num_match_groups: u16,
+    pub match_groups: Vec<Vec<u16>>,
+}
+
+// --- Deref Implementations ---
+impl Deref for NiTriBasedGeomData {
+    type Target = NiGeometryData;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.geom_base
+    }
+}
+impl Deref for NiTriShapeData {
+    type Target = NiTriBasedGeomData;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.tri_base
+    }
+}
+//! This module defines the core data structures representing parsed NIF file blocks.
+
+// Declare the sub-modules
+pub mod animation;
+pub mod base;
+pub mod effects;
+pub mod extra_data;
+pub mod geometry;
+pub mod parsing;
+pub mod properties;
+pub mod scene;
+pub mod textures;
+
+pub use animation::{
+    KeyFloat, KeyQuaternion, KeyType, KeyVec3, MorphTarget, NiGeomMorpherController,
+    NiKeyframeController, NiKeyframeData, NiMorphData, Quaternion, TextKey,
+};
+pub use base::{
+    BoundingSphere, Matrix3x3, NiTransform, NifHeader, Plane, RecordLink, Vector2, Vector3, Vector4,
+};
+pub use effects::{CoordGenType, EffectType, NiDynamicEffect, NiTextureEffect};
+pub use extra_data::{NiExtraData, NiTextKeyExtraData};
+pub use geometry::{NiGeometryData, NiTriBasedGeomData, NiTriShapeData};
+pub use parsing::{ParsedBlock, ParsedNifData};
+pub use properties::{
+    LightMode, NiAlphaProperty, NiMaterialProperty, NiProperty, NiVertexColorProperty, VertexMode,
+};
+pub use scene::{NiAVObject, NiNode, NiObjectNET, NiTriShape};
+pub use textures::{
+    AlphaFormat, ApplyMode, ClampMode, FilterMode, MipMapFormat, NiSourceTexture,
+    NiTexturingProperty, NifTextureInfo, PixelLayout, TextureData,
+};
+#![allow(dead_code)]
+use super::animation::{
+    NiGeomMorpherController, NiKeyframeController, NiKeyframeData, NiMorphData,
+};
+use super::base::NifHeader;
+use super::effects::NiTextureEffect;
+use super::extra_data::NiTextKeyExtraData;
+use super::geometry::NiTriShapeData;
+use super::properties::{NiAlphaProperty, NiMaterialProperty, NiVertexColorProperty};
+use super::scene::{NiNode, NiTriShape};
+use super::textures::NiSourceTexture;
+use super::textures::NiTexturingProperty; // Corrected path
+use bevy::prelude::*;
+use bevy::reflect::TypePath;
+use std::fmt::Debug;
+
+#[derive(Asset, Clone, Debug, TypePath)]
+pub enum ParsedBlock {
+    Node(NiNode),
+    TriShape(NiTriShape),
+    AlphaProperty(NiAlphaProperty),
+    TexturingProperty(NiTexturingProperty),
+    SourceTexture(NiSourceTexture),
+    MaterialProperty(NiMaterialProperty),
+    TriShapeData(NiTriShapeData),
+    KeyframeController(NiKeyframeController),
+    KeyframeData(NiKeyframeData),
+    TextureEffect(NiTextureEffect),
+    TextKeyExtraData(NiTextKeyExtraData),
+    VertexColorProperty(NiVertexColorProperty),
+    GeomMorpherController(NiGeomMorpherController),
+    MorphData(NiMorphData),
+    // Add other variants as needed
+    Unknown(String), // Stores the type name of the unknown block
+}
+
+#[derive(Asset, Clone, Debug, Default, TypePath)]
+pub struct ParsedNifData {
+    pub header: NifHeader,
+    pub blocks: Vec<ParsedBlock>,
+}
+#![allow(dead_code)]
+use super::base::Vector3;
+use super::scene::NiObjectNET;
+use bevy::prelude::*;
+use bevy::reflect::TypePath;
+use std::fmt::Debug;
+use std::ops::Deref;
+
+#[derive(Debug, Clone, Default)]
+pub struct NiProperty {
+    pub net_base: NiObjectNET,
+    // NiProperty itself doesn't add fields read in v4.0.0.2 C++ code
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct NiMaterialProperty {
+    pub property_base: NiProperty,
+    pub flags: u16, // Present in v4.0.0.2
+    pub ambient_color: Vector3,
+    pub diffuse_color: Vector3,
+    pub specular_color: Vector3,
+    pub emissive_color: Vector3,
+    pub glossiness: f32,
+    pub alpha: f32,
+    // emissive_mult is not present in v4.0.0.2
+}
+
+// Specific property type: NiAlphaProperty
+#[derive(Debug, Clone, Default)]
+pub struct NiAlphaProperty {
+    pub property_base: NiProperty, // Composition
+    pub flags: u16,                // Flags read by NiAlphaProperty::read
+    pub threshold: u8,             // Threshold read by NiAlphaProperty::read
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum VertexMode {
+    #[default]
+    SrcIgnore, // Default based on value 0
+    SrcEmissive,
+    SrcAmbDiff, // Corresponds to Flag Bit 0
+    Unknown(u32),
+}
+impl From<u32> for VertexMode {
+    fn from(value: u32) -> Self {
+        match value {
+            0 => Self::SrcIgnore,
+            1 => Self::SrcEmissive,
+            2 => Self::SrcAmbDiff,
+            _ => Self::Unknown(value),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LightMode {
+    #[default]
+    Emissive, // Default based on value 0
+    EmissiveAmbientDiffuse, // Corresponds to Flag Bit 1
+    Unknown(u32),
+}
+impl From<u32> for LightMode {
+    fn from(value: u32) -> Self {
+        match value {
+            0 => Self::Emissive,
+            1 => Self::EmissiveAmbientDiffuse,
+            _ => Self::Unknown(value),
+        }
+    }
+}
+
+// --- Add this Struct ---
+#[derive(Asset, Clone, Debug, Default, TypePath)]
+pub struct NiVertexColorProperty {
+    pub property_base: NiProperty,        // Composition
+    pub flags: u16,                       // Flags determine lighting mode and vertex color source
+    pub vertex_mode: Option<VertexMode>,  // Conditional read based on Flags Bit 0
+    pub lighting_mode: Option<LightMode>, // Conditional read based on Flags Bit 1
+}
+
+// --- Deref Implementations ---
+impl Deref for NiProperty {
+    // Deref NiProperty -> NiObjectNET
+    type Target = NiObjectNET;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.net_base
+    }
+}
+
+impl Deref for NiMaterialProperty {
+    type Target = NiProperty;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.property_base
+    }
+}
+
+impl Deref for NiAlphaProperty {
+    // Deref NiAlphaProperty -> NiProperty
+    type Target = NiProperty;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.property_base
+    }
+}
+
+impl Deref for NiVertexColorProperty {
+    type Target = NiProperty;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.property_base
+    }
+}
+#![allow(dead_code)]
+use super::base::{BoundingSphere, NiTransform, RecordLink, Vector3};
+use bevy::prelude::*;
+use bevy::reflect::TypePath;
+use std::fmt::Debug;
+use std::ops::Deref;
+
+// --- Structs using Pure Composition ---
+
+#[derive(Debug, Clone, Default)]
+pub struct NiObjectNET {
+    pub name: String,
+    pub extra_data_link: RecordLink,
+    pub controller_link: RecordLink,
+}
+
+// Example inherent method for NiObjectNET
+impl NiObjectNET {
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+    // Could add methods for links, etc.
+}
+
+#[derive(Asset, Clone, Debug, Default, TypePath)]
+pub struct NiAVObject {
+    pub net_base: NiObjectNET,
+    pub flags: u16,
+    pub transform: NiTransform,
+    pub velocity: Vector3,
+    pub properties: Vec<RecordLink>,
+    // Add this field to store the bounding sphere when present:
+    pub bounding_sphere: Option<BoundingSphere>,
+}
+
+// Example inherent method for NiAVObject
+impl NiAVObject {
+    pub fn flags(&self) -> u16 {
+        self.flags
+    }
+    pub fn transform(&self) -> &NiTransform {
+        &self.transform
+    }
+    // etc.
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct NiNode {
+    pub av_base: NiAVObject,
+    pub children: Vec<RecordLink>,
+    pub effects: Vec<RecordLink>,
+}
+
+// Example inherent method for NiNode
+impl NiNode {
+    pub fn children(&self) -> &[RecordLink] {
+        &self.children
+    }
+    pub fn effects(&self) -> &[RecordLink] {
+        &self.effects
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct NiTriShape {
+    pub av_base: NiAVObject,
+    pub data_link: RecordLink,
+    pub skin_link: RecordLink,
+}
+
+// --- Deref Implementations for Automatic Method/Field Forwarding ---
+
+impl Deref for NiAVObject {
+    type Target = NiObjectNET; // Target the "parent" struct type
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        // Return a reference to the composed "parent" instance
+        &self.net_base
+    }
+}
+// Note: You would add `impl DerefMut` similarly if mutable access via deref is needed
+
+impl Deref for NiNode {
+    type Target = NiAVObject; // Target the "parent" struct type
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        // Return a reference to the composed "parent" instance
+        &self.av_base
+    }
+}
+
+impl Deref for NiTriShape {
+    type Target = NiAVObject;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.av_base
+    }
+}
+#![allow(dead_code)]
+use super::base::RecordLink;
+use super::properties::NiProperty;
+use super::scene::NiObjectNET;
+use bevy::prelude::*;
+use std::fmt::Debug;
+use std::ops::Deref;
+
+#[derive(Debug, Default, Clone)] // Added Clone
+pub struct NifTextureInfo {
+    pub base_texture_path: Option<String>,
+    pub base_uv_set: u32,
+    // Add other texture types as needed:
+    // bump_texture_path: Option<String>,
+    // glow_texture_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PixelLayout {
+    #[default]
+    Palettized8, // PIX_LAY_PALETTISED8, Seems most common? Check NifXML/common usage
+    HighColor16, // PIX_LAY_HIGH_COLOR_16
+    TrueColor32, // PIX_LAY_TRUE_COLOR_32
+    Compressed,  // PIX_LAY_COMPRESSED
+    Bumpmap,     // PIX_LAY_BUMPMAP
+    Palettized4, // PIX_LAY_PALETTISED4
+    Default,     // PIX_LAY_DEFAULT
+    Unknown(u32),
+}
+impl From<u32> for PixelLayout {
+    fn from(value: u32) -> Self {
+        match value {
+            0 => Self::Palettized8,
+            1 => Self::HighColor16,
+            2 => Self::TrueColor32,
+            3 => Self::Compressed,
+            4 => Self::Bumpmap,
+            5 => Self::Palettized4,
+            6 => Self::Default,
+            _ => Self::Unknown(value),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MipMapFormat {
+    No,  // MIP_FMT_NO (Generate no mipmaps)
+    Yes, // MIP_FMT_YES (Generate mipmaps)
+    #[default]
+    Default, // MIP_FMT_DEFAULT (Use renderer default)
+    Unknown(u32),
+}
+impl From<u32> for MipMapFormat {
+    fn from(value: u32) -> Self {
+        match value {
+            0 => Self::No,
+            1 => Self::Yes,
+            2 => Self::Default,
+            _ => Self::Unknown(value),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AlphaFormat {
+    #[default]
+    None, // ALPHA_NONE (No alpha)
+    Binary,  // ALPHA_BINARY (1-bit alpha)
+    Smooth,  // ALPHA_SMOOTH (Full alpha)
+    Default, // ALPHA_DEFAULT (Use renderer default)
+    Unknown(u32),
+}
+impl From<u32> for AlphaFormat {
+    fn from(value: u32) -> Self {
+        match value {
+            0 => Self::None,
+            1 => Self::Binary,
+            2 => Self::Smooth,
+            3 => Self::Default,
+            _ => Self::Unknown(value),
+        }
+    }
+}
+#[derive(Debug, Clone, Default)]
+pub struct NiSourceTexture {
+    pub net_base: NiObjectNET,       // Composition
+    pub use_external: bool,          // Flag: Is image data external (DDS file)?
+    pub file_name: Option<String>, // External file name (DDS path), present only if use_external is true
+    pub pixel_data_link: RecordLink, // Link to NiPixelData record, present only if use_external is false AND internal flag is true
+    pub pixel_layout: PixelLayout,   // Format prefs
+    pub use_mipmaps: MipMapFormat,   // Format prefs
+    pub alpha_format: AlphaFormat,   // Format prefs
+    pub is_static: bool,             // Flag: Is texture static? (Usually true)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ApplyMode {
+    #[default]
+    Replace,
+    Decal,
+    Modulate,
+    Hilight,
+    Hilight2,
+    Unknown(u32),
+}
+impl From<u32> for ApplyMode {
+    fn from(value: u32) -> Self {
+        match value {
+            0 => ApplyMode::Replace,
+            1 => ApplyMode::Decal,
+            2 => ApplyMode::Modulate,
+            3 => ApplyMode::Hilight,
+            4 => ApplyMode::Hilight2,
+            // Capture unknown values
+            other => ApplyMode::Unknown(other),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ClampMode {
+    // Wrap modes
+    #[default]
+    ClampSClampT,
+    ClampSWrapT,
+    WrapSClampT,
+    WrapSWrapT,
+    Unknown(u32),
+}
+impl From<u32> for ClampMode {
+    fn from(value: u32) -> Self {
+        match value & 0b11 {
+            // Keep using lower 2 bits for v4.0.0.2 logic
+            0 => ClampMode::ClampSClampT,
+            1 => ClampMode::ClampSWrapT,
+            2 => ClampMode::WrapSClampT,
+            3 => ClampMode::WrapSWrapT,
+            // This case _should_ be unreachable if masking with 0b11, but handle defensively
+            other => ClampMode::Unknown(other), // Or perhaps a specific error/default?
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FilterMode {
+    // Texture filtering
+    #[default]
+    Nearest,
+    Linear,
+    NearestMipNearest,
+    NearestMipLinear,
+    LinearMipNearest,
+    LinearMipLinear,
+    Unknown(u32),
+}
+impl From<u32> for FilterMode {
+    fn from(value: u32) -> Self {
+        match value {
+            0 => FilterMode::Nearest,
+            1 => FilterMode::Linear,
+            2 => FilterMode::NearestMipNearest,
+            3 => FilterMode::NearestMipLinear,
+            4 => FilterMode::LinearMipNearest,
+            5 => FilterMode::LinearMipLinear,
+            // Capture unknown values
+            other => FilterMode::Unknown(other),
+        }
+    }
+}
+
+// Nested struct for individual texture slots
+#[derive(Debug, Clone, Default)]
+pub struct TextureData {
+    pub has_texture: bool,          // Whether this slot is used
+    pub source_texture: RecordLink, // Link to NiSourceTexture
+    pub clamp_mode: ClampMode,
+    pub filter_mode: FilterMode,
+    pub uv_set: u32,
+    // PS2 L (2 bytes), PS2 K (2 bytes) - Read but unused
+    // Unknown short (2 bytes) - Read but unused
+    // Texture Transform not read in v4.0.0.2
+}
+
+// NiTexturingProperty struct definition
+#[derive(Debug, Clone, Default)]
+pub struct NiTexturingProperty {
+    pub property_base: NiProperty, // Composition
+    pub flags: u16,                // Texture flags (e.g., multi-texture enable)
+    pub apply_mode: ApplyMode,
+    pub texture_count: u32, // Number of textures read from file (for info)
+    // Uses a fixed-size array for Morrowind's common slots for simplicity,
+    // or use Vec<TextureData> if counts vary wildly. Let's use array.
+    pub base_texture: Option<TextureData>,
+    pub dark_texture: Option<TextureData>,
+    pub detail_texture: Option<TextureData>,
+    pub gloss_texture: Option<TextureData>,
+    pub glow_texture: Option<TextureData>,
+    pub bump_map_texture: Option<TextureData>,
+    pub normal_texture: Option<TextureData>, // Not typically used in MW base game NIFs
+    pub decal_0_texture: Option<TextureData>,
+    // Bump map specific fields (read only if bump map slot is enabled)
+    pub bump_map_luma_scale: f32,
+    pub bump_map_luma_offset: f32,
+    pub bump_map_matrix: [f32; 4], // M11, M12, M21, M22
+}
+
+// --- Deref Implementations ---
+impl Deref for NiSourceTexture {
+    type Target = NiObjectNET;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.net_base
+    }
+}
+
+impl Deref for NiTexturingProperty {
+    type Target = NiProperty;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.property_base
+    }
+}

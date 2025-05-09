@@ -102,10 +102,6 @@ impl AssetLoader for NifAssetLoader {
                                             // Get the filename Option<String>
                                             if let Some(filename) = &src_tex.file_name {
                                                 // SUCCESS: We found the filename!
-                                                info!(
-                                                    "  TexProp {}: Found Base Texture path: {}",
-                                                    index, filename
-                                                );
                                                 tex_info.base_texture_path = Some(filename.clone());
                                                 // Also store the UV set index associated with this slot
                                                 tex_info.base_uv_set = base_tex_data.uv_set;

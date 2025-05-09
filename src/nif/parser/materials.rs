@@ -9,13 +9,8 @@ use crate::nif::types::*;
 // Import definitions from structs module
 pub fn parse_nimaterialproperty_fields(
     cursor: &mut Cursor<&[u8]>,
-    block_index: u32,
+    _block_index: u32,
 ) -> Result<NiMaterialProperty> {
-    println!(
-        "   Parsing NiMaterialProperty fields for block {}...",
-        block_index
-    );
-
     // 1. Parse NiObjectNET base fields (as NiProperty adds no fields itself)
     let net_part = parse_niobjectnet_fields(cursor)?;
 
@@ -29,10 +24,6 @@ pub fn parse_nimaterialproperty_fields(
     let alpha = cursor.read_f32::<LittleEndian>()?;
     // No emissive_mult in v4.0.0.2
 
-    println!(
-        "     -> Flags: {:#06X}, Gloss: {}, Alpha: {}",
-        flags, glossiness, alpha
-    );
     // Add printing for colors if needed, but can be verbose
 
     // 3. Construct struct
@@ -47,6 +38,5 @@ pub fn parse_nimaterialproperty_fields(
         alpha,
     };
 
-    println!("   -> Successfully parsed NiMaterialProperty fields.");
     Ok(mat_prop)
 }

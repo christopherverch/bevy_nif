@@ -3,12 +3,12 @@
 // --- Bevy Imports (Corrected for Bevy 0.16+) ---
 use bevy::animation::AnimationClip;
 use bevy::animation::AnimationTargetId;
-use bevy::asset::{Assets, Handle}; // Keep Assets, Handle
+use bevy::asset::Assets; // Keep Assets, Handle
 use bevy::ecs::entity::Entity;
 use bevy::math::curve::interval::InvalidIntervalError;
 use bevy::prelude::*;
 // use bevy::log::{error, info, warn};
-use bevy::math::{Quat, Vec3};
+use bevy::math::Vec3;
 use bevy::prelude::{
     Commands,
     Name,
@@ -28,9 +28,9 @@ use crate::ParsedBlock;
 use crate::ParsedNifData;
 use crate::RecordLink;
 use crate::extra_data::ExtraFields;
-use crate::modular_characters::NeedsNifAnimator;
 
-use super::loader::Nif; // Needed for add_curve_boxed potentially, or boxing
+use super::loader::Nif;
+use super::spawner::NeedsNifAnimator; // Needed for add_curve_boxed potentially, or boxing
 
 // --- Assume your Key structs, KeyType, NiKeyframeData, NiKeyframeController ---
 // --- ParsedNifData, RecordLink, Vector3 etc. are defined exactly as you provided ---
@@ -61,139 +61,112 @@ pub struct BoneMap {
 }
 
 // --- Assume your AnimationHandles Resource ---
-#[derive(Resource, Debug, Default)]
-pub struct AnimationHandles {
-    pub main_clip: Option<Handle<AnimationClip>>,
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct EntityPath {
-    parts: Vec<Name>,
-}
-// --- Helper Lerp/Slerp Functions ---
-fn quat_slerp(a: &Quat, b: &Quat, t: f32) -> Quat {
-    // Use normalize based on E0599 help message
-    a.normalize().slerp(b.normalize(), t)
-}
 pub fn build_animation_clip_system(
     mut commands: Commands,
     bone_map_res: Res<BoneMap>,
     nif_assets: Res<Assets<Nif>>,
     mut animations: ResMut<Assets<AnimationClip>>,
-    names_query: Query<&Name>, // Query needed to get Name for EntityPath
     mut animation_graphs: ResMut<Assets<AnimationGraph>>,
     needs_animator_q: Query<(Entity, &NeedsNifAnimator)>,
     has_parent_q: Query<&Parent>,
-    transforms: Query<&Transform>,
-    mut x: Local<u128>,
 ) {
     if bone_map_res.root_skeleton_entity.is_none() {
         return;
     };
-    if *x < 50 {
-        println!("x: {}", *x);
-        *x += 1;
-        return;
-    }
     for (entity, nif_handle_component) in needs_animator_q.iter() {
-        println!("bone map: {:?}", bone_map_res.entity_map);
-        for (_, bone) in bone_map_res.entity_map.iter() {
-            if let Ok(bone_transform) = transforms.get(*bone) {
-                println!("bone: {}, transform: {:?}", bone, bone_transform);
-            }
-        }
-        println!("called for entity {}", entity);
         let nif_handle = &nif_handle_component.0;
         // **Check if the asset for THIS entity is loaded NOW**
         // This uses Assets::get, polling the current state of loaded assets
         let Some(nif) = nif_assets.get(&*nif_handle) else {
             continue;
         };
-        main_example(&nif.raw_parsed);
-        //       main_example(&nif.raw_parsed);
-        let Ok(mut nif_animations_map) = extract_animations_from_base_anim(&nif.raw_parsed) else {
+        //print_animations(&nif.raw_parsed);
+        let Ok(nif_animations_map) = extract_animations_from_base_anim(&nif.raw_parsed) else {
             commands.entity(entity).remove::<NeedsNifAnimator>();
             continue;
         };
-        for (name, animation) in &nif_animations_map {
+        /*for (name, _) in &nif_animations_map {
             println!("name: {}", name);
-        }
+        }*/
 
         // info!("Building AnimationClip using SampleCurve and add_curve_to_target...");
 
         let mut animation_player = AnimationPlayer::default();
         let mut bone_entity: Option<Entity> = None;
-        let mut animation_clip = AnimationClip::default();
-        let Some(nif_animation) = nif_animations_map.get("swimknockout") else {
+        /*let Some(nif_animation) = nif_animations_map.get("swimknockout") else {
             warn!(
                 "Animation  not found in extracted map for NIF {:?}.",
                 nif_handle.id()
             );
             commands.entity(entity).remove::<NeedsNifAnimator>();
             continue;
-        };
-        for bone_curve in nif_animation.bone_curves.iter() {
-            info!("Bone: {}", bone_curve.target_bone_name);
-            if !bone_curve.translations.is_empty() {
-                info!("  Trans[0]: {:?}", bone_curve.translations[0]);
-            }
-            if !bone_curve.rotations.is_empty() {
-                info!("  Rots[0]: {:?}", bone_curve.rotations[0]);
-            }
-            let translation_curves = make_auto_or_constant_curve(
-                &bone_curve.translations,
-                Interval::new(nif_animation.start_time, nif_animation.stop_time),
-            );
-            let rotation_curves = make_auto_or_constant_curve(
-                &bone_curve.rotations,
-                Interval::new(nif_animation.start_time, nif_animation.stop_time),
-            );
-            for (string, bone) in bone_map_res.entity_map.iter() {
-                println!("bone name: {}", bone_curve.target_bone_name);
-                if *string == format!("NiNode: {}", bone_curve.target_bone_name) {
-                    bone_entity = Some(*bone);
-                    break;
+        };*/
+        let mut animation_graph = AnimationGraph::new();
+        let blend_node = animation_graph.add_blend(0.5, animation_graph.root);
+        let mut animations_hashmap = HashMap::new();
+
+        for (name, nif_animation) in nif_animations_map {
+            let mut animation_clip = AnimationClip::default();
+            for bone_curve in nif_animation.bone_curves.iter() {
+                let translation_curves = make_auto_or_constant_curve(
+                    &bone_curve.translations,
+                    Interval::new(nif_animation.start_time, nif_animation.stop_time),
+                );
+                let rotation_curves = make_auto_or_constant_curve(
+                    &bone_curve.rotations,
+                    Interval::new(nif_animation.start_time, nif_animation.stop_time),
+                );
+                for (string, bone) in bone_map_res.entity_map.iter() {
+                    if *string == format!("NiNode: {}", bone_curve.target_bone_name) {
+                        bone_entity = Some(*bone);
+                        break;
+                    }
                 }
-            }
-            let Some(bone_entity) = bone_entity else {
-                continue;
-            };
-            let path = String::from("");
-            let bone_path = find_bone_path(&has_parent_q, &bone_entity, path);
-            let target_id = AnimationTargetId::from_name(&Name::new(bone_path));
-            if let (Some(auto_curve), _) = translation_curves {
-                animation_clip.add_curve_to_target(
-                    target_id,
-                    AnimatableCurve::new(animated_field!(Transform::translation), auto_curve),
-                );
-            } else if let (_, Some(constant_curve)) = translation_curves {
-                animation_clip.add_curve_to_target(
-                    target_id,
-                    AnimatableCurve::new(animated_field!(Transform::translation), constant_curve),
-                );
-            }
-            if let (Some(auto_curve), _) = rotation_curves {
-                animation_clip.add_curve_to_target(
-                    target_id,
-                    AnimatableCurve::new(animated_field!(Transform::rotation), auto_curve),
-                );
-            } else if let (_, Some(constant_curve)) = rotation_curves {
-                animation_clip.add_curve_to_target(
-                    target_id,
-                    AnimatableCurve::new(animated_field!(Transform::rotation), constant_curve),
-                );
+                let Some(bone_entity) = bone_entity else {
+                    continue;
+                };
+                let path = String::from("");
+                let bone_path = find_bone_path(&has_parent_q, &bone_entity, path);
+                let target_id = AnimationTargetId::from_name(&Name::new(bone_path));
+                if let (Some(auto_curve), _) = translation_curves {
+                    animation_clip.add_curve_to_target(
+                        target_id,
+                        AnimatableCurve::new(animated_field!(Transform::translation), auto_curve),
+                    );
+                } else if let (_, Some(constant_curve)) = translation_curves {
+                    animation_clip.add_curve_to_target(
+                        target_id,
+                        AnimatableCurve::new(
+                            animated_field!(Transform::translation),
+                            constant_curve,
+                        ),
+                    );
+                }
+                if let (Some(auto_curve), _) = rotation_curves {
+                    animation_clip.add_curve_to_target(
+                        target_id,
+                        AnimatableCurve::new(animated_field!(Transform::rotation), auto_curve),
+                    );
+                } else if let (_, Some(constant_curve)) = rotation_curves {
+                    animation_clip.add_curve_to_target(
+                        target_id,
+                        AnimatableCurve::new(animated_field!(Transform::rotation), constant_curve),
+                    );
+                }
+
+                commands.entity(bone_entity).insert(AnimationTarget {
+                    id: target_id,
+                    player: entity,
+                });
             }
 
-            commands.entity(bone_entity).insert(AnimationTarget {
-                id: target_id,
-                player: entity,
-            });
+            let handle = animations.add(animation_clip);
+            animations_hashmap.insert(name, animation_graph.add_clip(handle, 1.0, blend_node));
         }
-
-        let handle = animations.add(animation_clip);
-        let (animation_graph, animation_node_index) = AnimationGraph::from_clip(handle);
         let animation_graph_handle = animation_graphs.add(animation_graph);
-        animation_player.play(animation_node_index).repeat();
+        animation_player
+            .play(*animations_hashmap.get("swimknockout").unwrap())
+            .repeat();
         commands
             .entity(entity)
             .insert(AnimationGraphHandle(animation_graph_handle));
@@ -278,7 +251,7 @@ pub fn extract_animations_from_base_anim(
     if root_node_index.is_none() {
         // Fallback: Look for NiSequenceStreamHelper if Bip01 with TextKeys isn't found
         // This is less common for Morrowind's base_anim.nif character animations
-        for (i, block) in nif_data.blocks.iter().enumerate() {
+        for (_, block) in nif_data.blocks.iter().enumerate() {
             if let ParsedBlock::SequenceStreamHelper(_) = block {
                 // NiSequenceStreamHelper implies animations are defined elsewhere,
                 // often linked via its NiObjectNET controller_link.
@@ -291,7 +264,7 @@ pub fn extract_animations_from_base_anim(
                 // or older structures define sequences.
                 // For now, we'll prioritize the TextKeyExtraData route.
                 // A simple check for its controller might point to a NiTimeController chain.
-                println!(
+                warn!(
                     "Found NiSequenceStreamHelper, but its animation structure is typically different from base_anim.nif bone animations."
                 );
             }
@@ -472,7 +445,7 @@ pub fn extract_animations_from_base_anim(
         // Handle case where there might be no explicit "start"/"stop" but text keys imply one full sequence
         // e.g. older KF files or simple animations.
         // This is a heuristic.
-        let mut start_time = text_keys.first().map_or(0.0, |tk| tk.time);
+        let start_time = text_keys.first().map_or(0.0, |tk| tk.time);
         let mut stop_time = text_keys.last().map_or(0.0, |tk| tk.time);
         if stop_time <= start_time && !nif_data.blocks.is_empty() {
             // try to find a max time from controllers
@@ -503,7 +476,7 @@ pub fn extract_animations_from_base_anim(
         }
 
         if stop_time > start_time {
-            println!(
+            warn!(
                 "No explicit start/stop in text keys, creating one sequence from {:.2} to {:.2}",
                 start_time, stop_time
             );
@@ -586,8 +559,8 @@ pub fn extract_animations_from_base_anim(
     Ok(animation_sequences)
 }
 
-// Example usage (you'll need to load `ParsedNifData` first)
-pub fn main_example(parsed_nif_data: &ParsedNifData) {
+#[allow(dead_code)]
+pub fn print_animations(parsed_nif_data: &ParsedNifData) {
     match extract_animations_from_base_anim(parsed_nif_data) {
         Ok(animations) => {
             println!(
@@ -599,7 +572,7 @@ pub fn main_example(parsed_nif_data: &ParsedNifData) {
                 x += 1;
                 println!(
                     "  Sequence: {}, Start: {:.2}, Stop: {:.2}, Bones Animated: {}",
-                    anim_seq.name,
+                    name,
                     anim_seq.start_time,
                     anim_seq.stop_time,
                     anim_seq.bone_curves.len()

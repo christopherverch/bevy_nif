@@ -7,7 +7,6 @@ use bevy::{
     prelude::*,
     render::mesh::{Indices, PrimitiveTopology},
 };
-use std::f32::consts::{FRAC_PI_2, FRAC_PI_4};
 pub fn resolve_nif_path(nif_path: &str) -> String {
     // Basic cleanup - Needs proper implementation!
     let cleaned = nif_path.trim().replace('\\', "/");
@@ -164,14 +163,6 @@ fn create_mesh_with_flat_normals(
     // Only create UV buffer if original UVs were present
     let mut final_uvs: Option<Vec<[f32; 2]>> =
         original_uvs.map(|_| Vec::with_capacity(new_vertex_count));
-
-    println!(
-        "MANUALLY COMPUTING FLAT NORMALS: Input Vertices={}, Indices={}, Triangles={}. Output Vertices={}",
-        vertex_count,
-        original_indices.len(),
-        num_triangles,
-        new_vertex_count
-    );
 
     for i in 0..num_triangles {
         // Get original vertex indices for this triangle

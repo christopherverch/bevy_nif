@@ -5,17 +5,13 @@ use crate::nif::error::{ParseError, Result};
 use crate::nif::parser::base_parsers::parse_niobjectnet_fields;
 use crate::nif::parser::helpers::*;
 use crate::nif::types::*;
+use bevy::log::warn;
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::io::{Cursor, Seek}; // Added Seek for potential future use
 pub fn parse_nikeyframecontroller_fields(
     cursor: &mut Cursor<&[u8]>,
-    block_index: u32,
+    _block_index: u32,
 ) -> Result<NiKeyframeController> {
-    println!(
-        "   Parsing NiKeyframeController fields for block {}...",
-        block_index
-    );
-
     // Read NiTimeController base fields (v4.0.0.2 structure)
     let next_controller = read_link(cursor)?;
     let flags = cursor.read_u16::<LittleEndian>()?;
@@ -27,11 +23,6 @@ pub fn parse_nikeyframecontroller_fields(
 
     // Read NiKeyframeController specific field for v4.0.0.2
     let keyframe_data = read_link(cursor)?;
-
-    println!(
-        "     -> Flags: {:#06X}, Freq: {}, Start: {}, Stop: {}, Target: {:?}, Data: {:?}",
-        flags, frequency, start_time, stop_time, target, keyframe_data
-    ); // Added more fields to print
 
     // Construct struct
     let controller = NiKeyframeController {
@@ -45,7 +36,6 @@ pub fn parse_nikeyframecontroller_fields(
         keyframe_data,
     };
 
-    println!("   -> Successfully parsed NiKeyframeController fields.");
     Ok(controller)
 }
 
@@ -53,12 +43,9 @@ pub fn parse_nigeometrydata_fields(
     cursor: &mut Cursor<&[u8]>,
     _block_index: u32,
 ) -> Result<NiGeometryData> {
-    println!("     Parsing NiGeometryData fields...");
     let num_vertices = cursor.read_u16::<LittleEndian>()?;
-    println!("       -> Num Vertices: {}", num_vertices);
 
     let has_vertices = cursor.read_u32::<LittleEndian>()? != 0; // u32 bool in v4.0.0.2
-    println!("       -> Has Vertices: {}", has_vertices);
     let mut vertices = None;
     if has_vertices {
         let mut verts_vec = Vec::with_capacity(num_vertices as usize);
@@ -66,11 +53,9 @@ pub fn parse_nigeometrydata_fields(
             verts_vec.push(read_vector3(cursor)?);
         }
         vertices = Some(verts_vec);
-        println!("         (Read {} vertices)", num_vertices);
     }
 
     let has_normals = cursor.read_u32::<LittleEndian>()? != 0; // u32 bool
-    println!("       -> Has Normals: {}", has_normals);
     let mut normals = None;
     if has_normals {
         let mut norms_vec = Vec::with_capacity(num_vertices as usize);
@@ -78,19 +63,13 @@ pub fn parse_nigeometrydata_fields(
             norms_vec.push(read_vector3(cursor)?);
         }
         normals = Some(norms_vec);
-        println!("         (Read {} normals)", num_vertices);
     }
 
     let center = read_vector3(cursor)?;
     let radius = cursor.read_f32::<LittleEndian>()?;
     let bounding_sphere = BoundingSphere { center, radius };
-    println!(
-        "       -> Bounding Sphere: Center={:?}, Radius={}",
-        center.0, radius
-    );
 
     let has_vertex_colors = cursor.read_u32::<LittleEndian>()? != 0; // u32 bool
-    println!("       -> Has Vertex Colors: {}", has_vertex_colors);
     let mut vertex_colors = None;
     if has_vertex_colors {
         let mut colors_vec = Vec::with_capacity(num_vertices as usize);
@@ -98,36 +77,29 @@ pub fn parse_nigeometrydata_fields(
             colors_vec.push(read_vector4(cursor)?); // Read RGBA
         }
         vertex_colors = Some(colors_vec);
-        println!("         (Read {} vertex colors)", num_vertices);
     }
 
     let data_flags = cursor.read_u16::<LittleEndian>()?; // Contains num UV sets
     let num_uv_sets = data_flags & 0x3F; // Lower 6 bits often used for count? NifXML implies flags == num for 4.0.0.2
-    println!(
-        "       -> Data Flags: {:#06X} (Num UV Sets: {})",
-        data_flags, num_uv_sets
-    );
     let has_uv_flag = cursor.read_u32::<LittleEndian>()? != 0; // Read the 'Has UV' boolean flag (as u32)
-    println!("       -> Has UV flag: {}", has_uv_flag);
     let mut uv_sets = Vec::with_capacity(num_uv_sets as usize);
     if num_uv_sets > 4 {
         // Add a sanity check
-        println!(
-            "       !!!! WARN: Unexpectedly high number of UV sets: {} !!!!",
+        warn!(
+            "       Unexpectedly high number of UV sets: {} !",
             num_uv_sets
         );
         // Potentially return error or clamp num_uv_sets? Clamping for now.
         // return Err(ParseError::InvalidData(format!("Too many UV sets: {}", num_uv_sets)));
     }
     if has_uv_flag && num_uv_sets > 0 {
-        for set_index in 0..num_uv_sets.min(4) {
+        for _set_index in 0..num_uv_sets.min(4) {
             // Read up to 4 sets for safety
             let mut uv_list = Vec::with_capacity(num_vertices as usize);
             for _ in 0..num_vertices {
                 uv_list.push(read_vector2(cursor)?);
             }
             uv_sets.push(uv_list);
-            println!("         (Read {} UVs for Set {})", num_vertices, set_index);
         }
     }
 
@@ -147,13 +119,8 @@ pub fn parse_nigeometrydata_fields(
 
 pub fn parse_nikeyframedata_fields(
     cursor: &mut Cursor<&[u8]>,
-    block_index: u32,
+    _block_index: u32,
 ) -> Result<NiKeyframeData> {
-    println!(
-        "   Parsing NiKeyframeData fields for block {}...",
-        block_index
-    );
-
     // Rotations (Quaternions)
     let num_rotation_keys = cursor.read_u32::<LittleEndian>()?;
     let mut rotation_type_opt = None; // Renamed to Option
@@ -162,10 +129,6 @@ pub fn parse_nikeyframedata_fields(
         let rotation_type_raw = cursor.read_u32::<LittleEndian>()?;
         let parsed_rotation_type = KeyType::from(rotation_type_raw);
         rotation_type_opt = Some(parsed_rotation_type); // Store the type
-        println!(
-            "     -> Rotation Keys: {}, Type: {:?}",
-            num_rotation_keys, parsed_rotation_type
-        );
         if num_rotation_keys > 10000 {
             return Err(ParseError::InvalidData(
                 "Too many rotation keys".to_string(),
@@ -174,23 +137,16 @@ pub fn parse_nikeyframedata_fields(
         for _ in 0..num_rotation_keys {
             quaternion_keys.push(read_key_quat(cursor, parsed_rotation_type)?); // Pass type
         }
-    } else {
-        println!("     -> Rotation Keys: 0");
     }
 
     // Translations (Vec3)
     let num_translation_keys = cursor.read_u32::<LittleEndian>()?;
     let mut translation_interp = KeyType::Linear; // Default assumption
     let mut translations = Vec::with_capacity(num_translation_keys as usize);
-    println!("     -> Translation Keys: {}", num_translation_keys);
     if num_translation_keys > 0 {
         // *** Read the interpolation type for translations ***
         let translation_interp_raw = cursor.read_u32::<LittleEndian>()?;
         translation_interp = KeyType::from(translation_interp_raw);
-        println!(
-            "       -> Translation Interpolation: {:?}",
-            translation_interp
-        );
 
         if num_translation_keys > 10000 {
             return Err(ParseError::InvalidData(
@@ -207,12 +163,10 @@ pub fn parse_nikeyframedata_fields(
     let num_scale_keys = cursor.read_u32::<LittleEndian>()?;
     let mut scale_interp = KeyType::Linear; // Default assumption
     let mut scales = Vec::with_capacity(num_scale_keys as usize);
-    println!("     -> Scale Keys: {}", num_scale_keys);
     if num_scale_keys > 0 {
         // *** Read the interpolation type for scales ***
         let scale_interp_raw = cursor.read_u32::<LittleEndian>()?;
         scale_interp = KeyType::from(scale_interp_raw);
-        println!("       -> Scale Interpolation: {:?}", scale_interp);
 
         if num_scale_keys > 10000 {
             return Err(ParseError::InvalidData("Too many scale keys".to_string()));
@@ -232,7 +186,6 @@ pub fn parse_nikeyframedata_fields(
         scales,
     };
 
-    println!("   -> Successfully parsed NiKeyframeData fields.");
     Ok(key_data)
 }
 
@@ -241,9 +194,7 @@ pub fn parse_nitribasedgeomdata_fields(
     geom_base: NiGeometryData,
     _block_index: u32,
 ) -> Result<NiTriBasedGeomData> {
-    println!("     Parsing NiTriBasedGeomData fields...");
     let num_triangles = cursor.read_u16::<LittleEndian>()?;
-    println!("       -> Num Triangles: {}", num_triangles);
     Ok(NiTriBasedGeomData {
         geom_base,
         num_triangles,
@@ -259,22 +210,12 @@ pub fn parse_niskininstance_fields(
     cursor: &mut Cursor<&[u8]>,
     block_index: u32,
 ) -> Result<NiSkinInstance> {
-    println!(
-        "   Parsing NiSkinInstance fields for block {}...",
-        block_index
-    );
-
     // NiObject base has no fields to read here
 
     // Read fields for v4.0.0.2
     let data_link = read_link(cursor)?; // 4 bytes: Link to NiSkinData
     let skeleton_root_link = read_link(cursor)?; // 4 bytes: Link to skeleton root NiNode
     let num_bones = cursor.read_u32::<LittleEndian>()?; // 4 bytes: Count of bones
-
-    println!(
-        "     -> Data Link: {:?}, Skeleton Root: {:?}, Num Bones: {}",
-        data_link, skeleton_root_link, num_bones
-    );
 
     // Read the list of bone node links
     let mut bones_vec = Vec::with_capacity(num_bones as usize);
@@ -289,7 +230,6 @@ pub fn parse_niskininstance_fields(
     for _ in 0..num_bones {
         bones_vec.push(read_link(cursor)?); // Read i32 link for each bone (N * 4 bytes)
     }
-    println!("       -> Read {} bone links.", bones_vec.len());
 
     // NiSkinPartition link is not present in this version
 
@@ -300,23 +240,18 @@ pub fn parse_niskininstance_fields(
         bones: bones_vec,
     })
 }
-pub fn parse_niskindata_fields(cursor: &mut Cursor<&[u8]>, block_index: u32) -> Result<NiSkinData> {
-    println!("   Parsing NiSkinData fields for block {}...", block_index);
-
+pub fn parse_niskindata_fields(
+    cursor: &mut Cursor<&[u8]>,
+    _block_index: u32,
+) -> Result<NiSkinData> {
     // Read overall skin transform (as shown in NifSkope)
     let skin_transform = read_nif_transform(cursor)?; // Reads 52 bytes total
-    println!(
-        "     -> Skin Transform Read (Scale: {})",
-        skin_transform.scale
-    );
 
     let num_bones = cursor.read_u32::<LittleEndian>()?; // 4 bytes (uint in NifSkope)
-    println!("     -> Num Bones: {}", num_bones);
 
     // Skip Skin Partition Link (i32 Ref<NiSkinPartition>) - NifSkope shows None/Invalid(-1)
     // and spec versions it later than 4.0.0.2. Let's explicitly skip 4 bytes.
     // Note: If this causes issues, verify if v4.0.0.2 *always* omits this.
-    println!("     -> Skipping 4 bytes for Skin Partition link (absent in v4.0.0.2)");
     cursor.seek(std::io::SeekFrom::Current(4))?;
 
     // Sanity check bone count
@@ -327,9 +262,7 @@ pub fn parse_niskindata_fields(cursor: &mut Cursor<&[u8]>, block_index: u32) -> 
     }
 
     let mut bone_data_list = Vec::with_capacity(num_bones as usize);
-    for bone_idx in 0..num_bones {
-        println!("       -> Parsing BoneData #{}...", bone_idx);
-
+    for _bone_idx in 0..num_bones {
         // Read the bone's transform (NiTransform)
         let bone_transform = read_nif_transform(cursor)?; // Reads 52 bytes
 
@@ -341,10 +274,6 @@ pub fn parse_niskindata_fields(cursor: &mut Cursor<&[u8]>, block_index: u32) -> 
 
         // Read vertex weight info for this bone
         let num_vertices_for_bone = cursor.read_u16::<LittleEndian>()?; // 2 bytes (ushort in NifSkope)
-        println!(
-            "         -> Vertices weighted to this bone: {}",
-            num_vertices_for_bone
-        );
 
         // Sanity check vertex count
         if num_vertices_for_bone > 65500 {
@@ -362,7 +291,6 @@ pub fn parse_niskindata_fields(cursor: &mut Cursor<&[u8]>, block_index: u32) -> 
                 weight: vertex_weight,
             });
         }
-        println!("         -> Read {} vertex weights.", vert_weights.len());
 
         bone_data_list.push(BoneData {
             bone_transform, // Use the NiTransform struct
@@ -373,14 +301,6 @@ pub fn parse_niskindata_fields(cursor: &mut Cursor<&[u8]>, block_index: u32) -> 
             vertex_weights: vert_weights,
         });
     } // End bone loop
-    println!(
-        "       -> Finished reading {} BoneData entries.",
-        bone_data_list.len()
-    );
-    println!(
-        "     -> Cursor after NiSkinData fields: {:#X}",
-        cursor.position()
-    );
 
     Ok(NiSkinData {
         skin_transform, // Use the NiTransform struct

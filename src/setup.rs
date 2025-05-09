@@ -27,18 +27,46 @@ pub fn setup(
         "data/B_N_Dark Elf_M_Neck.nif",
         "data/B_N_Dark Elf_M_Head_01.nif",
         "data/b_n_dark elf_m_skins.nif",
+        "data/B_N_Dark Elf_M_Groin.nif",
+        "data/B_N_Dark Elf_M_Hair_01.nif",
+        "data/B_N_Dark Elf_M_Forearm.nif",
+        "data/B_N_Dark Elf_M_Forearm.nif",
+        "data/B_N_Dark Elf_M_Upper Arm.nif",
+        "data/B_N_Dark Elf_M_Upper Arm.nif",
+        "data/B_N_Dark Elf_M_Wrist.nif",
+        "data/B_N_Dark Elf_M_Wrist.nif",
+        "data/B_N_Dark Elf_M_Upper Leg.nif",
+        "data/B_N_Dark Elf_M_Upper Leg.nif",
+        "data/B_N_Dark Elf_M_Knee.nif",
+        "data/B_N_Dark Elf_M_Knee.nif",
+        "data/B_N_Dark Elf_M_Ankle.nif",
+        "data/B_N_Dark Elf_M_Ankle.nif",
+        "data/B_N_Dark Elf_M_Foot.nif",
+        "data/B_N_Dark Elf_M_Foot.nif",
     ]
     .to_vec();
-    let asset_names = ["skeleton", "neck", "head", "torso"].to_vec();
+    let asset_names = ["skeleton"].to_vec();
     let attachment_types = [
-        AttachmentType::Skinned,
-        AttachmentType::Rigid {
-            target_bone: "Neck".to_string(),
-        },
-        AttachmentType::Rigid {
-            target_bone: "Head".to_string(),
-        },
-        AttachmentType::Skinned,
+        None,
+        Some("Neck"),
+        Some("Head"),
+        None,
+        Some("Groin"),
+        Some("Head"),
+        Some("Right Forearm"),
+        Some("Left Forearm"),
+        Some("Right Upper Arm"),
+        Some("Left Upper Arm"),
+        Some("Right Wrist"),
+        Some("Left Wrist"),
+        Some("Right Upper Leg"),
+        Some("Left Upper Leg"),
+        Some("Right Knee"),
+        Some("Left Knee"),
+        Some("Right Ankle"),
+        Some("Left Ankle"),
+        Some("Right Foot"),
+        Some("Left Foot"),
     ]
     .to_vec();
     spawn_gltfs(
@@ -87,20 +115,29 @@ fn spawn_gltfs(
     commands: &mut Commands,
     client_id: u64,
     transform: Transform,
-    mut attachment_type: Vec<AttachmentType>,
+    mut target_bone: Vec<Option<&str>>,
 ) {
     for i in 0..paths.len() {
         let asset_handle = asset_server.load(paths[i]);
+        let attachment_type = if let Some(target_bone) = target_bone.remove(0) {
+            AttachmentType::Rigid {
+                target_bone: target_bone.to_string(),
+            }
+        } else {
+            AttachmentType::Skinned
+        };
         spawn_gltf_as_child(
             asset_handle,
             scene_entities_by_name,
-            &asset_names[i],
+            //TODO:: TEMPORARY
+            &asset_names[0],
             entity,
             parent_entity,
             commands,
             client_id,
             transform,
-            attachment_type.remove(0),
+            //TODO:: TEMPORARY
+            attachment_type,
         );
     }
 }
@@ -115,9 +152,7 @@ pub fn spawn_gltf_as_child(
     transform: Transform,
     attachment_type: AttachmentType,
 ) {
-    println!("trying to spawn asset: {}", asset_name);
     //let scene = gltf.default_scene.clone().unwrap();
-    println!("player id: {}", entity);
     commands.entity(entity).with_children(|parent| {
         let player_skeleton_entity = parent
             .spawn((
@@ -136,7 +171,6 @@ pub fn spawn_gltf_as_child(
             (asset_name.to_string(), (client_id)),
             player_skeleton_entity,
         );
-        println!("inserting entity with id: {}", player_skeleton_entity);
     });
 }
 

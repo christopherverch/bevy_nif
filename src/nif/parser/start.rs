@@ -12,6 +12,7 @@ use crate::nif::parser::morph::{parse_nigeommorphercontroller_fields, parse_nimo
 use crate::nif::parser::texture::*;
 use crate::nif::parser::triangles::{parse_nitrishape_fields, parse_nitrishapedata_fields};
 use crate::nif::types::*;
+use bevy::log::warn;
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::io::{Cursor, Read};
 // --- Main Parsing Function ---
@@ -43,7 +44,7 @@ pub fn parse_nif_start(data: &[u8]) -> Result<ParsedNifData> {
     // 2. File Version (u32 LE)
     let file_version = cursor.read_u32::<LittleEndian>()?;
     if file_version != 0x04000002 {
-        println!(
+        warn!(
             " !! WARNING: Expected version 0x04000002, found 0x{:08X}",
             file_version
         );
@@ -63,11 +64,8 @@ pub fn parse_nif_start(data: &[u8]) -> Result<ParsedNifData> {
     // --- Block Reading Loop ---
     for i in 0..num_blocks {
         // Read Block Type Name
-        println!("cursor pos: {:x}", cursor.position());
         let block_type_len = cursor.read_u32::<LittleEndian>()?;
-        println!("len: {}", block_type_len);
         let block_type_name = read_nif_string(&mut cursor, block_type_len)?;
-        println!("-> Processing Block {} (Type: '{}')", i, block_type_name);
 
         // Dispatch based on Block Type Name
         let parse_result = match block_type_name.as_str() {
@@ -116,7 +114,7 @@ pub fn parse_nif_start(data: &[u8]) -> Result<ParsedNifData> {
                 parse_nistringextradata_fields(&mut cursor, i).map(ParsedBlock::StringExtraData) // Ensure ParsedBlock has a matching variant
             }
             unknown_type => {
-                println!(
+                warn!(
                     "   ERROR: Unsupported block type '{}'. Cannot parse.",
                     unknown_type
                 );
@@ -132,14 +130,13 @@ pub fn parse_nif_start(data: &[u8]) -> Result<ParsedNifData> {
                 blocks.push(parsed_block);
             }
             Err(e) => {
-                eprintln!("   Failed to parse block {}: {:?}", i, e);
+                warn!("   Failed to parse block {}: {:?}", i, e);
                 // Stop parsing on the first error
                 return Err(e);
             }
         }
     }
 
-    println!("\n--- NIF parsing function finished ---");
     Ok(ParsedNifData { header, blocks })
 }
 
@@ -153,16 +150,12 @@ fn _read_texture_struct(cursor: &mut Cursor<&[u8]>) -> Result<TextureData> {
         let clamp_raw = cursor.read_u32::<LittleEndian>()?;
         let filter_raw = cursor.read_u32::<LittleEndian>()?;
         let uv_set = cursor.read_u32::<LittleEndian>()?;
-        let ps2_l = cursor.read_i16::<LittleEndian>()?; // Read PS2 L
-        let ps2_k = cursor.read_i16::<LittleEndian>()?; // Read PS2 K
-        let unknown1 = cursor.read_u16::<LittleEndian>()?; // Read Unknown1
+        let _ps2_l = cursor.read_i16::<LittleEndian>()?; // Read PS2 L
+        let _ps2_k = cursor.read_i16::<LittleEndian>()?; // Read PS2 K
+        let _unknown1 = cursor.read_u16::<LittleEndian>()?; // Read Unknown1
 
         let clamp_mode = ClampMode::from(clamp_raw);
         let filter_mode = FilterMode::from(filter_raw);
-        println!(
-            "         -> SourceLink: {:?}, Clamp: {:?}, Filter: {:?}, UVSet: {}, PS2L: {}, PS2K: {}, Unk1: {}",
-            source_texture, clamp_mode, filter_mode, uv_set, ps2_l, ps2_k, unknown1
-        );
 
         Ok(TextureData {
             has_texture: true,

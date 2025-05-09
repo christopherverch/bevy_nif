@@ -112,13 +112,11 @@ pub fn read_key_float(cursor: &mut Cursor<&[u8]>, key_type: KeyType) -> Result<K
         KeyType::Linear | KeyType::Const => {}
         KeyType::Quadratic => {
             // Read Bezier tangents for float (2 * f32 = 8 bytes)
-            println!("       -> Reading Quadratic tangents for Float key");
             fwd = Some(cursor.read_f32::<LittleEndian>()?); // Read forward tangent float
             bwd = Some(cursor.read_f32::<LittleEndian>()?); // Read backward tangent float
         }
         KeyType::TBC => {
             // Read TBC parameters (3 * f32 = 12 bytes)
-            println!("       -> Reading TBC parameters for Float key");
             ten = Some(cursor.read_f32::<LittleEndian>()?);
             bia = Some(cursor.read_f32::<LittleEndian>()?);
             con = Some(cursor.read_f32::<LittleEndian>()?);
@@ -169,13 +167,11 @@ pub fn read_key_quat(cursor: &mut Cursor<&[u8]>, key_type: KeyType) -> Result<Ke
         KeyType::Linear | KeyType::Const => {}
         KeyType::Quadratic => {
             // Read Bezier tangents (2 * Quat = 32 bytes)
-            println!("       -> Reading Quadratic tangents for Quat key");
             fwd = Some(read_quat_wxyz(cursor)?); // Read forward tangent quat
             bwd = Some(read_quat_wxyz(cursor)?); // Read backward tangent quat
         }
         KeyType::TBC => {
             // Read TBC parameters (3 * f32 = 12 bytes)
-            println!("       -> Reading TBC parameters for Quat key");
             ten = Some(cursor.read_f32::<LittleEndian>()?); // Read tension
             bia = Some(cursor.read_f32::<LittleEndian>()?); // Read bias
             con = Some(cursor.read_f32::<LittleEndian>()?); // Read continuity
@@ -211,13 +207,11 @@ pub fn read_key_vec3(cursor: &mut Cursor<&[u8]>, key_type: KeyType) -> Result<Ke
         KeyType::Linear | KeyType::Const => {}
         KeyType::Quadratic => {
             // Read Bezier tangents (2 * Vec3f = 24 bytes)
-            println!("       -> Reading Quadratic tangents for Vec3 key");
             fwd = Some(read_vector3(cursor)?); // Read forward tangent vec3
             bwd = Some(read_vector3(cursor)?); // Read backward tangent vec3
         }
         KeyType::TBC => {
             // Read TBC parameters (3 * f32 = 12 bytes)
-            println!("       -> Reading TBC parameters for Vec3 key");
             ten = Some(cursor.read_f32::<LittleEndian>()?);
             bia = Some(cursor.read_f32::<LittleEndian>()?);
             con = Some(cursor.read_f32::<LittleEndian>()?);

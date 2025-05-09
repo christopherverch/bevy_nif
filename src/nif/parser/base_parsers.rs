@@ -17,7 +17,6 @@ use std::io::Cursor;
 // --- Base Type Parsers ---
 
 pub fn parse_ninode_fields(cursor: &mut Cursor<&[u8]>, block_index: u32) -> Result<NiNode> {
-    println!("   Parsing NiNode fields...");
     let net_base = parse_niobjectnet_fields(cursor)?;
     let av_base = parse_niavobject_fields(cursor, net_base, block_index)?; // Pass base and index
 
@@ -31,19 +30,13 @@ pub fn parse_ninode_fields(cursor: &mut Cursor<&[u8]>, block_index: u32) -> Resu
         children,
         effects,
     };
-    println!("   -> Successfully parsed NiNode fields.");
     Ok(node_data)
 }
 pub fn parse_niobjectnet_fields(cursor: &mut Cursor<&[u8]>) -> Result<NiObjectNET> {
-    println!("    Parsing NiObjectNET fields...");
     let name_len = cursor.read_u32::<LittleEndian>()?;
     let name = read_nif_string(cursor, name_len)?;
     let extra_data_link = read_link(cursor)?; // Single link for v4.0.0.2
     let controller_link = read_link(cursor)?;
-    println!(
-        "      -> Name: '{}', ExtraLink: {:?}, ControllerLink: {:?}",
-        name, extra_data_link, controller_link
-    );
 
     Ok(NiObjectNET {
         // base: RecordBase {}, // Assuming no RecordBase fields needed here
@@ -58,13 +51,6 @@ pub fn parse_niavobject_fields(
     net_base: NiObjectNET, // Assuming NiObjectNET fields were parsed just before this
     _block_index: u32,     // Keep if needed for logging/context
 ) -> Result<NiAVObject> {
-    // Debugging start position
-    let start_pos = cursor.position();
-    println!(
-        "    Parsing NiAVObject fields starting at 0x{:X}...",
-        start_pos
-    );
-
     let flags = cursor.read_u16::<LittleEndian>()?;
     let translation = read_vector3(cursor)?;
     let rotation = read_matrix3x3(cursor)?;
@@ -79,10 +65,6 @@ pub fn parse_niavobject_fields(
     // If the "Link list count too high" error happened *after* reading bounds,
     // then properties (or children in NiNode) are likely read *later*.
     // Assuming for now based on your original code it's read here:
-    println!(
-        "      Reading properties list at 0x{:X}...",
-        cursor.position()
-    );
     let properties = read_link_list(cursor)?; // Read properties link list
     // --- End Critical Section ---
 
@@ -95,19 +77,15 @@ pub fn parse_niavobject_fields(
         bounding_volume_data = match bounding_volume_type {
             0 => {
                 // Sphere: Center (Vector3), Radius (f32)
-                println!("      -> Bounding Volume: Sphere (Type 1)");
                 let center = read_vector3(cursor)?;
                 let radius = cursor.read_f32::<LittleEndian>()?;
-                println!("         -> Center:{:?}, Radius:{}", center, radius);
                 Some(BoundingVolume::Sphere(BoundingSphere { center, radius }))
             }
             1 => {
                 // Box: Center (Vector3), Axes (Matrix3x3), Extent (Vector3)
-                println!("      -> Bounding Volume: Box (Type 2)");
                 let center = read_vector3(cursor)?;
                 let axes = read_matrix3x3(cursor)?; // Rotation matrix for the box
                 let extent = read_vector3(cursor)?; // Half-dimensions along each axis
-                println!("         -> Center:{:?}, Extent:{:?}", center, extent);
                 Some(BoundingVolume::Box(BoundingBox {
                     center,
                     axes,
@@ -125,13 +103,6 @@ pub fn parse_niavobject_fields(
             }
         };
     }
-
-    let end_pos = cursor.position();
-    println!(
-        "    Finished parsing NiAVObject fields at 0x{:X} (Size: {} bytes)",
-        end_pos,
-        end_pos - start_pos
-    );
 
     // Construct the NiAVObject
     Ok(NiAVObject {

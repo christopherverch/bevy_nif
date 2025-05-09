@@ -157,7 +157,7 @@ impl AssetLoader for NifAssetLoader {
     }
 
     fn extensions(&self) -> &[&str] {
-        &["nif"]
+        &["nif", "kf"]
     }
 }
 

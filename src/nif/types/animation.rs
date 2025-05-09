@@ -1,10 +1,10 @@
 #![allow(dead_code)]
-use super::NiTransform;
 use super::base::{RecordLink, Vector3};
+use super::{NiObjectNET, NiTransform};
 use bevy::prelude::*;
 use bevy::reflect::TypePath;
 use std::fmt::Debug;
-
+use std::ops::Deref;
 // Using Bevy's Quat directly if possible, otherwise define alias
 pub type Quaternion = bevy::math::Quat; // Assuming you use Bevy's Quat elsewhere
 #[derive(Asset, Clone, Debug, Default, TypePath)] // Add Asset, TypePath if this is a top-level asset
@@ -170,4 +170,32 @@ pub struct NiSkinData {
     pub num_bones: u32,
     /// List containing transform and weighting data for each bone.
     pub bone_list: Vec<BoneData>,
+}
+#[derive(Debug, Clone)]
+pub struct NiStreamHeader {
+    pub layout: u32,
+    pub num_objects: u32,
+    pub object_types: Vec<String>, // Assuming NiStringPalette is Vec<String>
+    pub object_sizes: Vec<u32>,
+}
+
+// Structure for the Footer block within NiSequenceStreamHelper
+#[derive(Debug, Clone)]
+pub struct NiStreamFooter {
+    pub num_objects: u32,
+}
+
+#[derive(Debug, Clone, Default, TypePath)] // Add TypePath if needed
+pub struct NiSequenceStreamHelper {
+    pub net_base: NiObjectNET,
+    // No additional fields specific to NiSequenceStreamHelper itself
+}
+
+// Optional Deref if you want to access NiObjectNET fields directly
+impl Deref for NiSequenceStreamHelper {
+    type Target = NiObjectNET;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.net_base
+    }
 }

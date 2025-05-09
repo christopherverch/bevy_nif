@@ -16,6 +16,24 @@ use std::io::Cursor;
 
 // --- Base Type Parsers ---
 
+pub fn parse_ninode_fields(cursor: &mut Cursor<&[u8]>, block_index: u32) -> Result<NiNode> {
+    println!("   Parsing NiNode fields...");
+    let net_base = parse_niobjectnet_fields(cursor)?;
+    let av_base = parse_niavobject_fields(cursor, net_base, block_index)?; // Pass base and index
+
+    // 3. Read NiNode Data
+    let children = read_link_list(cursor)?;
+    let effects = read_link_list(cursor)?;
+
+    // 4. Construct nested struct
+    let node_data = NiNode {
+        av_base,
+        children,
+        effects,
+    };
+    println!("   -> Successfully parsed NiNode fields.");
+    Ok(node_data)
+}
 pub fn parse_niobjectnet_fields(cursor: &mut Cursor<&[u8]>) -> Result<NiObjectNET> {
     println!("    Parsing NiObjectNET fields...");
     let name_len = cursor.read_u32::<LittleEndian>()?;
@@ -128,23 +146,4 @@ pub fn parse_niavobject_fields(
         properties,                            // Assign the parsed properties list
         bounding_volume: bounding_volume_data, // Assign the parsed bounding volume data
     })
-}
-
-pub fn parse_ninode_fields(cursor: &mut Cursor<&[u8]>, block_index: u32) -> Result<NiNode> {
-    println!("   Parsing NiNode fields...");
-    let net_base = parse_niobjectnet_fields(cursor)?;
-    let av_base = parse_niavobject_fields(cursor, net_base, block_index)?; // Pass base and index
-
-    // 3. Read NiNode Data
-    let children = read_link_list(cursor)?;
-    let effects = read_link_list(cursor)?;
-
-    // 4. Construct nested struct
-    let node_data = NiNode {
-        av_base,
-        children,
-        effects,
-    };
-    println!("   -> Successfully parsed NiNode fields.");
-    Ok(node_data)
 }

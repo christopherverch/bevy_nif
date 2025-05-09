@@ -1,12 +1,60 @@
+use crate::nif::attach_parts::AttachmentType;
+use crate::nif::loader::Nif;
 use crate::nif::spawner::NifScene;
 use bevy::prelude::*;
 use bevy_third_person_camera::*;
 
-pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let handle5 = asset_server.load("data/Xbase_anim.nif");
-
-    commands.spawn((NifScene(handle5), Transform::from_xyz(0.0, 0.0, 0.0)));
+pub fn setup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut scene_entities_by_name: ResMut<SceneEntitiesByName>,
+) {
+    let entity = commands
+        .spawn((
+            InheritedVisibility::VISIBLE,
+            Transform::from_xyz(0.0, -3.5, 1.0),
+        ))
+        .id();
+    let entity_player = commands
+        .spawn((
+            InheritedVisibility::VISIBLE,
+            Transform::from_xyz(2.0, -1.0, 0.0),
+        ))
+        .id();
+    //"data/B_N_Dark Elf_F_Forearm.nif",
+    let paths = [
+        "data/base_anim.nif",
+        "data/B_N_Dark Elf_M_Neck.nif",
+        "data/B_N_Dark Elf_M_Head_01.nif",
+        "data/b_n_dark elf_m_skins.nif",
+    ]
+    .to_vec();
+    let asset_names = ["skeleton", "neck", "head", "torso"].to_vec();
+    let attachment_types = [
+        AttachmentType::Skinned,
+        AttachmentType::Rigid {
+            target_bone: "Neck".to_string(),
+        },
+        AttachmentType::Rigid {
+            target_bone: "Head".to_string(),
+        },
+        AttachmentType::Skinned,
+    ]
+    .to_vec();
+    spawn_gltfs(
+        paths,
+        asset_server,
+        &mut scene_entities_by_name,
+        asset_names,
+        entity,
+        entity_player,
+        &mut commands,
+        0,
+        Transform::from_xyz(0.0, 0.0, 0.0),
+        attachment_types,
+    );
 }
+use std::collections::HashMap;
 use std::f32::consts::PI;
 
 use bevy::render::mesh::Mesh;
@@ -17,6 +65,80 @@ use bevy::{
     },
     pbr::{CascadeShadowConfigBuilder, NotShadowCaster, NotShadowReceiver},
 };
+#[derive(Default, Resource, Debug)]
+pub struct SceneEntitiesByName(pub HashMap<(String, u64), Entity>);
+#[derive(Default, Resource)]
+pub struct GameAssets {
+    pub gltf_files: HashMap<String, Handle<Nif>>,
+}
+#[derive(Component)]
+pub struct SceneName {
+    pub scene_name: String,
+    pub id: u64,
+    pub parent: Entity,
+}
+fn spawn_gltfs(
+    paths: Vec<&str>,
+    asset_server: Res<AssetServer>,
+    scene_entities_by_name: &mut ResMut<SceneEntitiesByName>,
+    asset_names: Vec<&str>,
+    entity: Entity,
+    parent_entity: Entity,
+    commands: &mut Commands,
+    client_id: u64,
+    transform: Transform,
+    mut attachment_type: Vec<AttachmentType>,
+) {
+    for i in 0..paths.len() {
+        let asset_handle = asset_server.load(paths[i]);
+        spawn_gltf_as_child(
+            asset_handle,
+            scene_entities_by_name,
+            &asset_names[i],
+            entity,
+            parent_entity,
+            commands,
+            client_id,
+            transform,
+            attachment_type.remove(0),
+        );
+    }
+}
+pub fn spawn_gltf_as_child(
+    asset_handle: Handle<Nif>,
+    scene_entities_by_name: &mut ResMut<SceneEntitiesByName>,
+    asset_name: &str,
+    entity: Entity,
+    parent_entity: Entity,
+    commands: &mut Commands,
+    client_id: u64,
+    transform: Transform,
+    attachment_type: AttachmentType,
+) {
+    println!("trying to spawn asset: {}", asset_name);
+    //let scene = gltf.default_scene.clone().unwrap();
+    println!("player id: {}", entity);
+    commands.entity(entity).with_children(|parent| {
+        let player_skeleton_entity = parent
+            .spawn((
+                InheritedVisibility::VISIBLE,
+                NifScene(asset_handle.clone()),
+                transform,
+                SceneName {
+                    scene_name: asset_name.to_string(),
+                    id: client_id,
+                    parent: parent_entity,
+                },
+                attachment_type,
+            ))
+            .id();
+        scene_entities_by_name.0.insert(
+            (asset_name.to_string(), (client_id)),
+            player_skeleton_entity,
+        );
+        println!("inserting entity with id: {}", player_skeleton_entity);
+    });
+}
 
 pub fn setup_scene(
     mut commands: Commands,

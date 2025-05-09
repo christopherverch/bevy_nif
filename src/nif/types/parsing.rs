@@ -1,11 +1,11 @@
 #![allow(dead_code)]
 use super::animation::{
-    NiGeomMorpherController, NiKeyframeController, NiKeyframeData, NiMorphData, NiSkinData,
-    NiSkinInstance,
+    NiGeomMorpherController, NiKeyframeController, NiKeyframeData, NiMorphData,
+    NiSequenceStreamHelper, NiSkinData, NiSkinInstance,
 };
 use super::base::NifHeader;
 use super::effects::NiTextureEffect;
-use super::extra_data::NiTextKeyExtraData;
+use super::extra_data::{NiStringExtraData, NiTextKeyExtraData};
 use super::geometry::{NiTriShapeData, NiWireframeProperty};
 use super::properties::{NiAlphaProperty, NiMaterialProperty, NiVertexColorProperty};
 use super::scene::{NiNode, NiTriShape};
@@ -34,6 +34,8 @@ pub enum ParsedBlock {
     SkinInstance(NiSkinInstance),
     SkinData(NiSkinData),
     WireframeProperty(NiWireframeProperty),
+    SequenceStreamHelper(NiSequenceStreamHelper),
+    StringExtraData(NiStringExtraData),
     // Add other variants as needed
     Unknown(String), // Stores the type name of the unknown block
 }

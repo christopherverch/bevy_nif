@@ -1,15 +1,18 @@
 // src/nif/parser/texture.rs
 
 use super::helpers::Result;
-use crate::nif::{
-    parser::{
-        base_parsers::parse_niobjectnet_fields,
-        helpers::{read_link, read_nif_string, read_vector3},
-    },
-    types::{
-        AlphaFormat, ApplyMode, ClampMode, FilterMode, LightMode, MipMapFormat, NiMaterialProperty,
-        NiProperty, NiSourceTexture, NiTexturingProperty, NiVertexColorProperty, PixelLayout,
-        TextureData, VertexMode,
+use crate::{
+    NiAlphaProperty,
+    nif::{
+        parser::{
+            base_parsers::parse_niobjectnet_fields,
+            helpers::{read_link, read_nif_string},
+        },
+        types::{
+            AlphaFormat, ApplyMode, ClampMode, FilterMode, LightMode, MipMapFormat, NiProperty,
+            NiSourceTexture, NiTexturingProperty, NiVertexColorProperty, PixelLayout, TextureData,
+            VertexMode,
+        },
     },
 };
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -71,50 +74,6 @@ pub fn parse_nivertexcolorproperty_fields(
         vertex_mode: vertex_mode_opt,
         lighting_mode: lighting_mode_opt,
     })
-}
-
-pub fn parse_nimaterialproperty_fields(
-    cursor: &mut Cursor<&[u8]>,
-    block_index: u32,
-) -> Result<NiMaterialProperty> {
-    println!(
-        "   Parsing NiMaterialProperty fields for block {}...",
-        block_index
-    );
-
-    // 1. Parse NiObjectNET base fields (as NiProperty adds no fields itself)
-    let net_part = parse_niobjectnet_fields(cursor)?;
-
-    // 2. Parse NiMaterialProperty specific fields (v4.0.0.2)
-    let flags = cursor.read_u16::<LittleEndian>()?;
-    let ambient_color = read_vector3(cursor)?;
-    let diffuse_color = read_vector3(cursor)?;
-    let specular_color = read_vector3(cursor)?;
-    let emissive_color = read_vector3(cursor)?;
-    let glossiness = cursor.read_f32::<LittleEndian>()?;
-    let alpha = cursor.read_f32::<LittleEndian>()?;
-    // No emissive_mult in v4.0.0.2
-
-    println!(
-        "     -> Flags: {:#06X}, Gloss: {}, Alpha: {}",
-        flags, glossiness, alpha
-    );
-    // Add printing for colors if needed, but can be verbose
-
-    // 3. Construct struct
-    let mat_prop = NiMaterialProperty {
-        property_base: NiProperty { net_base: net_part },
-        flags,
-        ambient_color,
-        diffuse_color,
-        specular_color,
-        emissive_color,
-        glossiness,
-        alpha,
-    };
-
-    println!("   -> Successfully parsed NiMaterialProperty fields.");
-    Ok(mat_prop)
 }
 
 pub fn parse_nisourcetexture_fields(
@@ -368,4 +327,30 @@ pub fn parse_nitexturingproperty_fields(
     };
 
     Ok(tex_prop)
+}
+pub fn parse_nialphaproperty_fields(
+    cursor: &mut Cursor<&[u8]>,
+    _block_index: u32,
+) -> Result<NiAlphaProperty> {
+    println!("   Parsing NiAlphaProperty fields...");
+
+    // 1. Parse NiObjectNET base fields (as NiProperty doesn't add fields itself)
+    let net_part = parse_niobjectnet_fields(cursor)?;
+
+    // 2. Parse NiAlphaProperty specific fields (for v4.0.0.2)
+    let flags = cursor.read_u16::<LittleEndian>()?;
+    let threshold = cursor.read_u8()?;
+    println!("     -> Flags: {:#06X}, Threshold: {}", flags, threshold);
+
+    // 3. Construct nested struct
+    let alpha_prop = NiAlphaProperty {
+        property_base: NiProperty {
+            // Wrap the parsed NiObjectNET part
+            net_base: net_part,
+        },
+        flags,
+        threshold,
+    };
+    println!("   -> Successfully parsed NiAlphaProperty fields.");
+    Ok(alpha_prop)
 }

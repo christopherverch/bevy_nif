@@ -1,6 +1,6 @@
 pub mod animation;
 pub mod base_parsers;
-pub mod effects;
+pub mod effects_properties;
 pub mod extra_data;
 pub mod helpers;
 pub mod materials;

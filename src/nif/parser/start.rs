@@ -1,21 +1,15 @@
 use crate::nif::error::{ParseError, Result};
 
-use crate::nif::parser::animation::{
-    parse_nikeyframecontroller_fields, parse_nikeyframedata_fields, parse_niskindata_fields,
-    parse_niskininstance_fields,
-};
+use crate::nif::parser::animation::*;
 use crate::nif::parser::base_parsers::parse_ninode_fields;
-use crate::nif::parser::effects::{
-    parse_nitextureeffect_fields, parse_niwireframe_property_fields,
+use crate::nif::parser::effects_properties::*;
+use crate::nif::parser::extra_data::{
+    parse_nistringextradata_fields, parse_nitextkeyextradata_fields,
 };
-use crate::nif::parser::extra_data::parse_nitextkeyextradata_fields;
 use crate::nif::parser::helpers::*;
-use crate::nif::parser::materials::parse_nialphaproperty_fields;
+use crate::nif::parser::materials::parse_nimaterialproperty_fields;
 use crate::nif::parser::morph::{parse_nigeommorphercontroller_fields, parse_nimorphdata_fields};
-use crate::nif::parser::texture::{
-    parse_nimaterialproperty_fields, parse_nisourcetexture_fields,
-    parse_nitexturingproperty_fields, parse_nivertexcolorproperty_fields,
-};
+use crate::nif::parser::texture::*;
 use crate::nif::parser::triangles::{parse_nitrishape_fields, parse_nitrishapedata_fields};
 use crate::nif::types::*;
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -100,7 +94,6 @@ pub fn parse_nif_start(data: &[u8]) -> Result<ParsedNifData> {
                 parse_nikeyframedata_fields(&mut cursor, i).map(ParsedBlock::KeyframeData)
             }
             "NiTextureEffect" => {
-                // <-- Add this case
                 parse_nitextureeffect_fields(&mut cursor, i).map(ParsedBlock::TextureEffect)
             }
             "NiTextKeyExtraData" => {
@@ -113,12 +106,15 @@ pub fn parse_nif_start(data: &[u8]) -> Result<ParsedNifData> {
             "NiMorphData" => parse_nimorphdata_fields(&mut cursor, i).map(ParsedBlock::MorphData),
             "NiSkinData" => parse_niskindata_fields(&mut cursor, i).map(ParsedBlock::SkinData),
             "NiSkinInstance" => {
-                // Existing case
                 parse_niskininstance_fields(&mut cursor, i).map(ParsedBlock::SkinInstance)
             }
             "NiWireframeProperty" => parse_niwireframe_property_fields(&mut cursor, i)
                 .map(ParsedBlock::WireframeProperty),
-
+            "NiSequenceStreamHelper" => parse_nisequencestreamhelper_fields(&mut cursor, i)
+                .map(ParsedBlock::SequenceStreamHelper),
+            "NiStringExtraData" => {
+                parse_nistringextradata_fields(&mut cursor, i).map(ParsedBlock::StringExtraData) // Ensure ParsedBlock has a matching variant
+            }
             unknown_type => {
                 println!(
                     "   ERROR: Unsupported block type '{}'. Cannot parse.",
@@ -141,7 +137,7 @@ pub fn parse_nif_start(data: &[u8]) -> Result<ParsedNifData> {
                 return Err(e);
             }
         }
-    } // End block loop
+    }
 
     println!("\n--- NIF parsing function finished ---");
     Ok(ParsedNifData { header, blocks })

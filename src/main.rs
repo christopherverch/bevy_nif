@@ -1,53 +1,136 @@
+use bevy::animation::{AnimationClip, AnimationPlayer, AnimationTargetId};
 use bevy::prelude::*;
-use bevy_inspector_egui::bevy_egui::EguiPlugin;
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use bevy_third_person_camera::*;
-mod setup;
+use bevy_animation::{AnimationTarget, animated_field};
 
-mod nif;
-pub use nif::types::*;
-use nif::{loader::*, spawner::spawn_nif_scenes};
-#[allow(dead_code)]
-#[derive(Event, Clone, Debug)]
-pub struct NifInstantiated(pub Handle<Nif>);
-#[allow(dead_code)]
-#[derive(Component)]
-pub struct LoadedNifScene(pub Handle<Nif>);
-pub struct BevyNifPlugin;
-impl Plugin for BevyNifPlugin {
-    fn build(&self, app: &mut App) {
-        app.init_asset::<Nif>()
-            .init_asset_loader::<NifAssetLoader>()
-            .init_asset_loader::<BMPLoader>()
-            .add_systems(Update, spawn_nif_scenes);
-    }
+// Holds information about the animation we programmatically create.
+struct AnimationInfo {
+    // The name of the animation target (in this case, the text).
+    target_name: Name,
+    // The ID of the animation target, derived from the name.
+    target_id: AnimationTargetId,
+    // The animation graph asset.
+    graph: Handle<AnimationGraph>,
+    // The index of the node within that graph.
+    node_index: AnimationNodeIndex,
 }
+
+// The entry point.
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(EguiPlugin {
-            enable_multipass_for_primary_context: true,
-        })
-        .add_plugins(BevyNifPlugin)
-        .insert_resource(AmbientLight {
-            // Add ambient light resource
-            color: Color::srgb(1.0, 0.8, 0.6), // Match warm tone
-            brightness: 100.0,
-            affects_lightmapped_meshes: true, // Keep low! Adjust if shadows need deepening (e.g., 0.03)
-        })
-        .add_plugins(WorldInspectorPlugin::new())
-        .add_plugins(ThirdPersonCameraPlugin)
-        .add_systems(Startup, setup::setup_scene)
-        .add_systems(Startup, setup::setup)
-        .add_systems(Update, rotate)
-        .add_observer(print_on_nif_instantiated)
+        // Note that we don't need any systems other than the setup system,
+        // because Bevy automatically updates animations every frame.
+        .add_systems(Startup, setup)
+        .add_systems(Update, print_transform)
         .run();
 }
-fn rotate(mut query: Query<&mut Transform, With<LoadedNifScene>>) {
-    // Can't print results if the assets aren't ready
-    for mut nif in query.iter_mut() {
-        let nif_rotation = Quat::from_axis_angle(Vec3::new(0.0, 0.0, 1.0).normalize(), 0.02);
-        nif.rotate(nif_rotation);
+
+impl AnimationInfo {
+    // Programmatically creates the UI animation.
+    fn create(
+        animation_graphs: &mut Assets<AnimationGraph>,
+        animation_clips: &mut Assets<AnimationClip>,
+    ) -> AnimationInfo {
+        // Create an ID that identifies the text node we're going to animate.
+        let animation_target_name = Name::new("Text");
+        let animation_target_id = AnimationTargetId::from_name(&animation_target_name);
+
+        // Allocate an animation clip.
+        let mut animation_clip = AnimationClip::default();
+
+        // Create a curve that animates font size.
+        animation_clip.add_curve_to_target(
+            animation_target_id,
+            AnimatableCurve::new(
+                animated_field!(Transform::translation),
+                UnevenSampleAutoCurve::new([0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0].into_iter().zip([
+                    Vec3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 2.0),
+                    Vec3::new(0.0, 2.0, 0.0),
+                    Vec3::new(0.0, 0.0, 2.0),
+                    Vec3::new(0.0, 2.0, 0.0),
+                    Vec3::new(0.0, 0.0, 2.0),
+                    Vec3::new(0.0, 2.0, 0.0),
+                ]))
+                .expect(
+                    "should be able to build translation curve because we pass in valid samples",
+                ),
+            ),
+        );
+
+        let animation_clip_handle = animation_clips.add(animation_clip);
+
+        // Create an animation graph with that clip.
+        let (animation_graph, animation_node_index) =
+            AnimationGraph::from_clip(animation_clip_handle);
+        let animation_graph_handle = animation_graphs.add(animation_graph);
+
+        AnimationInfo {
+            target_name: animation_target_name,
+            target_id: animation_target_id,
+            graph: animation_graph_handle,
+            node_index: animation_node_index,
+        }
     }
 }
-fn print_on_nif_instantiated(_trigger: Trigger<NifInstantiated>) {}
+
+// Creates all the entities in the scene.
+fn setup(
+    mut commands: Commands,
+    mut animation_graphs: ResMut<Assets<AnimationGraph>>,
+    mut animation_clips: ResMut<Assets<AnimationClip>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    // Create the animation.
+    let AnimationInfo {
+        target_name: animation_target_name,
+        target_id: animation_target_id,
+        graph: animation_graph,
+        node_index: animation_node_index,
+    } = AnimationInfo::create(&mut animation_graphs, &mut animation_clips);
+
+    // Build an animation player that automatically plays the UI animation.
+    let mut animation_player = AnimationPlayer::default();
+    animation_player.play(animation_node_index).repeat();
+
+    // Build the UI. We have a parent node that covers the whole screen and
+    // contains the `AnimationPlayer`, as well as a child node that contains the
+    // text to be animated.
+    let material = StandardMaterial {
+        base_color: Color::srgb(0.5, 0.7, 0.6),
+        ..default()
+    };
+    let material_h = materials.add(material);
+    let player = commands
+        .spawn((
+            animation_player,
+            Visibility::Visible,
+            Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
+            Transform::from_xyz(0.0, 0.5, 0.0),
+            MeshMaterial3d(material_h),
+            AnimationGraphHandle(animation_graph.clone()),
+            animation_target_name,
+            // --- NOTE: Verify SpatialBundle is available ---
+        ))
+        .id();
+    commands.entity(player).insert(AnimationTarget {
+        id: animation_target_id,
+        player,
+    });
+    commands.spawn((
+        Camera3d { ..default() },
+        Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
+    ));
+    // --- NOTE: Verify PointLightBundle is available ---
+    commands.spawn((PointLight {
+        shadows_enabled: true,
+        ..default()
+    },));
+}
+
+fn print_transform(query: Query<&Transform, With<Text>>) {
+    for thing in query.iter() {
+        println!("transform: {:?}", thing);
+    }
+}

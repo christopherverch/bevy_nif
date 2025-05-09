@@ -249,3 +249,74 @@ pub fn read_nif_transform(cursor: &mut Cursor<&[u8]>) -> Result<NiTransform> {
         scale,
     })
 }
+
+/// Reads 'count' u32 values from the cursor.
+pub fn read_u32_arr(cursor: &mut Cursor<&[u8]>, count: usize) -> Result<Vec<u32>> {
+    const MAX_ARRAY_COUNT: usize = 1_000_000;
+    if count > MAX_ARRAY_COUNT {
+        // Use the custom error type
+        return Err(ParseError::InvalidData(format!(
+            "Array count {} exceeds maximum allowed limit {}",
+            count, MAX_ARRAY_COUNT
+        )));
+    }
+    let mut values = Vec::with_capacity(count);
+    for _ in 0..count {
+        // Use '?' which leverages From<std::io::Error> for ParseError
+        values.push(cursor.read_u32::<LittleEndian>()?);
+    }
+    Ok(values)
+}
+
+/// Reads a single NIF string, typically prefixed with a u32 length.
+
+/// Reads 'count' length-prefixed NIF strings.
+pub fn read_nif_string_arr(cursor: &mut Cursor<&[u8]>, count: usize) -> Result<Vec<String>> {
+    const MAX_ARRAY_COUNT: usize = 1024 * 16;
+    if count > MAX_ARRAY_COUNT {
+        return Err(ParseError::InvalidData(format!(
+            "String array count {} exceeds maximum allowed limit {}",
+            count, MAX_ARRAY_COUNT
+        )));
+    }
+    let mut strings = Vec::with_capacity(count);
+    for _ in 0..count {
+        // Use '?' on the function which now returns Result<_, ParseError>
+        let len = cursor.read_u32::<LittleEndian>()?;
+        strings.push(read_nif_string(cursor, len)?);
+    }
+    Ok(strings)
+}
+
+/// Reads a NIF link/reference (index). Returns Option<usize>.
+/// Treats u32::MAX (0xFFFFFFFF) as None, otherwise converts to usize.
+fn read_nif_link(cursor: &mut Cursor<&[u8]>) -> Result<Option<usize>> {
+    let link_u32 = cursor.read_u32::<LittleEndian>()?; // '?' handles IO error
+    if link_u32 == u32::MAX {
+        Ok(None)
+    } else {
+        Ok(Some(link_u32 as usize))
+    }
+}
+
+/// Reads 'count' NIF links/references into a Vec<Option<usize>>.
+/// Corrected version based on your snippet and error type.
+fn read_nif_link_arr_options(
+    cursor: &mut Cursor<&[u8]>,
+    count: usize,
+) -> Result<Vec<Option<usize>>> {
+    // Return custom ParseError
+    const MAX_ARRAY_COUNT: usize = 1024 * 64; // Example limit
+    if count > MAX_ARRAY_COUNT {
+        // Return the correct error type
+        return Err(ParseError::InvalidData(format!(
+            "Link array count {} exceeds maximum allowed limit {}",
+            count, MAX_ARRAY_COUNT
+        )));
+    }
+    let mut links = Vec::with_capacity(count);
+    for _ in 0..count {
+        links.push(read_nif_link(cursor)?);
+    }
+    Ok(links)
+}

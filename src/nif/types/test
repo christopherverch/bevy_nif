@@ -1,9 +1,10 @@
 #![allow(dead_code)]
 use super::base::{RecordLink, Vector3};
+use super::{NiObjectNET, NiTransform};
 use bevy::prelude::*;
 use bevy::reflect::TypePath;
 use std::fmt::Debug;
-
+use std::ops::Deref;
 // Using Bevy's Quat directly if possible, otherwise define alias
 pub type Quaternion = bevy::math::Quat; // Assuming you use Bevy's Quat elsewhere
 #[derive(Asset, Clone, Debug, Default, TypePath)] // Add Asset, TypePath if this is a top-level asset
@@ -132,6 +133,72 @@ pub struct NiMorphData {
     pub relative_targets: bool,
     pub morph_targets: Vec<MorphTarget>, // Holds the struct above
 }
+#[derive(Asset, Clone, Debug, Default, TypePath)]
+pub struct NiSkinInstance {
+    // Note: Inherits NiObject, not NiObjectNET
+    pub data: RecordLink,          // Link to NiSkinData block (Required)
+    pub skeleton_root: RecordLink, // Link to the root NiNode of the skeleton (Required)
+    pub num_bones: u32,            // Number of bones influencing the mesh
+    pub bones: Vec<RecordLink>,    // List of links to the NiNode bones (size = num_bones)
+                                   // NiSkinPartition link is absent in v4.0.0.2
+}
+#[derive(Asset, Clone, Debug, Default, TypePath)]
+pub struct BoneVertData {
+    pub index: u16,  // Index into the original mesh's vertex list
+    pub weight: f32, // Bone weight (influence) for this vertex (0.0 to 1.0)
+}
+#[derive(Asset, Clone, Debug, Default, TypePath)]
+pub struct BoneData {
+    // Fields now match NifSkope screenshot order and types
+    pub bone_transform: NiTransform, // Contains Rot(Matrix33), Trans(Vector3), Scale(float)
+    pub bounding_sphere_offset: Vector3,
+    pub bounding_sphere_radius: f32,
+    pub num_vertices: u16, // ushort in NifSkope
+    pub vertex_weights: Vec<BoneVertData>,
+    // REMOVED unknown_16_bytes field
+}
+
+/// Contains the skinning data for a mesh, including bone transforms and vertex weights.
+/// Referenced by NiSkinInstance.
+#[derive(Asset, Clone, Debug, Default, TypePath)]
+pub struct NiSkinData {
+    // Note: Inherits NiObject (no fields read from base here)
+    /// Overall transformation applied to the skin *before* bone influences.
+    pub skin_transform: NiTransform,
+    /// Number of bones influencing the mesh. Should generally match
+    /// the count in the referencing NiSkinInstance.
+    pub num_bones: u32,
+    /// List containing transform and weighting data for each bone.
+    pub bone_list: Vec<BoneData>,
+}
+#[derive(Debug, Clone)]
+pub struct NiStreamHeader {
+    pub layout: u32,
+    pub num_objects: u32,
+    pub object_types: Vec<String>, // Assuming NiStringPalette is Vec<String>
+    pub object_sizes: Vec<u32>,
+}
+
+// Structure for the Footer block within NiSequenceStreamHelper
+#[derive(Debug, Clone)]
+pub struct NiStreamFooter {
+    pub num_objects: u32,
+}
+
+#[derive(Debug, Clone, Default, TypePath)] // Add TypePath if needed
+pub struct NiSequenceStreamHelper {
+    pub net_base: NiObjectNET,
+    // No additional fields specific to NiSequenceStreamHelper itself
+}
+
+// Optional Deref if you want to access NiObjectNET fields directly
+impl Deref for NiSequenceStreamHelper {
+    type Target = NiObjectNET;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.net_base
+    }
+}
 #![allow(dead_code)]
 use bevy::prelude::*;
 use bevy::reflect::TypePath;
@@ -194,6 +261,22 @@ pub struct NiTransform {
 pub struct BoundingSphere {
     pub center: Vector3,
     pub radius: f32,
+}
+
+#[derive(Debug, Clone, Copy)] // Use Copy if Vector3/Matrix3x3/f32 are Copy
+pub struct BoundingBox {
+    // NIF format often stores Box as Center, Axes (Rotation Matrix), Extent (Half-dimensions)
+    pub center: Vector3,
+    pub axes: Matrix3x3, // Or [Vector3; 3] depending on definition
+    pub extent: Vector3, // Extents along each axis (half-sizes)
+}
+#[derive(Debug, Clone)]
+pub enum BoundingVolume {
+    Sphere(BoundingSphere),
+    Box(BoundingBox),
+    // Capsule(BoundingCapsule),
+    // Union(Vec<BoundingVolume>), // May require Box<BoundingVolume> if recursive
+    // HalfSpace(BoundingHalfSpace),
 }
 #![allow(dead_code)]
 use super::base::{Matrix3x3, Plane, RecordLink, Vector3};
@@ -302,7 +385,6 @@ use bevy::prelude::*;
 use bevy::reflect::TypePath;
 use std::fmt::Debug;
 use std::ops::Deref;
-
 // Represents the base NiExtraData object (which just has a name in this version)
 #[derive(Asset, Clone, Debug, Default, TypePath)]
 pub struct NiExtraData {
@@ -310,24 +392,49 @@ pub struct NiExtraData {
     pub next_extra_data: RecordLink, // *** ADDED this field ***
                                      // Unknown Int 1 is NOT read for v4.0.0.2
 }
-
-// NiTextKeyExtraData struct (No changes needed here, uses corrected base)
-#[derive(Asset, Clone, Debug, Default, TypePath)]
+#[derive(Debug, Clone, Default)]
+pub struct ExtraFields {
+    /// Link to the next NiExtraData in the chain attached to the owner node.
+    pub next_extra_data_link: RecordLink,
+    /// An integer field often shown as "Bytes Remaining" or similar in NifSkope.
+    /// Corresponds to mRecordSize in some C++ NIF libraries for older versions.
+    pub bytes_remaining_or_record_size: u32,
+}
+// --- NiTextKeyExtraData now uses composition ---
+#[derive(Asset, Debug, Clone, Default, TypePath)]
 pub struct NiTextKeyExtraData {
-    pub base: NiExtraData, // Composition
-    pub num_keys: u32,
-    pub keys: Vec<TextKey>, // Assumes TextKey struct is defined correctly
+    pub extra_base: ExtraFields, // Compose the base fields
+    // Fields specific to NiTextKeyExtraData
+    pub num_text_keys: u32, // Store the count
+    pub text_keys: Vec<TextKey>,
 }
 
-// Keep Deref for NiTextKeyExtraData -> NiExtraData
+// Optional: Implement Deref to access base fields easily (e.g., data.next_extra_data_link)
 impl Deref for NiTextKeyExtraData {
-    type Target = NiExtraData;
+    type Target = ExtraFields;
     #[inline]
     fn deref(&self) -> &Self::Target {
-        &self.base
+        &self.extra_base
+    }
+}
+
+#[derive(Asset, Debug, Clone, Default, TypePath)]
+pub struct NiStringExtraData {
+    pub extra_base: ExtraFields, // Compose the base fields
+    // Field specific to NiStringExtraData (mData in C++)
+    pub string_data: String,
+}
+
+// Optional: Implement Deref to access base fields easily
+impl Deref for NiStringExtraData {
+    type Target = ExtraFields;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.extra_base
     }
 }
 #![allow(dead_code)]
+use super::NiProperty;
 use super::base::{BoundingSphere, Vector2, Vector3, Vector4};
 use std::fmt::Debug;
 use std::ops::Deref;
@@ -363,6 +470,21 @@ pub struct NiTriShapeData {
     pub triangles: Vec<u16>,          // Triangle indices (vertex indices)
     pub num_match_groups: u16,
     pub match_groups: Vec<Vec<u16>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct NiWireframeProperty {
+    pub base_property: NiProperty, // Contains NiObjectNET and NiProperty data
+    /// Flags specific to NiWireframeProperty. Bit 0 is typically the enable flag.
+    pub wire_flags: u16,
+}
+
+impl NiWireframeProperty {
+    /// Helper method to check if wireframe rendering is enabled (usually bit 0)
+    pub fn is_wireframe_enabled(&self) -> bool {
+        // Check bit 0 of the wire_flags
+        (self.wire_flags & 0x0001) != 0
+    }
 }
 
 // --- Deref Implementations ---
@@ -415,11 +537,12 @@ pub use textures::{
 #![allow(dead_code)]
 use super::animation::{
     NiGeomMorpherController, NiKeyframeController, NiKeyframeData, NiMorphData,
+    NiSequenceStreamHelper, NiSkinData, NiSkinInstance,
 };
 use super::base::NifHeader;
 use super::effects::NiTextureEffect;
-use super::extra_data::NiTextKeyExtraData;
-use super::geometry::NiTriShapeData;
+use super::extra_data::{NiStringExtraData, NiTextKeyExtraData};
+use super::geometry::{NiTriShapeData, NiWireframeProperty};
 use super::properties::{NiAlphaProperty, NiMaterialProperty, NiVertexColorProperty};
 use super::scene::{NiNode, NiTriShape};
 use super::textures::NiSourceTexture;
@@ -444,6 +567,11 @@ pub enum ParsedBlock {
     VertexColorProperty(NiVertexColorProperty),
     GeomMorpherController(NiGeomMorpherController),
     MorphData(NiMorphData),
+    SkinInstance(NiSkinInstance),
+    SkinData(NiSkinData),
+    WireframeProperty(NiWireframeProperty),
+    NiSequenceStreamHelper(NiSequenceStreamHelper),
+    StringExtraData(NiStringExtraData),
     // Add other variants as needed
     Unknown(String), // Stores the type name of the unknown block
 }
@@ -464,7 +592,6 @@ use std::ops::Deref;
 #[derive(Debug, Clone, Default)]
 pub struct NiProperty {
     pub net_base: NiObjectNET,
-    // NiProperty itself doesn't add fields read in v4.0.0.2 C++ code
 }
 
 #[derive(Debug, Clone, Default)]
@@ -568,7 +695,7 @@ impl Deref for NiVertexColorProperty {
     }
 }
 #![allow(dead_code)]
-use super::base::{BoundingSphere, NiTransform, RecordLink, Vector3};
+use super::base::{BoundingVolume, NiTransform, RecordLink, Vector3};
 use bevy::prelude::*;
 use bevy::reflect::TypePath;
 use std::fmt::Debug;
@@ -599,7 +726,7 @@ pub struct NiAVObject {
     pub velocity: Vector3,
     pub properties: Vec<RecordLink>,
     // Add this field to store the bounding sphere when present:
-    pub bounding_sphere: Option<BoundingSphere>,
+    pub bounding_volume: Option<BoundingVolume>,
 }
 
 // Example inherent method for NiAVObject

@@ -1,5 +1,6 @@
 use crate::animation::NiSkinData;
 use crate::animation::NiSkinInstance;
+use crate::modular_characters::NeedsNifAnimator;
 // src/nif/spawner.rs
 use crate::LoadedNifScene;
 use crate::NifInstantiated;
@@ -15,9 +16,11 @@ use bevy::render::mesh::skinning::SkinnedMesh;
 use bevy::render::mesh::skinning::SkinnedMeshInverseBindposes;
 use bevy::render::render_resource::Face;
 use std::collections::HashMap;
+use std::f32::consts::FRAC_PI_2;
 
+use super::animation::BoneMap;
 use super::loader::Nif;
-#[derive(Component)]
+#[derive(Resource, Default, Debug, Component)]
 pub struct NifScene(pub Handle<Nif>);
 #[allow(dead_code)]
 pub fn spawn_nif_scenes(
@@ -29,15 +32,29 @@ pub fn spawn_nif_scenes(
     new_scenes: Query<(Entity, &NifScene), Without<LoadedNifScene>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut inverse_bindposes: ResMut<Assets<SkinnedMeshInverseBindposes>>,
+    mut bone_map_res: ResMut<BoneMap>,
 ) {
-    for (entity, nif_scene_component) in new_scenes.iter() {
-        println!("entity: {}", entity);
+    if let Some((entity, nif_scene_component)) = new_scenes.iter().next() {
+        let asset_handle = &nif_scene_component.0;
+        let mut is_main_skeleton = false;
+        if let Some(path) = asset_handle.path() {
+            if path.to_string().contains("base_anim.nif") {
+                is_main_skeleton = true;
+            }
+        }
+        if bone_map_res.root_skeleton_entity.is_none() {
+            if !is_main_skeleton {
+                //don't continue if the main skeleton isn't loaded yet
+                return;
+            }
+        }
+        println!("bone map len: {}", bone_map_res.entity_map.len());
         // **Check if the asset for THIS entity is loaded NOW**
         // This uses Assets::get, polling the current state of loaded assets
         let Some(nif) = nif_assets.get(&nif_scene_component.0) else {
             return;
         };
-        let asset_handle = &nif_scene_component.0;
+
         // --- Data Conversion and Spawning ---
         //pass 2
         let mut entity_map: HashMap<usize, Entity> = HashMap::new();
@@ -47,7 +64,9 @@ pub fn spawn_nif_scenes(
             .spawn((
                 Transform {
                     translation: Vec3::new(0.0, 0.0, 0.0),
-                    rotation: Quat::IDENTITY,
+                    // flip the rotation, otherwise it faces -Z when spawned because of nif
+                    rotation: Quat::from_rotation_x(-FRAC_PI_2),
+                    // coordinates
                     scale: Vec3::new(0.03, 0.03, 0.03),
                 },
                 InheritedVisibility::VISIBLE,
@@ -66,10 +85,12 @@ pub fn spawn_nif_scenes(
         }
 
         // Start the recursive spawning process
+        let mut local_bone_collector: HashMap<String, Entity> = HashMap::new();
         if let Some(root_block_data) = block_map.get(&nif_root_index) {
             // *** Pass the looked-up data (&ParsedBlock) to the first call ***
             spawn_nif_node_recursive(
                 &mut commands,
+                &mut bone_map_res,
                 nif_root_index,
                 scene_root_entity,
                 &block_map,
@@ -82,19 +103,38 @@ pub fn spawn_nif_scenes(
                 &mut meshes,
                 &mut inverse_bindposes,
                 root_block_data,
+                is_main_skeleton,
+                &mut local_bone_collector,
             );
         } else {
             warn!("NIF root index {} not found in block_map!", nif_root_index);
         }
-        info!("<<< Finished Spawning NIF entities >>>");
+        println!("<<< Finished Spawning NIF entities >>>");
+        if is_main_skeleton {
+            bone_map_res.root_skeleton_entity = Some(scene_root_entity);
+        }
         commands
             .entity(entity)
             .insert(LoadedNifScene(asset_handle.clone()));
-        commands.trigger(NifInstantiated(asset_handle.clone()));
+        if is_main_skeleton {
+            let bone_map = BoneMap {
+                root_skeleton_entity: Some(scene_root_entity),
+                entity_map: local_bone_collector,
+            };
+            commands.insert_resource(bone_map);
+            commands
+                .entity(scene_root_entity)
+                .insert(NeedsNifAnimator(asset_handle.clone()));
+        }
+        commands.trigger(NifInstantiated {
+            handle: asset_handle.clone(),
+            root_entity: scene_root_entity,
+        });
     }
 }
 fn spawn_nif_node_recursive(
     commands: &mut Commands,
+    bone_map: &BoneMap,
     nif_index: usize,
     parent_entity: Entity,
     block_map: &HashMap<usize, &ParsedBlock>,
@@ -107,6 +147,8 @@ fn spawn_nif_node_recursive(
     meshes: &mut ResMut<Assets<Mesh>>,
     inverse_bindposes: &mut ResMut<Assets<SkinnedMeshInverseBindposes>>,
     block: &ParsedBlock,
+    is_main_skeleton: bool,
+    local_bone_collector: &mut HashMap<String, Entity>,
 ) {
     if entity_map.contains_key(&nif_index) {
         return;
@@ -117,8 +159,11 @@ fn spawn_nif_node_recursive(
         ParsedBlock::TriShape(data) => convert_nif_transform(&data.av_base.transform),
         _ => Transform::IDENTITY,
     };
-
-    // Spawn using user's preferred component style
+    println!(
+        "bevy transform for nif index {}: {:?}",
+        nif_index, bevy_transform
+    );
+    println!("NIF Idx {}: Parenting to: {:?}", nif_index, parent_entity);
     let current_entity_id = commands
         .spawn((
             bevy_transform,
@@ -133,9 +178,16 @@ fn spawn_nif_node_recursive(
     match block {
         ParsedBlock::Node(node_data) => {
             // Insert Name using commands.entity()
+            let name_with_ninode = format!("NiNode: {}", node_data.name());
             commands
                 .entity(current_entity_id)
-                .insert(Name::new(format!("NiNode: {}", node_data.name())));
+                .insert(Name::new(name_with_ninode.clone()));
+            if is_main_skeleton {
+                if bone_map.entity_map.get(&name_with_ninode).is_some() {
+                    println!("ERROR! FOUND NINODE ALREADY!")
+                }
+                local_bone_collector.insert(name_with_ninode, current_entity_id);
+            }
 
             // Recurse for children
             for child_link in &node_data.children {
@@ -144,6 +196,7 @@ fn spawn_nif_node_recursive(
                     if let Some(child_block_data) = block_map.get(child_index) {
                         spawn_nif_node_recursive(
                             commands,
+                            bone_map,
                             *child_index,
                             current_entity_id, // Current node is parent
                             block_map,
@@ -156,6 +209,8 @@ fn spawn_nif_node_recursive(
                             meshes,
                             inverse_bindposes,
                             child_block_data,
+                            is_main_skeleton,
+                            local_bone_collector,
                         );
                     } else {
                         warn!("Node {}: Child link {} invalid", nif_index, child_index);
@@ -166,6 +221,11 @@ fn spawn_nif_node_recursive(
         ParsedBlock::TriShape(trishape_data) => {
             let name_ref: &str = trishape_data.av_base.net_base.name();
             let formatted_name = format!("NiTriShape: {:?}", name_ref);
+            if name_ref == "Tri Shadow" || name_ref == "Tri QuadPatch01" || is_main_skeleton {
+                commands
+                    .entity(current_entity_id)
+                    .insert(Visibility::Hidden);
+            }
             commands
                 .entity(current_entity_id)
                 .insert(Name::new(formatted_name));
@@ -177,24 +237,18 @@ fn spawn_nif_node_recursive(
             // Find first MaterialProperty and first TexturingProperty linked
             for prop_link in &trishape_data.av_base.properties {
                 if let Some(prop_idx) = prop_link {
-                    println!("entered nitrishape1");
                     match block_map.get(prop_idx) {
                         Some(ParsedBlock::MaterialProperty(_))
                             if base_material_handle.is_none() =>
                         {
-                            println!("no data3");
                             base_material_handle = material_handles.get(prop_idx).cloned();
                         }
                         Some(ParsedBlock::TexturingProperty(_)) if final_texture_info.is_none() => {
-                            println!("no data2");
                             final_texture_info = texture_info_map.get(prop_idx).cloned();
                         }
                         Some(ParsedBlock::AlphaProperty(alpha_prop)) => {
-                            println!("no data1");
-                            info!("  TriShape {}: Found AlphaProperty {}", nif_index, prop_idx);
                             let flags = alpha_prop.flags;
                             let threshold = alpha_prop.threshold;
-                            println!("flags and threshhold: {} {}", flags, threshold);
                             // Check flags according to common NIF specs:
                             let enable_testing = (flags & 0x0200) != 0; // Bit 9 usually enables testing
                             let enable_blending = (flags & 0x0001) != 0; // Bit 0 usually enables blending
@@ -219,13 +273,10 @@ fn spawn_nif_node_recursive(
                                 info!("  -> Setting AlphaMode::Opaque");
                             }
                         }
-                        _ => {
-                            println!("no data");
-                        }
+                        _ => {}
                     }
                 }
             }
-            println!("entered nitrishape2");
             let name_ref: &str = trishape_data.av_base.net_base.name();
             let formatted_name = format!("NiTriShape: {:?}", name_ref);
             commands
@@ -239,7 +290,6 @@ fn spawn_nif_node_recursive(
                 entity_map.remove(&nif_index);
                 return;
             };
-            println!("entered nitrishape3");
             let Some(mesh_handle) = mesh_handles.get(&data_link).cloned() else {
                 warn!(
                     "Mesh handle not found for data link {} from TriShape {}.",
@@ -249,7 +299,6 @@ fn spawn_nif_node_recursive(
                 entity_map.remove(&nif_index);
                 return;
             };
-            println!("entered nitrishape4");
             info!(
                 "   Found Mesh Handle {:?} using data_link {} for TriShape {}",
                 mesh_handle.id(),
@@ -264,6 +313,76 @@ fn spawn_nif_node_recursive(
 
             // Find linked NiSkinInstance (adjust this logic if link isn't controller_link)
             let controller_link = trishape_data.av_base.net_base.controller_link;
+            if let Some(si_link) = trishape_data.skin_link {
+                // Assuming this field exists now
+                // Convert link to usize for HashMap lookup if needed (depends on your types)
+                let si_link_idx = si_link as usize;
+                if let Some(ParsedBlock::SkinInstance(si)) = block_map.get(&si_link_idx) {
+                    info!(
+                        "TriShape {}: Found SkinInstance {} via direct skin_instance_link.",
+                        nif_index, si_link
+                    );
+                    skin_instance_data = Some(si);
+                    skin_instance_block_index = Some(si_link_idx);
+                    // Now find its associated SkinData
+                    if let Some(sd_link) = si.data {
+                        // Convert sd_link to usize if needed
+                        let sd_link_idx = sd_link as usize;
+                        if let Some(ParsedBlock::SkinData(sd)) = block_map.get(&sd_link_idx) {
+                            info!(" -> Found linked SkinData {}.", sd_link);
+                            skin_data = Some(sd);
+                        } else {
+                            warn!(
+                                " -> SkinInstance {} links to SkinData {} which is not found or wrong type.",
+                                si_link_idx, sd_link
+                            );
+                        }
+                    } else {
+                        warn!(" -> SkinInstance {} has no link to SkinData.", si_link_idx);
+                    }
+                } else {
+                    warn!(
+                        "TriShape {}: Direct skin_instance_link {} is invalid or points to wrong block type.",
+                        nif_index, si_link
+                    );
+                }
+            }
+            if skin_instance_data.is_none() {
+                info!(
+                    "  TriShape {}: SkinInstance not found via controller_link. Checking properties list...",
+                    nif_index
+                );
+                for prop_link_opt in &trishape_data.av_base.properties {
+                    if let Some(prop_idx) = prop_link_opt {
+                        // Check if the block pointed to by this property link is a SkinInstance
+                        if let Some(ParsedBlock::SkinInstance(si)) = block_map.get(prop_idx) {
+                            info!(
+                                "    -> Found SkinInstance {} via properties list.",
+                                prop_idx
+                            );
+                            skin_instance_data = Some(si);
+                            skin_instance_block_index = Some(*prop_idx);
+                            // Now that we have the SkinInstance, try to find its associated SkinData
+                            if let Some(sd_link) = si.data {
+                                if let Some(ParsedBlock::SkinData(sd)) = block_map.get(&sd_link) {
+                                    info!("      -> Found linked SkinData {}.", sd_link);
+                                    skin_data = Some(sd);
+                                } else {
+                                    warn!(
+                                        "      -> SkinInstance {} links to SkinData {} which is not found or wrong type",
+                                        prop_idx, sd_link
+                                    );
+                                }
+                            } else {
+                                warn!("      -> SkinInstance {} has no link to SkinData", prop_idx);
+                            }
+                            // Found it via properties, no need to check further properties for SkinInstance
+                            break;
+                        }
+                        // else: This property wasn't a SkinInstance, continue checking others
+                    }
+                }
+            }
             if let Some(link_idx) = controller_link {
                 if let Some(ParsedBlock::SkinInstance(si)) = block_map.get(&link_idx) {
                     skin_instance_data = Some(si);
@@ -288,12 +407,11 @@ fn spawn_nif_node_recursive(
                 );
             }
 
-            println!("entered nitrishape5");
             // --- Apply Skinning Attributes & Spawn Skeleton (if needed) ---
             if let (Some(sd), Some(si), Some(si_index)) =
                 (skin_data, skin_instance_data, skin_instance_block_index)
             {
-                // 1. Add vertex attributes (Your existing, correct logic)
+                // 1. Add vertex attributes
                 if let Some(mesh) = meshes.get_mut(&mesh_handle) {
                     if let Some(vertex_count) =
                         mesh.attribute(Mesh::ATTRIBUTE_POSITION).map(|a| a.len())
@@ -358,45 +476,45 @@ fn spawn_nif_node_recursive(
                     );
                 }
 
-                println!("entered nitrishape8");
-                // --- *** START: ADDED Step 2: Ensure Skeleton is Spawned *** ---
                 // 2. Spawn Skeleton Hierarchy
                 let mut skeleton_ready = false;
-                if let Some(skeleton_root_index) = si.skeleton_root {
-                    println!("entered nitrishape9");
-                    if !entity_map.contains_key(&skeleton_root_index) {
-                        println!("entered nitrishape10");
-                        if let Some(root_block_data) = block_map.get(&skeleton_root_index) {
-                            spawn_nif_node_recursive(
-                                commands,
-                                skeleton_root_index,
-                                parent_entity, // Parent skeleton to same parent as mesh
-                                block_map,
-                                entity_map,
-                                mesh_handles,
-                                material_handles,
-                                texture_info_map,
-                                materials,
-                                asset_server,
-                                meshes,
-                                inverse_bindposes,
-                                root_block_data, // *** Pass skeleton root's block data ***
-                            );
-                            println!("entered nitrishape6");
-                            skeleton_ready = true;
+                if !is_main_skeleton {
+                    skeleton_ready = true;
+                } else {
+                    if let Some(skeleton_root_index) = si.skeleton_root {
+                        if !entity_map.contains_key(&skeleton_root_index) {
+                            if let Some(root_block_data) = block_map.get(&skeleton_root_index) {
+                                spawn_nif_node_recursive(
+                                    commands,
+                                    bone_map,
+                                    skeleton_root_index,
+                                    parent_entity, // Parent skeleton to same parent as mesh
+                                    block_map,
+                                    entity_map,
+                                    mesh_handles,
+                                    material_handles,
+                                    texture_info_map,
+                                    materials,
+                                    asset_server,
+                                    meshes,
+                                    inverse_bindposes,
+                                    root_block_data, // *** Pass skeleton root's block data ***
+                                    is_main_skeleton,
+                                    local_bone_collector,
+                                );
+                                skeleton_ready = true;
+                            } else {
+                                warn!("Skeleton root link invalid");
+                            }
                         } else {
-                            warn!("Skeleton root link invalid");
+                            skeleton_ready = true;
+                            info!("Skeleton root already processed");
                         }
                     } else {
-                        skeleton_ready = true;
-                        info!("Skeleton root already processed");
-                    }
-                } else {
-                    warn!("SkinInstance has no skeleton root link");
-                } // --- *** END: ADDED Step 2 *** ---
-
+                        warn!("SkinInstance has no skeleton root link");
+                    } // --- *** END: ADDED Step 2 *** ---
+                }
                 if skeleton_ready {
-                    println!("entered nitrishape7");
                     // 3a. Create Inverse Bind Pose Asset
                     let mut ibp_matrices = Vec::with_capacity(sd.bone_list.len());
                     for bone_data in &sd.bone_list {
@@ -408,7 +526,7 @@ fn spawn_nif_node_recursive(
                     // Create and add the asset
                     let ibp_handle =
                         inverse_bindposes.add(SkinnedMeshInverseBindposes::from(ibp_matrices));
-                    info!(
+                    println!(
                         "   Created SkinnedMeshInverseBindposes asset {:?} with {} bones.",
                         ibp_handle.id(),
                         sd.bone_list.len()
@@ -417,31 +535,89 @@ fn spawn_nif_node_recursive(
                     // 3b. Build Joints Vec<Entity>
                     let mut joints_vec: Vec<Entity> = Vec::with_capacity(si.bones.len());
                     let mut missing_bone = false;
-                    for (i, bone_link_opt) in si.bones.iter().enumerate() {
-                        if let Some(bone_nif_index) = bone_link_opt {
-                            // Look up the Entity spawned for this bone's NiNode index
-                            if let Some(bone_entity) = entity_map.get(bone_nif_index) {
-                                joints_vec.push(*bone_entity);
+                    if !is_main_skeleton {
+                        // --- ATTACHABLE NIF LOGIC ---
+                        // `base_skeleton_map_holder` is `&ActiveSkeletonBones`
+                        let base_name_to_entity_map = &bone_map.entity_map;
+                        info!(
+                            "TriShape {}: Building joints by NAME from active base skeleton.",
+                            nif_index
+                        );
+
+                        for (bone_order_idx, bone_link_opt_in_current_nif) in
+                            si.bones.iter().enumerate()
+                        {
+                            if let Some(bone_nif_idx_in_current_nif) = bone_link_opt_in_current_nif
+                            {
+                                // Get the NiNode block from the *current NIF's block_map* to find its name
+                                if let Some(ParsedBlock::Node(node_data_in_current_nif)) =
+                                    block_map.get(bone_nif_idx_in_current_nif)
+                                {
+                                    let bone_name = node_data_in_current_nif.name();
+                                    if let Some(base_skeleton_bone_entity) = base_name_to_entity_map
+                                        .get(&format!("NiNode: {}", bone_name))
+                                    {
+                                        joints_vec.push(*base_skeleton_bone_entity);
+                                    } else {
+                                        warn!(
+                                            "Attachable TriShape {}: Bone '{}' (NIF idx {} in current NIF) not found in active base skeleton map.",
+                                            nif_index,
+                                            &format!("Node: {}", bone_name),
+                                            bone_nif_idx_in_current_nif
+                                        );
+                                        missing_bone = true;
+                                        break;
+                                    }
+                                } else {
+                                    warn!(
+                                        "Attachable TriShape {}: Bone NIF idx {} in current NIF's SkinInstance does not point to a valid NiNode.",
+                                        nif_index, bone_nif_idx_in_current_nif
+                                    );
+                                    missing_bone = true;
+                                    break;
+                                }
                             } else {
                                 warn!(
-                                    "   Bone node link #{} (index {}) from SkinInstance {} not found in spawned entity map! Cannot add SkinnedMesh.",
-                                    i, bone_nif_index, si_index
+                                    "Attachable TriShape {}: Missing bone link at order index {} in SkinInstance.",
+                                    nif_index, bone_order_idx
                                 );
                                 missing_bone = true;
                                 break;
                             }
-                        } else {
-                            warn!(
-                                "   Bone node link #{} from SkinInstance {} is None! Cannot add SkinnedMesh.",
-                                i, si_index
-                            );
-                            missing_bone = true;
-                            break;
+                        }
+                    } else {
+                        println!("building joints vec");
+                        for (i, bone_link_opt) in si.bones.iter().enumerate() {
+                            if let Some(bone_nif_index) = bone_link_opt {
+                                // Look up the Entity spawned for this bone's NiNode index
+                                if let Some(bone_entity) = entity_map.get(bone_nif_index) {
+                                    joints_vec.push(*bone_entity);
+                                } else {
+                                    warn!(
+                                        "   Bone node link #{} (index {}) from SkinInstance {} not found in spawned entity map! Cannot add SkinnedMesh.",
+                                        i, bone_nif_index, si_index
+                                    );
+                                    missing_bone = true;
+                                    break;
+                                }
+                            } else {
+                                warn!(
+                                    "   Bone node link #{} from SkinInstance {} is None! Cannot add SkinnedMesh.",
+                                    i, si_index
+                                );
+                                missing_bone = true;
+                                break;
+                            }
                         }
                     }
-
                     // 3c. Add SkinnedMesh Component (if all bones found)
                     if !missing_bone && joints_vec.len() == sd.bone_list.len() {
+                        for (joint_idx, joint_entity) in joints_vec.iter().enumerate() {
+                            // Check if the entity actually exists in the world RIGHT NOW
+                            // This requires access to `World` or `QueryState` which is complex here.
+                            // A simpler check is just logging:
+                            //println!("  Joint {}: Entity {:?}", joint_idx, joint_entity);
+                        }
                         commands.entity(current_entity_id).insert(SkinnedMesh {
                             inverse_bindposes: ibp_handle,
                             joints: joints_vec,
@@ -563,4 +739,80 @@ fn spawn_nif_node_recursive(
             nif_index, current_entity_id, parent_entity
         );
     }
+}
+pub fn get_authoritative_bone_transforms(
+    nif_asset: &Nif, // Your loaded NIF data structure
+    block_map: &HashMap<usize, &ParsedBlock>,
+) -> HashMap<usize, NiTransform> {
+    let mut authoritative_transforms = HashMap::new();
+
+    // Attempt to find the primary NiSkinInstance and NiSkinData.
+    // This logic might need adjustment based on how your NIF root structure is organized.
+    // Often, the NiSkinInstance might be a root block or referenced by a primary skeleton root like "Bip01".
+    let mut skin_instance_opt: Option<&NiSkinInstance> = None;
+    let mut skin_data_opt: Option<&NiSkinData> = None;
+
+    // First, try to find NiSkinInstance among root blocks if your NIF structure has it there
+    // Or, if you know the index (e.g., from NifSkope for base_anim.nif it's 197)
+    // For base_anim.nif, record 197 is NiSkinInstance, 198 is NiSkinData
+    // This example assumes you might find it by iterating or by a known index.
+    // A more robust way might be to find the main skeleton root (e.g., "Bip01")
+    // and check its properties or controllers for a link to NiSkinInstance.
+
+    // Let's assume we found the NiSkinInstance, for example, by its known index or by iterating root blocks.
+    // For Morrowind's base_anim.nif, NiSkinInstance is often block 197.
+    // You might need a more robust way to locate the "main" NiSkinInstance.
+    // For now, let's iterate all blocks to find the first relevant SkinInstance and its SkinData.
+    for (index, block) in nif_asset.raw_parsed.blocks.iter().enumerate() {
+        if let ParsedBlock::SkinInstance(si) = block {
+            skin_instance_opt = Some(si);
+            if let Some(data_link) = si.data {
+                if let Some(ParsedBlock::SkinData(sd)) = block_map.get(&data_link) {
+                    skin_data_opt = Some(sd);
+                    break; // Found the first pair, assume it's the main one for base_anim.nif
+                } else {
+                    warn!(
+                        "NiSkinInstance at {} links to NiSkinData at {} which is not found or wrong type.",
+                        index, data_link
+                    );
+                }
+            } else {
+                warn!("NiSkinInstance at {} has no link to NiSkinData.", index);
+            }
+            if skin_data_opt.is_some() {
+                break;
+            }
+        }
+    }
+
+    if let (Some(skin_instance), Some(skin_data)) = (skin_instance_opt, skin_data_opt) {
+        // Ensure the number of bone links in NiSkinInstance matches the number of bone_data entries in NiSkinData
+        if skin_instance.bones.len() == skin_data.bone_list.len() {
+            for (i, bone_node_link_opt) in skin_instance.bones.iter().enumerate() {
+                if let Some(bone_node_nif_index) = bone_node_link_opt {
+                    // The transform in NiSkinData.bone_list is the bone's transform in the skin's coordinate system.
+                    // This is effectively the local transform relative to the skin instance's root.
+                    // For base_anim.nif, this NiSkinData.bone_transform IS the authoritative local pose.
+                    let authoritative_transform = skin_data.bone_list[i].bone_transform.clone(); // Assuming BoneData has bone_transform: NiTransform
+                    authoritative_transforms.insert(*bone_node_nif_index, authoritative_transform);
+                    println!(
+                        "  Stored authoritative transform for bone NIF index {} from SkinData.",
+                        bone_node_nif_index
+                    );
+                }
+            }
+        } else {
+            warn!(
+                "Mismatch between NiSkinInstance bone count ({}) and NiSkinData bone_list count ({}). Cannot reliably get authoritative transforms.",
+                skin_instance.bones.len(),
+                skin_data.bone_list.len()
+            );
+        }
+    } else {
+        info!(
+            "No authoritative NiSkinData found in this NIF. Bone transforms will be used as-is from NiNode blocks."
+        );
+    }
+
+    authoritative_transforms
 }

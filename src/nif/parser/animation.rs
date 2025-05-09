@@ -1,9 +1,10 @@
-use crate::animation::{BoneData, BoneVertData, NiSkinData, NiSkinInstance};
+use crate::animation::{
+    BoneData, BoneVertData, NiSequenceStreamHelper, NiSkinData, NiSkinInstance,
+};
 use crate::nif::error::{ParseError, Result};
-// Import error types (assuming src/error.rs)
-use crate::nif::types::*;
-// Import definitions from structs module
+use crate::nif::parser::base_parsers::parse_niobjectnet_fields;
 use crate::nif::parser::helpers::*;
+use crate::nif::types::*;
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::io::{Cursor, Seek}; // Added Seek for potential future use
 pub fn parse_nikeyframecontroller_fields(
@@ -385,5 +386,13 @@ pub fn parse_niskindata_fields(cursor: &mut Cursor<&[u8]>, block_index: u32) -> 
         skin_transform, // Use the NiTransform struct
         num_bones,
         bone_list: bone_data_list,
+    })
+}
+pub fn parse_nisequencestreamhelper_fields(
+    cursor: &mut Cursor<&[u8]>, // Takes a mutable reference to Cursor<&[u8]>
+    _block_index: u32,          // Takes the block index
+) -> Result<NiSequenceStreamHelper> {
+    Ok(NiSequenceStreamHelper {
+        net_base: parse_niobjectnet_fields(cursor)?,
     })
 }

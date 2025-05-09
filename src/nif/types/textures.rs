@@ -2,7 +2,6 @@
 use super::base::RecordLink;
 use super::properties::NiProperty;
 use super::scene::NiObjectNET;
-use bevy::prelude::*;
 use std::fmt::Debug;
 use std::ops::Deref;
 

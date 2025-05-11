@@ -1,89 +1,262 @@
 use crate::nif::attach_parts::AttachmentType;
-use crate::nif::loader::Nif;
 use crate::nif::spawner::NifScene;
 use bevy::prelude::*;
 use bevy_third_person_camera::*;
 
-pub fn setup(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut scene_entities_by_name: ResMut<SceneEntitiesByName>,
-) {
+pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let entity = commands
         .spawn((
             InheritedVisibility::VISIBLE,
-            Transform::from_xyz(0.0, -3.5, 1.0),
+            Transform {
+                translation: Vec3::new(0.0, -2.5, 1.0),
+                rotation: Quat::from_rotation_x(-FRAC_PI_2),
+                scale: Vec3::splat(0.03),
+            },
         ))
         .id();
-    let entity_player = commands
+    let skeleton_handle = asset_server.load("data/base_anim.nif");
+    let head_handle = asset_server.load("data/B_N_Dark Elf_M_Head_01.nif");
+    commands.spawn((
+        NifScene(head_handle.clone()),
+        InheritedVisibility::VISIBLE,
+        AttachmentType::Rigid {
+            skeleton_id: 3,
+            target_bone: "Head".to_string(),
+        },
+        Transform {
+            translation: Vec3::new(0.0, -2.5, 3.0),
+            rotation: Quat::IDENTITY,
+            scale: Vec3::splat(1.0),
+        },
+    ));
+
+    for i in 0..1 {
+        commands.spawn((
+            NifScene(skeleton_handle.clone()),
+            AttachmentType::MainSkeleton { skeleton_id: 3 },
+            InheritedVisibility::VISIBLE,
+            Transform {
+                translation: Vec3::new(0.0, -2.5, i as f32),
+                rotation: Quat::from_rotation_x(-FRAC_PI_2),
+                scale: Vec3::splat(0.03),
+            },
+        ));
+        commands.spawn((
+            NifScene(head_handle.clone()),
+            InheritedVisibility::VISIBLE,
+            Transform {
+                translation: Vec3::new(0.0, -2.5, i as f32),
+                rotation: Quat::IDENTITY,
+                scale: Vec3::splat(0.03),
+            },
+        ));
+    }
+    let skeleton_id = 0;
+    let paths_with_target_bone: Vec<(&str, AttachmentType)> = vec![
+        (
+            "data/base_anim.nif",
+            AttachmentType::MainSkeleton {
+                skeleton_id: skeleton_id,
+            },
+        ),
+        (
+            "data/b_n_dark elf_m_skins.nif",
+            AttachmentType::Skinned { skeleton_id },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Head_01.nif",
+            AttachmentType::Rigid {
+                target_bone: "Head".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Hair_01.nif",
+            AttachmentType::Rigid {
+                target_bone: "Head".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Neck.nif",
+            AttachmentType::Rigid {
+                target_bone: "Neck".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Groin.nif",
+            AttachmentType::Rigid {
+                target_bone: "Groin".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Forearm.nif",
+            AttachmentType::DoubleSidedRigid {
+                target_bone: "Forearm".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Upper Arm.nif",
+            AttachmentType::DoubleSidedRigid {
+                target_bone: "Upper Arm".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Wrist.nif",
+            AttachmentType::DoubleSidedRigid {
+                target_bone: "Wrist".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Upper Leg.nif",
+            AttachmentType::DoubleSidedRigid {
+                target_bone: "Upper Leg".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Knee.nif",
+            AttachmentType::DoubleSidedRigid {
+                target_bone: "Knee".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Ankle.nif",
+            AttachmentType::DoubleSidedRigid {
+                target_bone: "Ankle".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Foot.nif",
+            AttachmentType::DoubleSidedRigid {
+                target_bone: "Foot".to_string(),
+                skeleton_id,
+            },
+        ),
+    ];
+    let skeleton_id = 1;
+    let paths_with_target_bone2: Vec<(&str, AttachmentType)> = vec![
+        (
+            "data/base_anim.nif",
+            AttachmentType::MainSkeleton {
+                skeleton_id: skeleton_id,
+            },
+        ),
+        (
+            "data/b_n_dark elf_m_skins.nif",
+            AttachmentType::Skinned { skeleton_id },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Head_01.nif",
+            AttachmentType::Rigid {
+                target_bone: "Head".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Hair_01.nif",
+            AttachmentType::Rigid {
+                target_bone: "Head".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Neck.nif",
+            AttachmentType::Rigid {
+                target_bone: "Neck".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Groin.nif",
+            AttachmentType::Rigid {
+                target_bone: "Groin".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Forearm.nif",
+            AttachmentType::DoubleSidedRigid {
+                target_bone: "Forearm".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Upper Arm.nif",
+            AttachmentType::DoubleSidedRigid {
+                target_bone: "Upper Arm".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Wrist.nif",
+            AttachmentType::DoubleSidedRigid {
+                target_bone: "Wrist".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Upper Leg.nif",
+            AttachmentType::DoubleSidedRigid {
+                target_bone: "Upper Leg".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Knee.nif",
+            AttachmentType::DoubleSidedRigid {
+                target_bone: "Knee".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Ankle.nif",
+            AttachmentType::DoubleSidedRigid {
+                target_bone: "Ankle".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Foot.nif",
+            AttachmentType::DoubleSidedRigid {
+                target_bone: "Foot".to_string(),
+                skeleton_id,
+            },
+        ),
+    ];
+    spawn_nifs(
+        paths_with_target_bone,
+        &asset_server,
+        entity,
+        &mut commands,
+        Transform::from_scale(Vec3::splat(1.0)),
+    );
+    let entity2 = commands
         .spawn((
             InheritedVisibility::VISIBLE,
-            Transform::from_xyz(2.0, -1.0, 0.0),
+            Transform {
+                translation: Vec3::new(2.0, -2.5, 1.0),
+                rotation: Quat::from_rotation_x(-FRAC_PI_2),
+                scale: Vec3::splat(0.03),
+            },
         ))
         .id();
-    //"data/B_N_Dark Elf_F_Forearm.nif",
-    let paths = [
-        "data/base_anim.nif",
-        "data/B_N_Dark Elf_M_Neck.nif",
-        "data/B_N_Dark Elf_M_Head_01.nif",
-        "data/b_n_dark elf_m_skins.nif",
-        "data/B_N_Dark Elf_M_Groin.nif",
-        "data/B_N_Dark Elf_M_Hair_01.nif",
-        "data/B_N_Dark Elf_M_Forearm.nif",
-        "data/B_N_Dark Elf_M_Forearm.nif",
-        "data/B_N_Dark Elf_M_Upper Arm.nif",
-        "data/B_N_Dark Elf_M_Upper Arm.nif",
-        "data/B_N_Dark Elf_M_Wrist.nif",
-        "data/B_N_Dark Elf_M_Wrist.nif",
-        "data/B_N_Dark Elf_M_Upper Leg.nif",
-        "data/B_N_Dark Elf_M_Upper Leg.nif",
-        "data/B_N_Dark Elf_M_Knee.nif",
-        "data/B_N_Dark Elf_M_Knee.nif",
-        "data/B_N_Dark Elf_M_Ankle.nif",
-        "data/B_N_Dark Elf_M_Ankle.nif",
-        "data/B_N_Dark Elf_M_Foot.nif",
-        "data/B_N_Dark Elf_M_Foot.nif",
-    ]
-    .to_vec();
-    let asset_names = ["skeleton"].to_vec();
-    let attachment_types = [
-        None,
-        Some("Neck"),
-        Some("Head"),
-        None,
-        Some("Groin"),
-        Some("Head"),
-        Some("Right Forearm"),
-        Some("Left Forearm"),
-        Some("Right Upper Arm"),
-        Some("Left Upper Arm"),
-        Some("Right Wrist"),
-        Some("Left Wrist"),
-        Some("Right Upper Leg"),
-        Some("Left Upper Leg"),
-        Some("Right Knee"),
-        Some("Left Knee"),
-        Some("Right Ankle"),
-        Some("Left Ankle"),
-        Some("Right Foot"),
-        Some("Left Foot"),
-    ]
-    .to_vec();
-    spawn_gltfs(
-        paths,
-        asset_server,
-        &mut scene_entities_by_name,
-        asset_names,
-        entity,
-        entity_player,
+    spawn_nifs(
+        paths_with_target_bone2,
+        &asset_server,
+        entity2,
         &mut commands,
-        0,
-        Transform::from_xyz(0.0, 0.0, 0.0),
-        attachment_types,
+        Transform::from_scale(Vec3::splat(1.0)),
     );
 }
-use std::collections::HashMap;
-use std::f32::consts::PI;
+use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 
 use bevy::render::mesh::Mesh;
 use bevy::{
@@ -93,85 +266,48 @@ use bevy::{
     },
     pbr::{CascadeShadowConfigBuilder, NotShadowCaster, NotShadowReceiver},
 };
-#[derive(Default, Resource, Debug)]
-pub struct SceneEntitiesByName(pub HashMap<(String, u64), Entity>);
-#[derive(Default, Resource)]
-pub struct GameAssets {
-    pub gltf_files: HashMap<String, Handle<Nif>>,
-}
-#[derive(Component)]
-pub struct SceneName {
-    pub scene_name: String,
-    pub id: u64,
-    pub parent: Entity,
-}
-fn spawn_gltfs(
-    paths: Vec<&str>,
-    asset_server: Res<AssetServer>,
-    scene_entities_by_name: &mut ResMut<SceneEntitiesByName>,
-    asset_names: Vec<&str>,
+fn spawn_nifs(
+    paths_with_target_bone: Vec<(&str, AttachmentType)>,
+    asset_server: &Res<AssetServer>,
     entity: Entity,
-    parent_entity: Entity,
     commands: &mut Commands,
-    client_id: u64,
     transform: Transform,
-    mut target_bone: Vec<Option<&str>>,
 ) {
-    for i in 0..paths.len() {
-        let asset_handle = asset_server.load(paths[i]);
-        let attachment_type = if let Some(target_bone) = target_bone.remove(0) {
-            AttachmentType::Rigid {
-                target_bone: target_bone.to_string(),
-            }
-        } else {
-            AttachmentType::Skinned
-        };
-        spawn_gltf_as_child(
-            asset_handle,
-            scene_entities_by_name,
-            //TODO:: TEMPORARY
-            &asset_names[0],
-            entity,
-            parent_entity,
-            commands,
-            client_id,
-            transform,
-            //TODO:: TEMPORARY
-            attachment_type,
-        );
-    }
-}
-pub fn spawn_gltf_as_child(
-    asset_handle: Handle<Nif>,
-    scene_entities_by_name: &mut ResMut<SceneEntitiesByName>,
-    asset_name: &str,
-    entity: Entity,
-    parent_entity: Entity,
-    commands: &mut Commands,
-    client_id: u64,
-    transform: Transform,
-    attachment_type: AttachmentType,
-) {
-    //let scene = gltf.default_scene.clone().unwrap();
-    commands.entity(entity).with_children(|parent| {
-        let player_skeleton_entity = parent
+    for (path, mut attachment_type) in paths_with_target_bone {
+        let asset_handle = asset_server.load(path);
+        if let AttachmentType::DoubleSidedRigid {
+            target_bone,
+            skeleton_id,
+        } = attachment_type.clone()
+        {
+            attachment_type = AttachmentType::Rigid {
+                target_bone: format!("Left {}", target_bone),
+                skeleton_id,
+            };
+            let child = commands
+                .spawn((
+                    NifScene(asset_handle.clone()),
+                    attachment_type,
+                    transform,
+                    InheritedVisibility::VISIBLE,
+                ))
+                .id();
+            commands.entity(entity).add_child(child);
+            attachment_type = AttachmentType::Rigid {
+                target_bone: format!("Right {}", target_bone),
+                skeleton_id,
+            };
+        }
+        let child = commands
             .spawn((
-                InheritedVisibility::VISIBLE,
-                NifScene(asset_handle.clone()),
-                transform,
-                SceneName {
-                    scene_name: asset_name.to_string(),
-                    id: client_id,
-                    parent: parent_entity,
-                },
+                NifScene(asset_handle),
                 attachment_type,
+                transform,
+                InheritedVisibility::VISIBLE,
             ))
             .id();
-        scene_entities_by_name.0.insert(
-            (asset_name.to_string(), (client_id)),
-            player_skeleton_entity,
-        );
-    });
+        commands.entity(entity).add_child(child);
+    }
 }
 
 pub fn setup_scene(
@@ -215,6 +351,21 @@ pub fn setup_scene(
         Vec3::X,
         std::f32::consts::PI / 2.0 * -0.98,
     ));
+    commands.spawn((
+        DirectionalLight {
+            illuminance: 15_000.,
+            shadows_enabled: true,
+            ..default()
+        },
+        CascadeShadowConfigBuilder {
+            num_cascades: 3,
+            maximum_distance: 10.0,
+            ..default()
+        }
+        .build(),
+        Transform::from_rotation(Quat::from_euler(EulerRot::ZYX, 0.0, 0.0, -FRAC_PI_4)),
+    ));
+
     commands.spawn((
         DirectionalLight {
             illuminance: 600.0,

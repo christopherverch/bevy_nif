@@ -1,5 +1,5 @@
+#![allow(dead_code)]
 use bevy::math::{Quat, Vec3};
-
 #[derive(Debug, Clone, Copy)] // Assuming KeyType is simple
 pub enum KeyType {
     Linear,

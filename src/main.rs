@@ -12,12 +12,12 @@ use nif::{
     loader::*,
     spawner::spawn_nif_scenes,
 };
-use setup::SceneEntitiesByName;
 #[allow(dead_code)]
 #[derive(Event, Clone, Debug)]
 pub struct NifInstantiated {
     pub handle: Handle<Nif>,
     pub root_entity: Entity,
+    pub skeleton_id_opt: Option<u64>,
 }
 #[allow(dead_code)]
 #[derive(Component)]
@@ -36,7 +36,6 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugins(EguiPlugin {})
         .add_plugins(BevyNifPlugin)
-        .insert_resource(SceneEntitiesByName::default())
         .insert_resource(BoneMap::default())
         .insert_resource(AmbientLight {
             // Add ambient light resource

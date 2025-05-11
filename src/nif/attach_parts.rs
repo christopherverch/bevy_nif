@@ -3,16 +3,40 @@ use std::collections::VecDeque;
 use crate::NifInstantiated;
 
 use super::animation::BoneMap;
-use bevy::prelude::*;
+use bevy::{prelude::*, render::render_resource::Face};
 
-#[derive(Component, Clone)]
+#[derive(Component, PartialEq, Clone, Debug)]
 pub enum AttachmentType {
-    Skinned, // Default?
-    Rigid { target_bone: String }, // e.g., Rigid { target_bone: "Bip01 Head".to_string() }
-             // Maybe Morphed { target_bone: String }, later
+    MainSkeleton {
+        skeleton_id: u64,
+    },
+    Skinned {
+        skeleton_id: u64,
+    },
+    Rigid {
+        skeleton_id: u64,
+        target_bone: String,
+    },
+    DoubleSidedRigid {
+        skeleton_id: u64,
+        target_bone: String,
+    },
+    // Maybe Morphed { target_bone: String }, later
+}
+impl AttachmentType {
+    /// Returns the `target_skeleton_id` if the attachment type is
+    /// Skinned, Rigid, or DoubleSidedRigid. Otherwise, returns None.
+    pub fn get_target_skeleton_id(&self) -> u64 {
+        match self {
+            AttachmentType::Skinned { skeleton_id }
+            | AttachmentType::Rigid { skeleton_id, .. }
+            | AttachmentType::DoubleSidedRigid { skeleton_id, .. }
+            | AttachmentType::MainSkeleton { skeleton_id } => *skeleton_id,
+        }
+    }
 }
 pub fn attach_parts(
-    _: Trigger<NifInstantiated>,
+    trigger: Trigger<NifInstantiated>,
     all_entities_with_children: Query<&Children>,
     names: Query<&Name>,
     attach_query: Query<(Entity, &AttachmentType)>,
@@ -23,72 +47,97 @@ pub fn attach_parts(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    if bone_map.root_skeleton_entity.is_none() {
+    //make sure this is a nif that has a target skeleton
+    let Some(skeleton_id) = trigger.skeleton_id_opt else {
+        return;
+    };
+    //make sure the target skeleton exists
+    if bone_map
+        .root_skeleton_entity_map
+        .get(&skeleton_id)
+        .is_none()
+    {
         return;
     }
-    for (entity_root, attach_type) in attach_query.iter() {
-        if let AttachmentType::Rigid { target_bone } = attach_type {
-            let target_bone_ninode = &format!("NiNode: {}", target_bone).to_string();
-            if let Some(skeleton_bone) = bone_map.entity_map.get(target_bone_ninode) {
-                if let Some(entity) = find_child_of_child_with_name_containing(
-                    &all_entities_with_children,
-                    &names,
-                    &entity_root,
-                    "NifScene",
-                ) {
-                    if let Ok(mut transform) = transforms.get_mut(entity) {
-                        if target_bone.contains("Left")
-                            && !target_bone.contains("Leg")
-                            && !target_bone.contains("Knee")
-                        {
-                            transform.translation.x = -transform.translation.x;
-                            transform.scale.x = -1.0;
-                            let entity = if let Some(entity_child) =
-                                find_child_of_child_with_name_containing(
-                                    &all_entities_with_children,
-                                    &names,
-                                    &entity,
-                                    "NiNode",
-                                ) {
-                                entity_child
-                            } else {
-                                entity
-                            };
 
-                            if let Ok((mesh3d, material)) = materials_query.get(entity) {
-                                if let Some(mesh) = meshes.get_mut(&mesh3d.0) {
-                                    let mut clone_mesh = mesh.clone();
-                                    if let Some(
-                                        bevy::render::mesh::VertexAttributeValues::Float32x3(
-                                            normals,
-                                        ),
-                                    ) = clone_mesh.attribute_mut(Mesh::ATTRIBUTE_NORMAL)
-                                    {
-                                        for normal in normals {
-                                            normal[0] *= -1.0;
-                                            normal[1] *= -1.0;
-                                            normal[2] *= -1.0;
-                                        }
-                                    }
-                                    let mesh_handle = meshes.add(clone_mesh);
-                                    commands.entity(entity).insert(Mesh3d(mesh_handle));
+    for (nifscene_root, attach_type) in attach_query.iter() {
+        println!("attach type {:?}", attach_type);
+        if let Some(bodypart_mesh) = find_child_of_child_with_name_containing(
+            &all_entities_with_children,
+            &names,
+            &nifscene_root,
+            "NifScene",
+        ) {
+            if let AttachmentType::Rigid {
+                skeleton_id,
+                target_bone,
+            } = attach_type
+            {
+                let target_bone_ninode = &format!("NiNode: {}", target_bone).to_string();
+                if let Some(bone_entities_map) = bone_map.bone_entities_map.get(skeleton_id) {
+                    if let Some(skeleton_bone) = bone_entities_map.get(target_bone_ninode) {
+                        if target_bone.contains("Left") {
+                            println!("target bone: {}", target_bone);
+                            //find the child of the ninode(should be trimesh), so we can get the mesh and material of
+                            //the trimesh
+                            let entities = find_descendants_with_name_containing(
+                                &all_entities_with_children,
+                                &names,
+                                bodypart_mesh,
+                                "NiTriShape",
+                            );
+                            for trishape in entities {
+                                if let Ok(mut transform) = transforms.get_mut(trishape) {
+                                    transform.translation.x = -transform.translation.x;
+                                    transform.rotation.y = -transform.rotation.y;
+                                    transform.rotation.z = -transform.rotation.z;
+                                    transform.scale.x = -1.0;
                                 }
-                                if let Some(standard_material) = materials.get_mut(&material.0) {
-                                    standard_material.cull_mode = None;
-                                    standard_material.double_sided = true;
+                                if let Ok((mesh3d, material)) = materials_query.get(trishape) {
+                                    if let Some(mesh) = meshes.get_mut(&mesh3d.0) {
+                                        let mut clone_mesh = mesh.clone();
+                                        if let Some(
+                                            bevy::render::mesh::VertexAttributeValues::Float32x3(
+                                                normals,
+                                            ),
+                                        ) = clone_mesh.attribute_mut(Mesh::ATTRIBUTE_NORMAL)
+                                        {
+                                            for normal in normals {
+                                                normal[0] *= -1.0;
+                                                normal[1] *= -1.0;
+                                                normal[2] *= -1.0;
+                                            }
+                                        }
+                                        let mesh_handle = meshes.add(clone_mesh);
+                                        commands.entity(trishape).insert(Mesh3d(mesh_handle));
+                                    }
+                                    if let Some(standard_material) = materials.get_mut(&material.0)
+                                    {
+                                        standard_material.cull_mode = Some(Face::Front);
+                                        standard_material.double_sided = true;
+                                    }
                                 }
                             }
-
-                            //transform.rotate_local_x(-std::f32::consts::FRAC_PI_2);
-                            //transform.rotate_local_y(std::f32::consts::PI);
                         }
-                        commands.entity(entity).set_parent(*skeleton_bone);
-                        commands.entity(entity_root).despawn_recursive();
+                        commands.entity(nifscene_root).set_parent(*skeleton_bone);
+                        commands.entity(nifscene_root).remove::<AttachmentType>();
+                    }
+                }
+            } else {
+                match attach_type {
+                    //don't parent main skeleton to itself
+                    AttachmentType::MainSkeleton { .. } => {}
+                    _ => {
+                        if let Some(skeleton_root) = bone_map
+                            .root_skeleton_entity_map
+                            .get(&attach_type.get_target_skeleton_id())
+                        {
+                            commands.entity(nifscene_root).set_parent(*skeleton_root);
+                            commands.entity(nifscene_root).remove::<AttachmentType>();
+                        }
                     }
                 }
             }
-        } else {
-            commands.entity(entity_root).remove::<AttachmentType>();
         }
     }
 }
@@ -121,19 +170,35 @@ pub fn find_child_of_child_with_name_containing(
 
     None
 }
-fn rotate_transform_around_world_pivot(transform: &mut Transform, pivot: Vec3, rotation: Quat) {
-    // Compute transform as a matrix
-    let mat = Mat4::from_translation(transform.translation) * Mat4::from_quat(transform.rotation);
+pub fn find_descendants_with_name_containing(
+    all_entities_with_children: &Query<&Children>,
+    names: &Query<&Name>,
+    start_entity: Entity,
+    name_to_match: &str,
+) -> Vec<Entity> {
+    let mut found_entities = Vec::new(); // Stores all entities that match the criteria
+    let mut queue = VecDeque::new(); // Queue for the BFS
 
-    // Build pivoted rotation: T(pivot) * R * T(-pivot)
-    let pivot_rotation =
-        Mat4::from_translation(pivot) * Mat4::from_quat(rotation) * Mat4::from_translation(-pivot);
+    // Start the search with the initial entity
+    queue.push_back(start_entity);
 
-    // Apply pivoted rotation to the object's transform
-    let result = pivot_rotation * mat;
+    while let Some(current_entity) = queue.pop_front() {
+        // Check if the current entity has a name and if it matches
+        if let Ok(name_component) = names.get(current_entity) {
+            // Use as_str() for more direct string access from the Name component
+            if name_component.as_str().contains(name_to_match) {
+                found_entities.push(current_entity); // Add this entity to the results
+            }
+        }
 
-    // Extract new translation and rotation
-    let (new_translation, new_rotation, _scale) = result.to_scale_rotation_translation();
-    transform.translation = new_translation;
-    transform.rotation = new_rotation;
+        // Add all children of the current entity to the queue for further searching
+        if let Ok(children) = all_entities_with_children.get(current_entity) {
+            for &child_entity in children.iter() {
+                // children.iter() yields &Entity
+                queue.push_back(child_entity);
+            }
+        }
+    }
+
+    found_entities // Return all entities found
 }

@@ -200,12 +200,6 @@ pub fn parse_nitribasedgeomdata_fields(
         num_triangles,
     })
 }
-pub fn read_text_key(cursor: &mut Cursor<&[u8]>) -> Result<TextKey> {
-    let time = cursor.read_f32::<LittleEndian>()?; // 4 bytes for time
-    let value_len = cursor.read_u32::<LittleEndian>()?; // 4 bytes for string length
-    let value = read_nif_string(cursor, value_len)?; // N bytes for string data
-    Ok(TextKey { time, value })
-}
 pub fn parse_niskininstance_fields(
     cursor: &mut Cursor<&[u8]>,
     block_index: u32,

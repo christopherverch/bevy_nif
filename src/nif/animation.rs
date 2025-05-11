@@ -1,22 +1,9 @@
-// --- Necessary Imports ---
-
-// --- Bevy Imports (Corrected for Bevy 0.16+) ---
 use bevy::animation::AnimationClip;
 use bevy::animation::AnimationTargetId;
 use bevy::asset::Assets; // Keep Assets, Handle
 use bevy::ecs::entity::Entity;
 use bevy::math::curve::interval::InvalidIntervalError;
 use bevy::prelude::*;
-// use bevy::log::{error, info, warn};
-use bevy::math::Vec3;
-use bevy::prelude::{
-    Commands,
-    Name,
-    Query,
-    Res,
-    ResMut,
-    Resource, // Keep needed prelude items
-};
 use bevy_animation::AnimationTarget;
 use bevy_animation::animated_field;
 use std::collections::HashMap;
@@ -30,10 +17,7 @@ use crate::RecordLink;
 use crate::extra_data::ExtraFields;
 
 use super::loader::Nif;
-use super::spawner::NeedsNifAnimator; // Needed for add_curve_boxed potentially, or boxing
-
-// --- Assume your Key structs, KeyType, NiKeyframeData, NiKeyframeController ---
-// --- ParsedNifData, RecordLink, Vector3 etc. are defined exactly as you provided ---
+use super::spawner::NeedsNifAnimator;
 
 // --- Intermediate representation for an animation curve for a specific bone ---
 #[derive(Debug, Clone)]
@@ -56,11 +40,10 @@ pub struct AnimationSequence {
 }
 #[derive(Resource, Debug, Default)]
 pub struct BoneMap {
-    pub root_skeleton_entity: Option<Entity>,
-    pub entity_map: HashMap<String, Entity>,
+    pub root_skeleton_entity_map: HashMap<u64, Entity>,
+    pub bone_entities_map: HashMap<u64, HashMap<String, Entity>>,
 }
 
-// --- Assume your AnimationHandles Resource ---
 pub fn build_animation_clip_system(
     mut commands: Commands,
     bone_map_res: Res<BoneMap>,
@@ -70,13 +53,16 @@ pub fn build_animation_clip_system(
     needs_animator_q: Query<(Entity, &NeedsNifAnimator)>,
     has_parent_q: Query<&Parent>,
 ) {
-    if bone_map_res.root_skeleton_entity.is_none() {
-        return;
-    };
-    for (entity, nif_handle_component) in needs_animator_q.iter() {
-        let nif_handle = &nif_handle_component.0;
-        // **Check if the asset for THIS entity is loaded NOW**
-        // This uses Assets::get, polling the current state of loaded assets
+    for (entity, needs_animator_data) in needs_animator_q.iter() {
+        if bone_map_res
+            .root_skeleton_entity_map
+            .get(&needs_animator_data.skeleton_id)
+            .is_none()
+        {
+            return;
+        };
+        let nif_handle = &needs_animator_data.handle;
+        // Check if the asset for this entity is loaded
         let Some(nif) = nif_assets.get(&*nif_handle) else {
             continue;
         };
@@ -85,22 +71,12 @@ pub fn build_animation_clip_system(
             commands.entity(entity).remove::<NeedsNifAnimator>();
             continue;
         };
-        /*for (name, _) in &nif_animations_map {
+        for (name, _) in &nif_animations_map {
             println!("name: {}", name);
-        }*/
-
-        // info!("Building AnimationClip using SampleCurve and add_curve_to_target...");
+        }
 
         let mut animation_player = AnimationPlayer::default();
         let mut bone_entity: Option<Entity> = None;
-        /*let Some(nif_animation) = nif_animations_map.get("swimknockout") else {
-            warn!(
-                "Animation  not found in extracted map for NIF {:?}.",
-                nif_handle.id()
-            );
-            commands.entity(entity).remove::<NeedsNifAnimator>();
-            continue;
-        };*/
         let mut animation_graph = AnimationGraph::new();
         let blend_node = animation_graph.add_blend(0.5, animation_graph.root);
         let mut animations_hashmap = HashMap::new();
@@ -116,10 +92,15 @@ pub fn build_animation_clip_system(
                     &bone_curve.rotations,
                     Interval::new(nif_animation.start_time, nif_animation.stop_time),
                 );
-                for (string, bone) in bone_map_res.entity_map.iter() {
-                    if *string == format!("NiNode: {}", bone_curve.target_bone_name) {
-                        bone_entity = Some(*bone);
-                        break;
+                if let Some(bone_entities_map) = bone_map_res
+                    .bone_entities_map
+                    .get(&needs_animator_data.skeleton_id)
+                {
+                    for (string, bone) in bone_entities_map.iter() {
+                        if *string == format!("NiNode: {}", bone_curve.target_bone_name) {
+                            bone_entity = Some(*bone);
+                            break;
+                        }
                     }
                 }
                 let Some(bone_entity) = bone_entity else {
@@ -165,7 +146,7 @@ pub fn build_animation_clip_system(
         }
         let animation_graph_handle = animation_graphs.add(animation_graph);
         animation_player
-            .play(*animations_hashmap.get("swimknockout").unwrap())
+            .play(*animations_hashmap.get("death4").unwrap())
             .repeat();
         commands
             .entity(entity)
@@ -635,9 +616,6 @@ fn as_text_key_extra_data(block: &ParsedBlock) -> Option<&NiTextKeyExtraData> {
     } else {
         None
     }
-}
-fn lerp_vec3(a: &Vec3, b: &Vec3, t: f32) -> Vec3 {
-    a.lerp(*b, t)
 }
 //function to determine if we should use a constant curve or an auto curve
 //(based on having only 1 or more than 1 keyframe)

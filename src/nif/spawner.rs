@@ -1,6 +1,9 @@
 use crate::animation::NiSkinData;
 use crate::animation::NiSkinInstance;
 // src/nif/spawner.rs
+use super::animation::BoneMap;
+use super::attach_parts::AttachmentType;
+use super::loader::Nif;
 use crate::LoadedNifScene;
 use crate::NifInstantiated;
 use crate::nif::helper_funcs::{convert_nif_transform, resolve_nif_path};
@@ -15,121 +18,184 @@ use bevy::render::mesh::skinning::SkinnedMesh;
 use bevy::render::mesh::skinning::SkinnedMeshInverseBindposes;
 use bevy::render::render_resource::Face;
 use std::collections::HashMap;
-use std::f32::consts::FRAC_PI_2;
-
-use super::animation::BoneMap;
-use super::loader::Nif;
 #[derive(Component)]
-pub struct NeedsNifAnimator(pub Handle<Nif>);
+pub struct NeedsNifAnimator {
+    pub handle: Handle<Nif>,
+    pub skeleton_id: u64,
+}
 #[derive(Resource, Default, Debug, Component)]
 pub struct NifScene(pub Handle<Nif>);
-#[allow(dead_code)]
 pub fn spawn_nif_scenes(
     // Other needed Bevy resources and queries
     mut commands: Commands,
-    nif_assets: Res<Assets<Nif>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    asset_server: Res<AssetServer>,
-    new_scenes: Query<(Entity, &NifScene), Without<LoadedNifScene>>,
     mut meshes: ResMut<Assets<Mesh>>,
+    nif_assets: Res<Assets<Nif>>,
+    asset_server: Res<AssetServer>,
+    new_scenes: Query<(Entity, &NifScene, Option<&mut AttachmentType>), Without<LoadedNifScene>>,
     mut inverse_bindposes: ResMut<Assets<SkinnedMeshInverseBindposes>>,
     mut bone_map_res: ResMut<BoneMap>,
 ) {
-    if let Some((entity, nif_scene_component)) = new_scenes.iter().next() {
-        let asset_handle = &nif_scene_component.0;
-        let mut is_main_skeleton = false;
-        if let Some(path) = asset_handle.path() {
-            if path.to_string().contains("base_anim.nif") {
-                is_main_skeleton = true;
-            }
-        }
-        if bone_map_res.root_skeleton_entity.is_none() {
-            if !is_main_skeleton {
-                //don't continue if the main skeleton isn't loaded yet
-                return;
-            }
-        }
-        // **Check if the asset for THIS entity is loaded NOW**
-        // This uses Assets::get, polling the current state of loaded assets
-        let Some(nif) = nif_assets.get(&nif_scene_component.0) else {
-            return;
-        };
-
-        // --- Data Conversion and Spawning ---
-        //pass 2
-        let mut entity_map: HashMap<usize, Entity> = HashMap::new();
-
-        // Spawn the top-level scene root entity (optional, but good practice)
-        let scene_root_entity = commands
-            .spawn((
-                Transform {
-                    translation: Vec3::new(0.0, 0.0, 0.0),
-                    // flip the rotation, otherwise it faces -Z when spawned because of nif
-                    rotation: Quat::from_rotation_x(-FRAC_PI_2),
-                    // coordinates
-                    scale: Vec3::new(0.03, 0.03, 0.03),
-                },
-                InheritedVisibility::VISIBLE,
-                Name::new(format!("NifScene_{:?}", asset_handle.id())),
-            ))
-            .id();
-        commands.entity(entity).add_child(scene_root_entity);
-
-        // Find the root nodes of the NIF graph. Often index 0, but could be others.
-        // A simple approach is to assume index 0 is the main root.
-        // A more robust approach would find nodes not listed as children of any other node.
-        let nif_root_index = 0; // Assuming block 0 is the root NiNode
-        let mut block_map: HashMap<usize, &ParsedBlock> = HashMap::new();
-        for (index, block) in nif.raw_parsed.blocks.iter().enumerate() {
-            block_map.insert(index, block);
-        }
-
-        // Start the recursive spawning process
-        let mut local_bone_collector: HashMap<String, Entity> = HashMap::new();
-        if let Some(root_block_data) = block_map.get(&nif_root_index) {
-            // *** Pass the looked-up data (&ParsedBlock) to the first call ***
-            spawn_nif_node_recursive(
-                &mut commands,
-                &mut bone_map_res,
-                nif_root_index,
-                scene_root_entity,
-                &block_map,
-                &mut entity_map,
-                &nif.mesh_handles,
-                &nif.material_handles,
-                &nif.texture_info_map,
-                &mut materials,
-                &asset_server,
-                &mut meshes,
-                &mut inverse_bindposes,
-                root_block_data,
-                is_main_skeleton,
-                &mut local_bone_collector,
-            );
-        } else {
-            warn!("NIF root index {} not found in block_map!", nif_root_index);
-        }
-        if is_main_skeleton {
-            bone_map_res.root_skeleton_entity = Some(scene_root_entity);
-        }
-        commands
-            .entity(entity)
-            .insert(LoadedNifScene(asset_handle.clone()));
-        if is_main_skeleton {
-            let bone_map = BoneMap {
-                root_skeleton_entity: Some(scene_root_entity),
-                entity_map: local_bone_collector,
-            };
-            commands.insert_resource(bone_map);
-            commands
-                .entity(scene_root_entity)
-                .insert(NeedsNifAnimator(asset_handle.clone()));
-        }
-        commands.trigger(NifInstantiated {
-            handle: asset_handle.clone(),
-            root_entity: scene_root_entity,
-        });
+    if new_scenes.iter().len() < 1 {
+        return;
     }
+    let mut is_main_skeleton = false;
+    let new_scene_opt =
+        new_scenes
+            .iter()
+            .find_map(|(entity, nif_scene_component, attachment_type_opt)| {
+                let asset_handle = &nif_scene_component.0;
+                let Some(attachment_type) = attachment_type_opt else {
+                    return Some((entity, asset_handle, nif_scene_component, None));
+                };
+                let target_skeleton_id = attachment_type.get_target_skeleton_id();
+                if let Some(path) = asset_handle.path() {
+                    if path.to_string().contains("base_anim.nif") {
+                        //maybe find a better way of checking this
+                        is_main_skeleton = true;
+                    }
+                }
+                if bone_map_res
+                    .root_skeleton_entity_map
+                    .get(&attachment_type.get_target_skeleton_id())
+                    .is_none()
+                    && !is_main_skeleton
+                {
+                    //if this isn't the skeleton asset path and we have no skeleton for this target,
+                    //continue checking until/if we have an asset we CAN set up
+                    return None;
+                }
+
+                return Some((
+                    entity,
+                    asset_handle,
+                    nif_scene_component,
+                    Some(target_skeleton_id),
+                ));
+            });
+    /*for (entity, nif_scene_component, attachment_type_opt) in new_scenes.iter() {
+        let asset_handle = &nif_scene_component.0;
+        let mut main_skeleton_id_opt = None;
+        let mut target_skeleton_id_opt = None;
+        //decide what to do based on attachment type
+        if let Some(attachment_type) = attachment_type_opt {
+            target_skeleton_id_opt = Some(attachment_type.get_target_skeleton_id());
+            //check to see if the skeleton exists, if not return until the skeleton asset is loaded
+            if let Some(path) = asset_handle.path() {
+                if path.to_string().contains("base_anim.nif") {
+                    main_skeleton_id_opt = target_skeleton_id_opt;
+                }
+            }
+            if bone_map_res
+                .root_skeleton_entity_map
+                .get(&attachment_type.get_target_skeleton_id())
+                .is_none()
+            {
+                if main_skeleton_id_opt.is_none() {
+                    //don't continue if the main skeleton isn't loaded yet and we aren't currently
+                    //processing it
+                    println!("return2");
+                    continue;
+                }
+            }
+        }
+        new_scene_opt = Some((
+            main_skeleton_id_opt,
+            target_skeleton_id_opt,
+            asset_handle,
+            entity,
+            nif_scene_component,
+        ));
+        break;
+    }*/
+    let Some((entity, asset_handle, nif_scene_component, target_skeleton_id_opt)) = new_scene_opt
+    else {
+        println!("no assets found");
+        return;
+    };
+    let Some(nif) = nif_assets.get(&nif_scene_component.0) else {
+        println!("return");
+        return;
+    };
+
+    // --- Data Conversion and Spawning ---
+    //pass 2
+    let mut entity_map: HashMap<usize, Entity> = HashMap::new();
+
+    // Spawn the top-level scene root entity (optional, but good practice)
+    let scene_root_entity = commands
+        .spawn((
+            Transform {
+                translation: Vec3::new(0.0, 0.0, 0.0),
+                // flip the rotation, otherwise it faces -Z when spawned because of nif
+                rotation: Quat::IDENTITY,
+                // coordinates
+                scale: Vec3::splat(1.0),
+            },
+            InheritedVisibility::VISIBLE,
+            Name::new(format!("NifScene_{:?}", asset_handle.id())),
+        ))
+        .id();
+    commands.entity(entity).add_child(scene_root_entity);
+
+    // Find the root nodes of the NIF graph. Often index 0, but could be others.
+    // A simple approach is to assume index 0 is the main root.
+    // A more robust approach would find nodes not listed as children of any other node.
+    let nif_root_index = 0; // Assuming block 0 is the root NiNode
+    let mut block_map: HashMap<usize, &ParsedBlock> = HashMap::new();
+    for (index, block) in nif.raw_parsed.blocks.iter().enumerate() {
+        block_map.insert(index, block);
+    }
+
+    // Start the recursive spawning process
+    let mut local_bone_collector: HashMap<String, Entity> = HashMap::new();
+    if let Some(root_block_data) = block_map.get(&nif_root_index) {
+        // *** Pass the looked-up data (&ParsedBlock) to the first call ***
+        spawn_nif_node_recursive(
+            &mut commands,
+            &mut bone_map_res,
+            nif_root_index,
+            scene_root_entity,
+            &block_map,
+            &mut entity_map,
+            &nif.mesh_handles,
+            &nif.material_handles,
+            &nif.texture_info_map,
+            &mut materials,
+            &asset_server,
+            &mut meshes,
+            &mut inverse_bindposes,
+            root_block_data,
+            is_main_skeleton,
+            target_skeleton_id_opt,
+            &mut local_bone_collector,
+        );
+    } else {
+        warn!("NIF root index {} not found in block_map!", nif_root_index);
+    }
+    commands
+        .entity(entity)
+        .insert(LoadedNifScene(asset_handle.clone()));
+    if is_main_skeleton {
+        if let Some(target_skeleton_id) = target_skeleton_id_opt {
+            bone_map_res
+                .root_skeleton_entity_map
+                .insert(target_skeleton_id, scene_root_entity);
+            bone_map_res
+                .bone_entities_map
+                .insert(target_skeleton_id, local_bone_collector);
+
+            commands.entity(scene_root_entity).insert(NeedsNifAnimator {
+                handle: asset_handle.clone(),
+                skeleton_id: target_skeleton_id,
+            });
+        }
+    }
+    commands.trigger(NifInstantiated {
+        handle: asset_handle.clone(),
+        root_entity: scene_root_entity,
+        skeleton_id_opt: target_skeleton_id_opt,
+    });
 }
 fn spawn_nif_node_recursive(
     commands: &mut Commands,
@@ -147,6 +213,7 @@ fn spawn_nif_node_recursive(
     inverse_bindposes: &mut ResMut<Assets<SkinnedMeshInverseBindposes>>,
     block: &ParsedBlock,
     is_main_skeleton: bool,
+    target_skeleton_id_opt: Option<u64>,
     local_bone_collector: &mut HashMap<String, Entity>,
 ) {
     if entity_map.contains_key(&nif_index) {
@@ -177,10 +244,19 @@ fn spawn_nif_node_recursive(
                 .entity(current_entity_id)
                 .insert(Name::new(name_with_ninode.clone()));
             if is_main_skeleton {
-                if bone_map.entity_map.get(&name_with_ninode).is_some() {
-                    warn!("found double ninode in skeleton!")
+                if let Some(target_skeleton_id) = target_skeleton_id_opt {
+                    if bone_map
+                        .bone_entities_map
+                        .get(&target_skeleton_id)
+                        .is_some()
+                    {
+                        warn!("adding ninodes to already created skeleton!")
+                    }
+                    if local_bone_collector.get(&name_with_ninode).is_some() {
+                        warn!("overriding existing ninode!")
+                    }
+                    local_bone_collector.insert(name_with_ninode, current_entity_id);
                 }
-                local_bone_collector.insert(name_with_ninode, current_entity_id);
             }
 
             // Recurse for children
@@ -204,6 +280,7 @@ fn spawn_nif_node_recursive(
                             inverse_bindposes,
                             child_block_data,
                             is_main_skeleton,
+                            target_skeleton_id_opt,
                             local_bone_collector,
                         );
                     } else {
@@ -442,6 +519,8 @@ fn spawn_nif_node_recursive(
                 // 2. Spawn Skeleton Hierarchy
                 let mut skeleton_ready = false;
                 if !is_main_skeleton {
+                    //if not the main skeleton, we can only get here if the skeleton is already
+                    //set up correctly
                     skeleton_ready = true;
                 } else {
                     if let Some(skeleton_root_index) = si.skeleton_root {
@@ -463,6 +542,7 @@ fn spawn_nif_node_recursive(
                                     inverse_bindposes,
                                     root_block_data, // *** Pass skeleton root's block data ***
                                     is_main_skeleton,
+                                    target_skeleton_id_opt,
                                     local_bone_collector,
                                 );
                                 skeleton_ready = true;
@@ -474,7 +554,7 @@ fn spawn_nif_node_recursive(
                         }
                     } else {
                         warn!("SkinInstance has no skeleton root link");
-                    } // --- *** END: ADDED Step 2 *** ---
+                    }
                 }
                 if skeleton_ready {
                     // 3a. Create Inverse Bind Pose Asset
@@ -495,47 +575,53 @@ fn spawn_nif_node_recursive(
                     if !is_main_skeleton {
                         // --- ATTACHABLE NIF LOGIC ---
                         // `base_skeleton_map_holder` is `&ActiveSkeletonBones`
-                        let base_name_to_entity_map = &bone_map.entity_map;
-
-                        for (bone_order_idx, bone_link_opt_in_current_nif) in
-                            si.bones.iter().enumerate()
-                        {
-                            if let Some(bone_nif_idx_in_current_nif) = bone_link_opt_in_current_nif
+                        if let Some(target_skeleton_id) = target_skeleton_id_opt {
+                            if let Some(base_name_to_entity_map) =
+                                &bone_map.bone_entities_map.get(&target_skeleton_id)
                             {
-                                // Get the NiNode block from the *current NIF's block_map* to find its name
-                                if let Some(ParsedBlock::Node(node_data_in_current_nif)) =
-                                    block_map.get(bone_nif_idx_in_current_nif)
+                                for (bone_order_idx, bone_link_opt_in_current_nif) in
+                                    si.bones.iter().enumerate()
                                 {
-                                    let bone_name = node_data_in_current_nif.name();
-                                    if let Some(base_skeleton_bone_entity) = base_name_to_entity_map
-                                        .get(&format!("NiNode: {}", bone_name))
+                                    if let Some(bone_nif_idx_in_current_nif) =
+                                        bone_link_opt_in_current_nif
                                     {
-                                        joints_vec.push(*base_skeleton_bone_entity);
+                                        // Get the NiNode block from the *current NIF's block_map* to find its name
+                                        if let Some(ParsedBlock::Node(node_data_in_current_nif)) =
+                                            block_map.get(bone_nif_idx_in_current_nif)
+                                        {
+                                            let bone_name = node_data_in_current_nif.name();
+                                            if let Some(base_skeleton_bone_entity) =
+                                                base_name_to_entity_map
+                                                    .get(&format!("NiNode: {}", bone_name))
+                                            {
+                                                joints_vec.push(*base_skeleton_bone_entity);
+                                            } else {
+                                                warn!(
+                                                    "Attachable TriShape {}: Bone '{}' (NIF idx {} in current NIF) not found in active base skeleton map.",
+                                                    nif_index,
+                                                    &format!("Node: {}", bone_name),
+                                                    bone_nif_idx_in_current_nif
+                                                );
+                                                missing_bone = true;
+                                                break;
+                                            }
+                                        } else {
+                                            warn!(
+                                                "Attachable TriShape {}: Bone NIF idx {} in current NIF's SkinInstance does not point to a valid NiNode.",
+                                                nif_index, bone_nif_idx_in_current_nif
+                                            );
+                                            missing_bone = true;
+                                            break;
+                                        }
                                     } else {
                                         warn!(
-                                            "Attachable TriShape {}: Bone '{}' (NIF idx {} in current NIF) not found in active base skeleton map.",
-                                            nif_index,
-                                            &format!("Node: {}", bone_name),
-                                            bone_nif_idx_in_current_nif
+                                            "Attachable TriShape {}: Missing bone link at order index {} in SkinInstance.",
+                                            nif_index, bone_order_idx
                                         );
                                         missing_bone = true;
                                         break;
                                     }
-                                } else {
-                                    warn!(
-                                        "Attachable TriShape {}: Bone NIF idx {} in current NIF's SkinInstance does not point to a valid NiNode.",
-                                        nif_index, bone_nif_idx_in_current_nif
-                                    );
-                                    missing_bone = true;
-                                    break;
                                 }
-                            } else {
-                                warn!(
-                                    "Attachable TriShape {}: Missing bone link at order index {} in SkinInstance.",
-                                    nif_index, bone_order_idx
-                                );
-                                missing_bone = true;
-                                break;
                             }
                         }
                     } else {
@@ -654,7 +740,7 @@ fn spawn_nif_node_recursive(
                 }
             };
             final_material.alpha_mode = AlphaMode::Mask(1.0);
-            final_material.cull_mode = Some(Face::Back);
+            final_material.cull_mode = None;
             let final_material_handle = materials.add(final_material);
 
             // --- Insert Mesh and Material components ---
@@ -673,73 +759,4 @@ fn spawn_nif_node_recursive(
     if should_keep_entity {
         commands.entity(parent_entity).add_child(current_entity_id);
     }
-}
-pub fn get_authoritative_bone_transforms(
-    nif_asset: &Nif, // Your loaded NIF data structure
-    block_map: &HashMap<usize, &ParsedBlock>,
-) -> HashMap<usize, NiTransform> {
-    let mut authoritative_transforms = HashMap::new();
-
-    // Attempt to find the primary NiSkinInstance and NiSkinData.
-    // This logic might need adjustment based on how your NIF root structure is organized.
-    // Often, the NiSkinInstance might be a root block or referenced by a primary skeleton root like "Bip01".
-    let mut skin_instance_opt: Option<&NiSkinInstance> = None;
-    let mut skin_data_opt: Option<&NiSkinData> = None;
-
-    // First, try to find NiSkinInstance among root blocks if your NIF structure has it there
-    // Or, if you know the index (e.g., from NifSkope for base_anim.nif it's 197)
-    // For base_anim.nif, record 197 is NiSkinInstance, 198 is NiSkinData
-    // This example assumes you might find it by iterating or by a known index.
-    // A more robust way might be to find the main skeleton root (e.g., "Bip01")
-    // and check its properties or controllers for a link to NiSkinInstance.
-
-    // Let's assume we found the NiSkinInstance, for example, by its known index or by iterating root blocks.
-    // For Morrowind's base_anim.nif, NiSkinInstance is often block 197.
-    // You might need a more robust way to locate the "main" NiSkinInstance.
-    // For now, let's iterate all blocks to find the first relevant SkinInstance and its SkinData.
-    for (index, block) in nif_asset.raw_parsed.blocks.iter().enumerate() {
-        if let ParsedBlock::SkinInstance(si) = block {
-            skin_instance_opt = Some(si);
-            if let Some(data_link) = si.data {
-                if let Some(ParsedBlock::SkinData(sd)) = block_map.get(&data_link) {
-                    skin_data_opt = Some(sd);
-                    break; // Found the first pair, assume it's the main one for base_anim.nif
-                } else {
-                    warn!(
-                        "NiSkinInstance at {} links to NiSkinData at {} which is not found or wrong type.",
-                        index, data_link
-                    );
-                }
-            } else {
-                warn!("NiSkinInstance at {} has no link to NiSkinData.", index);
-            }
-            if skin_data_opt.is_some() {
-                break;
-            }
-        }
-    }
-
-    if let (Some(skin_instance), Some(skin_data)) = (skin_instance_opt, skin_data_opt) {
-        // Ensure the number of bone links in NiSkinInstance matches the number of bone_data entries in NiSkinData
-        if skin_instance.bones.len() == skin_data.bone_list.len() {
-            for (i, bone_node_link_opt) in skin_instance.bones.iter().enumerate() {
-                if let Some(bone_node_nif_index) = bone_node_link_opt {
-                    // The transform in NiSkinData.bone_list is the bone's transform in the skin's coordinate system.
-                    // This is effectively the local transform relative to the skin instance's root.
-                    // For base_anim.nif, this NiSkinData.bone_transform IS the authoritative local pose.
-                    let authoritative_transform = skin_data.bone_list[i].bone_transform.clone(); // Assuming BoneData has bone_transform: NiTransform
-                    authoritative_transforms.insert(*bone_node_nif_index, authoritative_transform);
-                }
-            }
-        } else {
-            warn!(
-                "Mismatch between NiSkinInstance bone count ({}) and NiSkinData bone_list count ({}). Cannot reliably get authoritative transforms.",
-                skin_instance.bones.len(),
-                skin_data.bone_list.len()
-            );
-        }
-    } else {
-    }
-
-    authoritative_transforms
 }

@@ -1,8 +1,8 @@
 use std::collections::VecDeque;
 
-use crate::NifInstantiated;
+use crate::nif::spawner::NifInstantiated;
 
-use super::animation::BoneMap;
+use super::animation::SkeletonMap;
 use bevy::{prelude::*, render::render_resource::Face};
 
 #[derive(Component, PartialEq, Clone, Debug)]
@@ -40,7 +40,7 @@ pub fn attach_parts(
     all_entities_with_children: Query<&Children>,
     names: Query<&Name>,
     attach_query: Query<(Entity, &AttachmentType)>,
-    bone_map: Res<BoneMap>,
+    skeleton_map: Res<SkeletonMap>,
     mut commands: Commands,
     mut transforms: Query<&mut Transform>,
     materials_query: Query<(&Mesh3d, &MeshMaterial3d<StandardMaterial>)>,
@@ -52,7 +52,7 @@ pub fn attach_parts(
         return;
     };
     //make sure the target skeleton exists
-    if bone_map
+    if skeleton_map
         .root_skeleton_entity_map
         .get(&skeleton_id)
         .is_none()
@@ -61,7 +61,6 @@ pub fn attach_parts(
     }
 
     for (nifscene_root, attach_type) in attach_query.iter() {
-        println!("attach type {:?}", attach_type);
         if let Some(bodypart_mesh) = find_child_of_child_with_name_containing(
             &all_entities_with_children,
             &names,
@@ -74,10 +73,9 @@ pub fn attach_parts(
             } = attach_type
             {
                 let target_bone_ninode = &format!("NiNode: {}", target_bone).to_string();
-                if let Some(bone_entities_map) = bone_map.bone_entities_map.get(skeleton_id) {
-                    if let Some(skeleton_bone) = bone_entities_map.get(target_bone_ninode) {
+                if let Some(skeleton) = skeleton_map.skeletons.get(skeleton_id) {
+                    if let Some(skeleton_bone) = skeleton.get_bone_by_name(target_bone_ninode) {
                         if target_bone.contains("Left") {
-                            println!("target bone: {}", target_bone);
                             //find the child of the ninode(should be trimesh), so we can get the mesh and material of
                             //the trimesh
                             let entities = find_descendants_with_name_containing(
@@ -119,7 +117,9 @@ pub fn attach_parts(
                                 }
                             }
                         }
-                        commands.entity(nifscene_root).set_parent(*skeleton_bone);
+                        commands
+                            .entity(nifscene_root)
+                            .set_parent(skeleton_bone.entity);
                         commands.entity(nifscene_root).remove::<AttachmentType>();
                     }
                 }
@@ -128,7 +128,7 @@ pub fn attach_parts(
                     //don't parent main skeleton to itself
                     AttachmentType::MainSkeleton { .. } => {}
                     _ => {
-                        if let Some(skeleton_root) = bone_map
+                        if let Some(skeleton_root) = skeleton_map
                             .root_skeleton_entity_map
                             .get(&attach_type.get_target_skeleton_id())
                         {

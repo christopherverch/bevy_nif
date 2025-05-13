@@ -15,8 +15,10 @@ use crate::ParsedBlock;
 use crate::ParsedNifData;
 use crate::RecordLink;
 use crate::extra_data::ExtraFields;
+use crate::nif::skeleton::BoneId;
 
 use super::loader::Nif;
+use super::skeleton::Skeleton;
 use super::spawner::NeedsNifAnimator;
 
 // --- Intermediate representation for an animation curve for a specific bone ---
@@ -39,14 +41,21 @@ pub struct AnimationSequence {
     // TODO: Add looping information if available from NiTextKeyExtraData
 }
 #[derive(Resource, Debug, Default)]
-pub struct BoneMap {
+pub struct SkeletonMap {
     pub root_skeleton_entity_map: HashMap<u64, Entity>,
-    pub bone_entities_map: HashMap<u64, HashMap<String, Entity>>,
+    pub skeletons: HashMap<u64, Skeleton>,
+}
+#[derive(Component)]
+pub struct NifAnimator {
+    pub skeleton_id: u64,
+    pub animations: HashMap<String, AnimationNodeIndex>,
+    pub affected_bones: HashMap<AnimationNodeIndex, Vec<String>>,
+    pub bone_masks: HashMap<String, u32>,
 }
 
 pub fn build_animation_clip_system(
     mut commands: Commands,
-    bone_map_res: Res<BoneMap>,
+    skeleton_map_res: Res<SkeletonMap>,
     nif_assets: Res<Assets<Nif>>,
     mut animations: ResMut<Assets<AnimationClip>>,
     mut animation_graphs: ResMut<Assets<AnimationGraph>>,
@@ -54,7 +63,7 @@ pub fn build_animation_clip_system(
     has_parent_q: Query<&Parent>,
 ) {
     for (entity, needs_animator_data) in needs_animator_q.iter() {
-        if bone_map_res
+        if skeleton_map_res
             .root_skeleton_entity_map
             .get(&needs_animator_data.skeleton_id)
             .is_none()
@@ -72,35 +81,55 @@ pub fn build_animation_clip_system(
             continue;
         };
         for (name, _) in &nif_animations_map {
-            println!("name: {}", name);
+            //   println!("name: {}", name);
         }
-
-        let mut animation_player = AnimationPlayer::default();
-        let mut bone_entity: Option<Entity> = None;
+        let mut bone_masks: HashMap<String, u32> = HashMap::new();
+        let animation_player = AnimationPlayer::default();
+        let mut bone_entity: Option<Entity>;
         let mut animation_graph = AnimationGraph::new();
         let blend_node = animation_graph.add_blend(0.5, animation_graph.root);
         let mut animations_hashmap = HashMap::new();
-
+        let mut affected_bones_map: HashMap<AnimationNodeIndex, Vec<String>> = HashMap::new();
+        for (id, skeleton) in &skeleton_map_res.skeletons {
+            if *id == needs_animator_data.skeleton_id {
+                let mut mask_group: u32 = 0;
+                for bone_data in &skeleton.bones {
+                    bone_masks.insert(bone_data.name.to_string(), mask_group);
+                    if mask_group >= 63 {
+                        panic!("Not designed for nifs with greater than 64 bones!");
+                    }
+                    mask_group = bone_data.id.0 as u32;
+                }
+            }
+        }
         for (name, nif_animation) in nif_animations_map {
+            let mut affected_bones = Vec::new();
+            let mut mask_group = 0;
             let mut animation_clip = AnimationClip::default();
             for bone_curve in nif_animation.bone_curves.iter() {
-                let translation_curves = make_auto_or_constant_curve(
+                let mut translation_curves = make_auto_or_constant_curve(
                     &bone_curve.translations,
                     Interval::new(nif_animation.start_time, nif_animation.stop_time),
                 );
+                if bone_curve.target_bone_name == "Bip01" {
+                    translation_curves = (None, None);
+                }
+                bone_entity = None;
                 let rotation_curves = make_auto_or_constant_curve(
                     &bone_curve.rotations,
                     Interval::new(nif_animation.start_time, nif_animation.stop_time),
                 );
-                if let Some(bone_entities_map) = bone_map_res
-                    .bone_entities_map
+                if let Some(skeleton) = skeleton_map_res
+                    .skeletons
                     .get(&needs_animator_data.skeleton_id)
                 {
-                    for (string, bone) in bone_entities_map.iter() {
-                        if *string == format!("NiNode: {}", bone_curve.target_bone_name) {
-                            bone_entity = Some(*bone);
-                            break;
-                        }
+                    //TODO:: have a better way to search through the bonemap
+                    let target_bone_name_ninode =
+                        format!("NiNode: {}", bone_curve.target_bone_name);
+                    if let Some(bone_data) = skeleton.get_bone_by_name(&target_bone_name_ninode) {
+                        affected_bones.push(target_bone_name_ninode.clone());
+                        mask_group = *bone_masks.get(&target_bone_name_ninode).unwrap();
+                        bone_entity = Some(bone_data.entity);
                     }
                 }
                 let Some(bone_entity) = bone_entity else {
@@ -139,20 +168,26 @@ pub fn build_animation_clip_system(
                     id: target_id,
                     player: entity,
                 });
+                animation_graph.add_target_to_mask_group(target_id, mask_group as u32);
             }
 
             let handle = animations.add(animation_clip);
-            animations_hashmap.insert(name, animation_graph.add_clip(handle, 1.0, blend_node));
+            let animation_node = animation_graph.add_clip(handle, 1.0, blend_node);
+            animations_hashmap.insert(name, animation_node);
+            affected_bones_map.insert(animation_node, affected_bones);
         }
         let animation_graph_handle = animation_graphs.add(animation_graph);
-        animation_player
-            .play(*animations_hashmap.get("death4").unwrap())
-            .repeat();
         commands
             .entity(entity)
             .insert(AnimationGraphHandle(animation_graph_handle));
         println!("adding animation player to entity {}", entity);
         commands.entity(entity).insert(animation_player);
+        commands.entity(entity).insert(NifAnimator {
+            skeleton_id: needs_animator_data.skeleton_id,
+            animations: animations_hashmap,
+            affected_bones: affected_bones_map,
+            bone_masks,
+        });
         commands.entity(entity).remove::<NeedsNifAnimator>();
     }
 }

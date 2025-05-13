@@ -15,7 +15,6 @@ use crate::ParsedBlock;
 use crate::ParsedNifData;
 use crate::RecordLink;
 use crate::extra_data::ExtraFields;
-use crate::nif::skeleton::BoneId;
 
 use super::loader::Nif;
 use super::skeleton::Skeleton;
@@ -80,9 +79,9 @@ pub fn build_animation_clip_system(
             commands.entity(entity).remove::<NeedsNifAnimator>();
             continue;
         };
-        for (name, _) in &nif_animations_map {
-            //   println!("name: {}", name);
-        }
+        /*for (name, _) in &nif_animations_map {
+               println!("name: {}", name);
+        }*/
         let mut bone_masks: HashMap<String, u32> = HashMap::new();
         let animation_player = AnimationPlayer::default();
         let mut bone_entity: Option<Entity>;

@@ -224,14 +224,12 @@ fn spawn_nif_node_recursive(
                 .entity(current_entity_id)
                 .insert(Name::new(name_with_ninode.clone()));
             if is_main_skeleton {
-                if let Some(target_skeleton_id) = target_skeleton_id_opt {
-                    skeleton.add_bone(
-                        current_entity_id,
-                        name_with_ninode.clone(), // Use the raw NIF name
-                        parent_bone_name_opt,
-                    );
-                    current_bone_name_opt = Some(&name_with_ninode);
-                }
+                skeleton.add_bone(
+                    current_entity_id,
+                    name_with_ninode.clone(), // Use the raw NIF name
+                    parent_bone_name_opt,
+                );
+                current_bone_name_opt = Some(&name_with_ninode);
             }
 
             // Recurse for children

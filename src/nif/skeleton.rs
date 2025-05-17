@@ -1,4 +1,6 @@
-use bevy::{ecs::entity::Entity, utils::hashbrown::HashMap};
+use std::collections::HashMap;
+
+use bevy::ecs::entity::Entity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BoneId(pub usize);
@@ -103,8 +105,6 @@ impl Skeleton {
     pub fn get_all_children(&self, start_bone_name: &str) -> Vec<&BoneData> {
         let mut children = Vec::new();
         if let Some(start_bone_data) = self.get_bone_by_name(start_bone_name) {
-            println!("Iterative Hierarchy from '{}':", start_bone_name);
-
             // Our stack will store tuples of (BoneId, indent_level)
             let mut stack: Vec<(BoneId, usize)> = Vec::new();
 
@@ -116,10 +116,6 @@ impl Skeleton {
 
                 if let Some(bone_data) = self.get_bone_by_id(current_bone_id) {
                     // Print current bone's name with indentation
-                    for _ in 0..indent_level {
-                        print!("  "); // Two spaces per indent level
-                    }
-                    println!("- {}", bone_data.name);
 
                     // Add children to the stack for later processing.
                     // To process children in their natural order (first child first),

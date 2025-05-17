@@ -108,7 +108,7 @@ pub fn spawn_nif_scenes(
                 // coordinates
                 scale: Vec3::splat(1.0),
             },
-            InheritedVisibility::VISIBLE,
+            Visibility::Inherited,
             Name::new(format!("NifScene_{:?}", asset_handle.id())),
         ))
         .id();
@@ -157,7 +157,6 @@ pub fn spawn_nif_scenes(
             skeleton_map_res
                 .root_skeleton_entity_map
                 .insert(target_skeleton_id, scene_root_entity);
-            println!("inserting skeleton with id: {}", target_skeleton_id);
             skeleton_map_res
                 .skeletons
                 .insert(target_skeleton_id, skeleton);
@@ -207,8 +206,7 @@ fn spawn_nif_node_recursive(
     let current_entity_id = commands
         .spawn((
             bevy_transform,
-            Visibility::Visible, // Keep basic visibility
-            InheritedVisibility::VISIBLE,
+            Visibility::Inherited, // Keep basic visibility
             Name::new(format!("NifBlock_{}", nif_index)), // Initial name
         ))
         .id();
@@ -226,10 +224,10 @@ fn spawn_nif_node_recursive(
             if is_main_skeleton {
                 skeleton.add_bone(
                     current_entity_id,
-                    name_with_ninode.clone(), // Use the raw NIF name
+                    node_data.name().to_string(), // Use the raw NIF name
                     parent_bone_name_opt,
                 );
-                current_bone_name_opt = Some(&name_with_ninode);
+                current_bone_name_opt = Some(&node_data.name());
             }
 
             // Recurse for children
@@ -564,8 +562,8 @@ fn spawn_nif_node_recursive(
                                             block_map.get(bone_nif_idx_in_current_nif)
                                         {
                                             let bone_name = node_data_in_current_nif.name();
-                                            if let Some(bone_data) = skeleton
-                                                .get_bone_by_name(&format!("NiNode: {}", bone_name))
+                                            if let Some(bone_data) =
+                                                skeleton.get_bone_by_name(&bone_name)
                                             {
                                                 joints_vec.push(bone_data.entity);
                                             } else {

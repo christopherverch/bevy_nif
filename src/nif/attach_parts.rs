@@ -72,9 +72,8 @@ pub fn attach_parts(
                 target_bone,
             } = attach_type
             {
-                let target_bone_ninode = &format!("NiNode: {}", target_bone).to_string();
                 if let Some(skeleton) = skeleton_map.skeletons.get(skeleton_id) {
-                    if let Some(skeleton_bone) = skeleton.get_bone_by_name(target_bone_ninode) {
+                    if let Some(skeleton_bone) = skeleton.get_bone_by_name(target_bone) {
                         if target_bone.contains("Left") {
                             //find the child of the ninode(should be trimesh), so we can get the mesh and material of
                             //the trimesh
@@ -119,7 +118,7 @@ pub fn attach_parts(
                         }
                         commands
                             .entity(nifscene_root)
-                            .set_parent(skeleton_bone.entity);
+                            .insert(ChildOf(skeleton_bone.entity));
                         commands.entity(nifscene_root).remove::<AttachmentType>();
                     }
                 }
@@ -132,7 +131,9 @@ pub fn attach_parts(
                             .root_skeleton_entity_map
                             .get(&attach_type.get_target_skeleton_id())
                         {
-                            commands.entity(nifscene_root).set_parent(*skeleton_root);
+                            commands
+                                .entity(nifscene_root)
+                                .insert(ChildOf(*skeleton_root));
                             commands.entity(nifscene_root).remove::<AttachmentType>();
                         }
                     }
@@ -193,7 +194,7 @@ pub fn find_descendants_with_name_containing(
 
         // Add all children of the current entity to the queue for further searching
         if let Ok(children) = all_entities_with_children.get(current_entity) {
-            for &child_entity in children.iter() {
+            for &child_entity in children {
                 // children.iter() yields &Entity
                 queue.push_back(child_entity);
             }

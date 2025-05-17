@@ -1,4 +1,4 @@
-Nif loader designed to work with 4.0.0.2 nifs, specifically those from morrowind. Very early state, currently only able to load models and animations. 
+Nif loader designed to work with 4.0.0.2 nifs, specifically those from morrowind. Very early state, currently only able to load models and animations. Supports per-bone masking. 
 
 Morrowind assets are available for free for testing at:
 

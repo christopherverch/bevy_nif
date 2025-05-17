@@ -2,15 +2,23 @@
 name = "bevy_nif"
 version = "0.1.0"
 edition = "2024"
-
+license = "MIT OR Apache-2.0"
+description = "A very basic loader for bevy nifs, currently only supports models and animations"
+repository = "https://github.com/christopherverch/bevy_nif"
+readme = "readme.md"
 [dependencies]
 anyhow = "1.0.98"
-bevy = { version = "0.16", features = ["dynamic_linking"]}
-bevy-inspector-egui = "0.31.0"
-bevy_third_person_camera = "0.2.1"
+bevy = { version = "0.16", default-features = false, features = ["bevy_asset", "animation", "bevy_log"] }
+bevy_animation = "0.16"
 binrw = "0.14.1"
+bitflags = "2.9.0"
 bmp = "0.5.0"
 byteorder = "1.5" # For reading binary data easily
 encoding_rs = "0.8" # Optional: For handling non-UTF8 strings if needed
 serde = "1.0.219"
 thiserror = "2.0.12"
+[lib]
+path = "src/lib.rs"
+
+
+

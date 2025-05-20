@@ -4,7 +4,7 @@ use bevy::{
     prelude::*,
     window::{CursorGrabMode, PrimaryWindow},
 };
-use bevy_rapier3d::prelude::PhysicsSet;
+use bevy_rapier3d::plugin::PhysicsSet;
 use mouse::MousePlugin;
 
 use super::defs::{LocalPlayerMesh, TestingComponent};
@@ -245,10 +245,10 @@ fn sync_player_camera(
     is_third_person: Res<IsThirdPerson>,
     mut mesh_query: Query<&mut Transform, (With<LocalPlayerMesh>, Without<TestingComponent>)>,
 ) {
-    let Ok(player) = player_q.get_single_mut() else {
+    let Ok(player) = player_q.single_mut() else {
         return;
     };
-    let Ok((cam, mut cam_transform)) = cam_q.get_single_mut() else {
+    let Ok((cam, mut cam_transform)) = cam_q.single_mut() else {
         return;
     };
 
@@ -269,9 +269,9 @@ fn sync_player_camera(
         rotation_matrix.mul_vec3(Vec3::new(0.0, 0.0, cam_zoom_radius)) + offset;
     const Y_OFFSET: f32 = 1.0;
 
-    if let Ok(mut player_mesh_transform) = mesh_query.get_single_mut() {
+    if let Ok(mut player_mesh_transform) = mesh_query.single_mut() {
         // Define the local offset from the mesh's origin (bottom) to its center
-        let Ok(_testing_transform) = testing_query.get_single() else {
+        let Ok(_testing_transform) = testing_query.single() else {
             return;
         };
         let local_center = Vec3::new(0.0, -1.4, 0.0);
@@ -325,7 +325,7 @@ fn sync_player_camera(
         scroll += ev.y;
     }
 
-    if let Ok(mut cam) = cam_q.get_single_mut() {
+    if let Ok(mut cam) = cam_q.single_mut() {
         if scroll.abs() > 0.0 {
             let new_radius =
                 cam.zoom.radius - scroll * cam.zoom.radius * 0.1 * cam.zoom_sensitivity;
@@ -335,7 +335,7 @@ fn sync_player_camera(
 }*/
 // only run aiming logic if `aim_enabled` is true
 fn aim_condition(cam_q: Query<&ThirdPersonCamera, With<ThirdPersonCamera>>) -> bool {
-    let Ok(cam) = cam_q.get_single() else {
+    let Ok(cam) = cam_q.single() else {
         return false;
     };
     cam.aim_enabled
@@ -350,11 +350,11 @@ fn aim(
     mut player_q: Query<&mut Transform, With<ThirdPersonCameraTarget>>,
     time: Res<Time>,
 ) {
-    let Ok((mut cam, cam_transform)) = cam_q.get_single_mut() else {
+    let Ok((mut cam, cam_transform)) = cam_q.single_mut() else {
         return;
     };
 
-    let Ok(mut player_transform) = player_q.get_single_mut() else {
+    let Ok(mut player_transform) = player_q.single_mut() else {
         return;
     };
 
@@ -398,7 +398,7 @@ fn aim(
 }
 
 pub fn zoom_condition(cam_q: Query<&ThirdPersonCamera, With<ThirdPersonCamera>>) -> bool {
-    let Ok(cam) = cam_q.get_single() else {
+    let Ok(cam) = cam_q.single() else {
         return false;
     };
     return cam.zoom_enabled && cam.cursor_lock_active;
@@ -406,7 +406,7 @@ pub fn zoom_condition(cam_q: Query<&ThirdPersonCamera, With<ThirdPersonCamera>>)
 
 // only run toggle_x_offset if `offset_toggle_enabled` is true
 fn toggle_x_offset_condition(cam_q: Query<&ThirdPersonCamera, With<ThirdPersonCamera>>) -> bool {
-    let Ok(cam) = cam_q.get_single() else {
+    let Ok(cam) = cam_q.single() else {
         return false;
     };
     cam.offset_toggle_enabled
@@ -418,7 +418,7 @@ fn toggle_x_offset(
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
 ) {
-    let Ok(mut cam) = cam_q.get_single_mut() else {
+    let Ok(mut cam) = cam_q.single_mut() else {
         return;
     };
 
@@ -446,7 +446,7 @@ fn toggle_cursor(
     keys: Res<ButtonInput<KeyCode>>,
     mut window_q: Query<&mut Window, With<PrimaryWindow>>,
 ) {
-    let Ok(mut cam) = cam_q.get_single_mut() else {
+    let Ok(mut cam) = cam_q.single_mut() else {
         return;
     };
 
@@ -454,7 +454,7 @@ fn toggle_cursor(
         cam.cursor_lock_active = !cam.cursor_lock_active;
     }
 
-    if let Ok(mut window) = window_q.get_single_mut() {
+    if let Ok(mut window) = window_q.single_mut() {
         if cam.cursor_lock_active {
             window.cursor_options.grab_mode = CursorGrabMode::Locked;
             window.cursor_options.visible = false;
@@ -467,7 +467,7 @@ fn toggle_cursor(
 
 // checks if the toggle cursor functionality is enabled
 fn toggle_cursor_condition(cam_q: Query<&ThirdPersonCamera>) -> bool {
-    let Ok(cam) = cam_q.get_single() else {
+    let Ok(cam) = cam_q.single() else {
         return true;
     };
     cam.cursor_lock_toggle_enabled

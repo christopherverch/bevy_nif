@@ -18,7 +18,7 @@ impl Plugin for MousePlugin {
 
 // only run the orbit system if the cursor lock is disabled
 fn orbit_condition(cam_q: Query<&ThirdPersonCamera>) -> bool {
-    let Ok(cam) = cam_q.get_single() else {
+    let Ok(cam) = cam_q.single() else {
         return true;
     };
     return cam.cursor_lock_active;
@@ -36,7 +36,7 @@ pub fn orbit_mouse(
         rotation = ev.delta;
     }
 
-    let Ok((cam, mut cam_transform)) = cam_q.get_single_mut() else {
+    let Ok((cam, mut cam_transform)) = cam_q.single_mut() else {
         return;
     };
 
@@ -47,29 +47,31 @@ pub fn orbit_mouse(
     rotation *= cam.sensitivity;
 
     if rotation.length_squared() > 0.0 {
-        let window = window_q.get_single().unwrap();
-        let delta_x = {
-            let delta = rotation.x / window.width() * std::f32::consts::PI * cam.sensitivity.x;
-            delta
-        };
-
+        let window = window_q.single().unwrap();
+        let delta_x = rotation.x / window.width() * std::f32::consts::PI * cam.sensitivity.x;
         let delta_y = rotation.y / window.height() * PI * cam.sensitivity.y;
         let yaw = Quat::from_rotation_y(-delta_x);
-        let pitch = Quat::from_rotation_x(-delta_y);
-        cam_transform.rotation = yaw * cam_transform.rotation; // rotate around global y axis
 
-        // Calculate the new rotation without applying it to the camera yet
+        cam_transform.rotation = yaw * cam_transform.rotation;
+
+        let pitch = Quat::from_rotation_x(-delta_y);
         let new_rotation = cam_transform.rotation * pitch;
 
-        // check if new rotation will cause camera to go beyond the 180 degree vertical bounds
         let up_vector = new_rotation * Vec3::Y;
-        if up_vector.y > 0.0 {
-            cam_transform.rotation = new_rotation;
+        if up_vector.y < 0.2 {
+            // Calculate the desired pitch to clamp up_vector.y at 0.2
+            let current_up = cam_transform.rotation * Vec3::Y;
+            let target_up = Vec3::new(current_up.x, 0.2, current_up.z).normalize(); //clamp y to 0.2
+
+            // Use from_rotation_arc instead of from_two_vectors
+            let rotation_to_target = Quat::from_rotation_arc(current_up, target_up);
+
+            // Apply only the necessary pitch to reach the target
+            cam_transform.rotation = rotation_to_target * cam_transform.rotation;
+        } else {
+            cam_transform.rotation = new_rotation; // Apply the original new rotation
         }
     }
-
-    let rot_matrix = Mat3::from_quat(cam_transform.rotation);
-    cam_transform.translation = rot_matrix.mul_vec3(Vec3::new(0.0, 0.0, cam.zoom.radius));
 }
 
 fn zoom_mouse(mut scroll_evr: EventReader<MouseWheel>, mut cam_q: Query<&mut ThirdPersonCamera>) {
@@ -78,7 +80,7 @@ fn zoom_mouse(mut scroll_evr: EventReader<MouseWheel>, mut cam_q: Query<&mut Thi
         scroll += ev.y;
     }
 
-    if let Ok(mut cam) = cam_q.get_single_mut() {
+    if let Ok(mut cam) = cam_q.single_mut() {
         if scroll.abs() > 0.0 {
             let new_radius =
                 cam.zoom.radius - scroll * cam.zoom.radius * 0.1 * cam.zoom_sensitivity;

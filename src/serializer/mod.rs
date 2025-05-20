@@ -1,5 +1,7 @@
-use crate::client::defs::{AttackState, PlayerState};
-use crate::{AnimationState, RequestedAnimation};
+use crate::{
+    TriggeredAction,
+    client::defs::{AnimationEvent, AttackState, CreatureStats, PlayerState},
+};
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -30,21 +32,8 @@ impl From<SerializableTransform> for Transform {
 #[derive(Clone, Debug, Serialize, Deserialize, Resource)]
 pub struct PlayerStateNetwork {
     pub transform: SerializableTransform,
-    pub current_animation: AnimationState,
-    pub current_secondary_animation: AnimationState,
-    pub requested_primary_animation: Option<RequestedAnimation>,
-    pub requested_secondary_animation: Option<RequestedAnimation>,
+    pub animation_events: Vec<(u8, AnimationEvent)>,
+    pub triggered_actions: Vec<(u8, TriggeredAction)>,
     pub attack_state: AttackState,
-}
-impl From<&PlayerState> for PlayerStateNetwork {
-    fn from(state: &PlayerState) -> Self {
-        PlayerStateNetwork {
-            transform: SerializableTransform::from(&state.transform),
-            current_animation: state.current_animation,
-            current_secondary_animation: state.secondary_animation,
-            requested_primary_animation: state.requested_primary_animation,
-            requested_secondary_animation: state.requested_secondary_animation,
-            attack_state: state.attack_state,
-        }
-    }
+    pub creature_stats: CreatureStats,
 }

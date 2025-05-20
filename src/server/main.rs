@@ -65,9 +65,14 @@ fn main() {
     app.add_plugins(DefaultPlugins);
 
     app.add_plugins(RenetServerPlugin);
-    app.add_plugins(FrameTimeDiagnosticsPlugin);
+    app.add_plugins(FrameTimeDiagnosticsPlugin {
+        max_history_length: 20,
+        smoothing_factor: 1.0,
+    });
     app.add_plugins(LogDiagnosticsPlugin::default());
-    app.add_plugins(EguiPlugin);
+    app.add_plugins(EguiPlugin {
+        enable_multipass_for_primary_context: true,
+    });
 
     app.insert_resource(ServerLobby::default());
     app.insert_resource(BotId(0));

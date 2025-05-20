@@ -15,3 +15,22 @@ pub struct ToggledThirdPerson {
 pub struct OnSwingFinished {
     pub entity: Entity,
 }
+#[derive(Event, Reflect, Clone)]
+pub struct AttackTrigger {
+    pub entity: Entity,
+    pub origin: Vec3,
+    pub direction: Vec3,
+    pub damage: f32,
+}
+#[derive(Event, Reflect, Clone)]
+pub struct TakeHit {
+    pub creature_id: u64,
+    pub damage: f32,
+    pub is_from_network: bool,
+}
+
+#[derive(Event, Reflect, Clone)]
+pub struct KnockdownFinished(pub Entity);
+
+#[derive(Event, Reflect, Clone)]
+pub struct SoundEvent(pub String);

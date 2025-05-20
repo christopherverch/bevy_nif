@@ -61,7 +61,7 @@ pub fn assemble_parts(
                     let mut sword_entity_commands = commands.entity(part_scene_entity);
                     if let Some(handle_bone) = main_skeleton_bones.get("EquipmentHandle.R") {
                         println!("found sword entity2");
-                        sword_entity_commands.set_parent(*handle_bone);
+                        sword_entity_commands.insert(ChildOf(*handle_bone));
                     }
                 } else if !part_scene_name.scene_name.contains("main_skeleton.glb") {
                     attach_part_to_main_skeleton(
@@ -161,7 +161,7 @@ pub fn attach_part_to_main_skeleton(
             transform.rotation = Quat::from_xyzw(0.0, 0.0, 0.0, 0.0);
         }
 
-        part_armature_entity_commands.set_parent(*main_armature_entity);
+        part_armature_entity_commands.insert(ChildOf(*main_armature_entity));
     }
 
     if let Some(root_bone) = root_bone_option {
@@ -186,7 +186,7 @@ pub fn attach_part_to_main_skeleton(
                     transform.rotation = Quat::from_xyzw(0.0, 0.0, 0.0, 0.0);
                 }
 
-                entity_commands.set_parent(*new_parent);
+                entity_commands.insert(ChildOf(*new_parent));
             }
         }
     }
@@ -280,7 +280,7 @@ pub fn paint_cubes_on_joints(
                     Mesh3d(cube_h.clone()),
                     MeshMaterial3d(forward_mat_h.clone()),
                 ));
-                cube_entity.set_parent(entity);
+                cube_entity.insert(ChildOf(entity));
             }
         }
     }
@@ -291,7 +291,7 @@ pub struct AnimationEntityLink(pub HashMap<String, Entity>);
 
 pub fn get_top_parent(
     mut curr_entity: Entity,
-    all_entities_with_parents_query: &Query<&Parent>,
+    all_entities_with_parents_query: &Query<&ChildOf>,
     all_entities_with_animateable_query: &Query<Entity, With<AnimateableEntity>>,
     entities_with_scene_name: &Query<&SceneName, Without<AnimationEntityLink>>,
 ) -> (Entity, String) {
@@ -303,8 +303,8 @@ pub fn get_top_parent(
             if let Ok(scene_name) = entities_with_scene_name.get(curr_entity) {
                 scene_name_string = scene_name.scene_name.clone();
             }
-            curr_entity = ref_to_parent.get();
-            if (all_entities_with_animateable_query.get(ref_to_parent.get())).is_ok() {
+            curr_entity = ref_to_parent.parent();
+            if (all_entities_with_animateable_query.get(ref_to_parent.parent())).is_ok() {
                 break;
             }
         } else {
@@ -316,7 +316,7 @@ pub fn get_top_parent(
 
 pub fn insert_animation_links(
     animation_players_query: Query<Entity, Added<AnimationPlayer>>,
-    all_entities_with_parents_query: Query<&Parent>,
+    all_entities_with_parents_query: Query<&ChildOf>,
     all_entities_with_animateable_query: Query<Entity, With<AnimateableEntity>>,
     existing_animation_entity_links: Query<&AnimationEntityLink>,
     entities_with_scene_name: Query<&SceneName, Without<AnimationEntityLink>>,

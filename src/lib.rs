@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use client::defs::Direction;
 use serde::{Deserialize, Serialize};
 pub mod client;
 pub mod networking;
@@ -6,12 +7,20 @@ pub mod serializer;
 #[derive(Copy, Component, Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum AnimationState {
     Idle,
-    Running,
+    Running { direction: Direction },
     Swinging,
     Jumping,
     FirstPersonMoving,
+    SneakIdle,
+    Knockdown,
+    Death,
+    Undefined,
 }
-#[derive(Copy, Component, Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub enum TriggeredAction {
+    TakeHit { creature_id: u64, damage: f32 },
+}
+#[derive(Component, Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum RequestedAnimation {
     Common(AnimationState),
     SwingInactive,
@@ -19,6 +28,9 @@ pub enum RequestedAnimation {
     SwingCharging,
     SwingReleasing,
     SwingReturning,
+    LoopMovement { animation: String },
+    FreezeAnimation,
+    ResumeAnimation,
 }
 
 impl From<RequestedAnimation> for AnimationState {
@@ -30,6 +42,9 @@ impl From<RequestedAnimation> for AnimationState {
             | RequestedAnimation::SwingCharging
             | RequestedAnimation::SwingReleasing
             | RequestedAnimation::SwingReturning => AnimationState::Swinging,
+            RequestedAnimation::LoopMovement { .. } => AnimationState::Undefined,
+            RequestedAnimation::FreezeAnimation => AnimationState::Undefined,
+            RequestedAnimation::ResumeAnimation => AnimationState::Undefined,
         }
     }
 }
@@ -44,7 +59,7 @@ impl AnimationState {
         matches!(
             self,
             AnimationState::Idle
-                | AnimationState::Running
+                | AnimationState::Running { .. }
                 | AnimationState::Jumping
                 | AnimationState::FirstPersonMoving
         )

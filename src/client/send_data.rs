@@ -4,24 +4,24 @@ use super::GameState;
 use super::{ClientServerEntity, Connected};
 use bevy::prelude::*;
 use bevy::time::common_conditions::on_timer;
-use bevy_renet::netcode::{
-    ClientAuthentication, NetcodeClientPlugin, NetcodeClientTransport, NetcodeTransportError,
-};
+use bevy_nif::nif::animation::NifEvent;
+use bevy_renet::netcode::{ClientAuthentication, NetcodeClientPlugin, NetcodeClientTransport};
 use bevy_renet::{
     client_connected,
     renet::{ClientId, RenetClient},
 };
+use cdda_bevy::TriggeredAction;
 use cdda_bevy::client::defs::{
-    CurrentClientId, LocalPlayer, MeshEntityLink, NeedsSetup, NetworkedEntity, PlayerState,
-    ServerIP,
+    AnimationEvent, CreatureStats, CurrentClientId, LocalPlayer, MeshEntityLink, NeedsSetup,
+    NetworkedEntity, PlayerState, ServerIP,
 };
-use cdda_bevy::client::events::RequestAnimation;
+use cdda_bevy::client::events::{RequestAnimation, TakeHit};
 use cdda_bevy::networking::renet::PROTOCOL_ID;
 use cdda_bevy::networking::{
     ClientChannel, NetworkedEntities, PlayerCommand, ServerChannel, ServerMessages,
     connection_config,
 };
-use cdda_bevy::serializer::PlayerStateNetwork;
+use cdda_bevy::serializer::{PlayerStateNetwork, SerializableTransform};
 use std::collections::HashMap;
 use std::time::Duration;
 use std::time::Instant;
@@ -62,15 +62,6 @@ pub fn add_netcode_network(app: &mut App) {
         )
             .in_set(Connected),
     );
-    // If any error is found we just panic
-    #[allow(clippy::never_loop)]
-    fn panic_on_error_system(mut renet_error: EventReader<NetcodeTransportError>) {
-        for e in renet_error.read() {
-            panic!("{}", e);
-        }
-    }
-
-    app.add_systems(Update, panic_on_error_system);
 }
 pub fn connect_to_server(
     // New system to handle connection (and transport creation)
@@ -120,11 +111,20 @@ pub fn connect_to_server(
     client_id.0 = client_id_tmp;
 }
 pub fn client_send_input(
-    local_player_state_query: Query<&PlayerState, (With<LocalPlayer>, Changed<PlayerState>)>,
+    local_player_state_query: Query<
+        (&PlayerState, &CreatureStats),
+        (With<LocalPlayer>, Changed<PlayerState>),
+    >,
     mut client: ResMut<RenetClient>,
 ) {
-    if let Ok(local_player_state) = local_player_state_query.get_single() {
-        let player_state_network = PlayerStateNetwork::from(&*local_player_state);
+    if let Ok((local_player_state, local_creature_stats)) = local_player_state_query.single() {
+        let player_state_network = PlayerStateNetwork {
+            transform: SerializableTransform::from(&local_player_state.transform),
+            animation_events: local_player_state.animation_events.clone(),
+            triggered_actions: local_player_state.triggered_actions.clone(),
+            attack_state: local_player_state.attack_state,
+            creature_stats: local_creature_stats.clone(),
+        };
         let input_message = bincode::serialize(&player_state_network).unwrap();
         client.send_message(ClientChannel::PlayerStateNetwork, input_message);
     }
@@ -140,12 +140,22 @@ pub fn client_send_player_commands(
 }
 
 pub fn serialize_player_system(
-    local_player_state: Single<&PlayerState, (With<LocalPlayer>, Changed<PlayerState>)>,
+    local_player_q: Single<
+        (&PlayerState, &CreatureStats),
+        (With<LocalPlayer>, Changed<PlayerState>),
+    >,
     mut client: ResMut<RenetClient>,
 ) {
-    let player_state = PlayerStateNetwork::from(local_player_state.into_inner());
+    let (local_player_state, local_creature_stats) = (local_player_q.0, local_player_q.1);
+    let player_state_network = PlayerStateNetwork {
+        transform: SerializableTransform::from(&local_player_state.transform),
+        animation_events: local_player_state.animation_events.clone(),
+        triggered_actions: local_player_state.triggered_actions.clone(),
+        attack_state: local_player_state.attack_state,
+        creature_stats: local_creature_stats.clone(),
+    };
     // Serialize it
-    match bincode::serialize(&player_state) {
+    match bincode::serialize(&player_state_network) {
         Ok(serialized) => {
             println!("Serialized PlayerStateNetwork: {:?}", serialized);
             client.send_message(ClientChannel::PlayerStateNetwork, serialized);
@@ -412,43 +422,99 @@ fn update_player_state(
         // Trigger animations if changed
 
         //if the server sent us a packet that this player's animation is different, play it
-        if player_state_network.requested_primary_animation
-            != player_state.requested_primary_animation
-        {
-            dbg!(&player_state.requested_primary_animation);
-            dbg!(&player_state_network.requested_primary_animation);
-            if let Some(animation) = player_state_network.requested_primary_animation {
-                println!(
-                    "requesting prim animation for player with id: {} {:?} -> {:?}",
-                    player_state.id,
-                    player_state.requested_primary_animation,
-                    player_state_network.requested_primary_animation,
-                );
-                commands.trigger(RequestAnimation {
-                    entity: player_entity,
-                    requested_animation: animation,
-                });
+
+        for (anim_network_signifier, animation) in &player_state_network.animation_events {
+            if !is_newer_u8_signifier(
+                *anim_network_signifier,
+                player_state.increasing_network_animation_signifier,
+            ) {
+                continue;
+            }
+            player_state.increasing_network_animation_signifier = *anim_network_signifier;
+            match animation {
+                AnimationEvent::NifAnimationEvent { event_type } => {
+                    commands.trigger(NifEvent {
+                        skeleton_id: player_state.id,
+                        event_type: event_type.clone(),
+                    });
+                }
+                AnimationEvent::RequestedAnimationEvent {
+                    requested_animation,
+                } => {
+                    commands.trigger(RequestAnimation {
+                        entity: *local_entity,
+                        requested_animation: requested_animation.clone(),
+                    });
+                }
+            }
+        }
+        for (trigger_network_signifier, trigger) in &player_state_network.triggered_actions {
+            if !is_newer_u8_signifier(
+                *trigger_network_signifier,
+                player_state.increasing_network_trigger_signifier,
+            ) {
+                continue;
+            }
+            player_state.increasing_network_trigger_signifier = *trigger_network_signifier;
+            match trigger {
+                TriggeredAction::TakeHit {
+                    damage,
+                    creature_id,
+                } => {
+                    commands.trigger_targets(
+                        TakeHit {
+                            creature_id: *creature_id,
+                            damage: *damage,
+                            is_from_network: true,
+                        },
+                        player_entity,
+                    );
+                }
             }
         }
 
-        if player_state_network.requested_secondary_animation
-            != player_state.requested_secondary_animation
-        {
-            if let Some(animation) = player_state_network.requested_secondary_animation {
-                println!(
-                    "requesting second animation for player with id: {} {:?} -> {:?}",
-                    player_state.id,
-                    player_state.requested_secondary_animation,
-                    player_state_network.requested_secondary_animation,
-                );
-                commands.trigger(RequestAnimation {
-                    entity: player_entity,
-                    requested_animation: animation,
-                });
-            }
-        }
         // Update the player state from the network
         player_state.update_from_network(player_state_network);
         break;
     }
+}
+
+pub fn queue_network_triggered_action(
+    player_state: &mut PlayerState,
+    triggered_action: TriggeredAction,
+) {
+    queue_network(
+        &mut player_state.triggered_actions,
+        &mut player_state.increasing_network_trigger_signifier,
+        triggered_action,
+    );
+}
+pub fn queue_network_animation(player_state: &mut PlayerState, animation_event: AnimationEvent) {
+    queue_network(
+        &mut player_state.animation_events,
+        &mut player_state.increasing_network_animation_signifier,
+        animation_event,
+    );
+}
+fn queue_network<T>(vec: &mut Vec<(u8, T)>, signifier: &mut u8, triggered_action: T) {
+    //make sure the events vec doesn't get too long
+    while vec.len() > 3 {
+        vec.remove(0);
+    }
+    *signifier = signifier.wrapping_add(1);
+    vec.push((*signifier, triggered_action));
+}
+#[inline(always)]
+pub fn is_newer_u8_signifier(new_signifier: u8, old_signifier: u8) -> bool {
+    // This condition means incoming_id is considered older than last_known_id,
+    // taking wrap-around into account.
+    // Example: last_known_id = 250, incoming_id = 5. diff = 5.wrapping_sub(250) = 11.
+    //          11 < 128, so this (new) packet is processed.
+    // Example: last_known_id = 5, incoming_id = 250. diff = 250.wrapping_sub(5) = 245.
+    //          245 >= 128, so this (old) packet is skipped.
+    // Example: last_known_id = 0, incoming_id = 128. diff = 128.
+    //          128 >= 128, so this packet is skipped.
+    const HALF_U8_RANGE: u8 = 128; // (u8::MAX / 2) + 1
+    let diff = new_signifier.wrapping_sub(old_signifier);
+    diff != 0 && diff <= HALF_U8_RANGE
 }

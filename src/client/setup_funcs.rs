@@ -1,14 +1,6 @@
-use cdda_bevy::client::defs::{
-    AnimateableEntity, AnimationNodeConfig, Animator, CurrentClientId, LocalPlayer,
-    LocalPlayerMesh, MaskGroup, MeshEntityLink, NeedsSetup, NetworkedEntity, Pause, Player,
-    PlayerCamera, PlayerEntityLink, PlayerRoot, PlayerState, SceneEntitiesByName, SceneName,
-    SpawnSceneState, Speed, TestingComponent, Weapon,
-};
-use cdda_bevy::client::events::OnSwingFinished;
-use cdda_bevy::client::third_person_camera::{ThirdPersonCamera, ThirdPersonCameraTarget};
-
+use bevy::asset::RenderAssetUsages;
 use bevy::gltf::Gltf;
-use bevy::render::mesh::Mesh;
+use bevy::render::mesh::{Indices, Mesh, PrimitiveTopology};
 use bevy::{
     animation::AnimationTargetId,
     core_pipeline::{
@@ -16,17 +8,29 @@ use bevy::{
         prepass::{DeferredPrepass, DepthPrepass, MotionVectorPrepass},
         //prepass::NormalPrepass
     },
-    image::ImageLoaderSettings,
-    math::ops,
     pbr::{CascadeShadowConfigBuilder, NotShadowCaster, NotShadowReceiver, OpaqueRendererMethod},
     prelude::*,
     scene::SceneInstanceReady,
 };
+use bevy_nif;
+use bevy_nif::nif::animation::NifAnimator;
+use bevy_nif::nif::attach_parts::AttachmentType;
+use bevy_nif::nif::spawner::NifScene;
 use bevy_rapier3d::prelude::*;
-use cdda_bevy::AnimationState;
-use cdda_bevy::client::modular_characters::*;
+use cdda_bevy::client::defs::{
+    AnimateableEntity, AnimationNodeConfig, Animator, CreatureStats, CurrentClientId,
+    KnockdownEventAdded, LocalPlayer, LocalPlayerMesh, MaskGroup, MeshEntityLink, NeedsSetup,
+    NetworkedEntity, NifAnimatorLink, Pause, Player, PlayerCamera, PlayerEntityLink, PlayerRoot,
+    PlayerState, SceneEntitiesByName, SceneName, SpawnSceneState, Speed, TestingComponent,
+};
+use cdda_bevy::client::events::KnockdownFinished;
+use cdda_bevy::client::third_person_camera::{ThirdPersonCamera, ThirdPersonCameraTarget};
+use esm_parser_lib::{EsmReader, LAND_NUM_VERTS, LAND_SIDE_VERTICES, LandPayloadData};
 use std::collections::HashMap;
 use std::f32::consts::*;
+use std::path::PathBuf;
+
+use crate::actor_funcs::actor_take_hit;
 #[derive(Component)]
 pub struct HudText;
 
@@ -96,14 +100,7 @@ const MASK_GROUP_PATHS_BODY_WITHOUT_ARMS: [(&str, &str); 7] = [
     ("CharacterArmature.001/Root/Body", "UpperLeg.L/LowerLeg.L"),
     ("CharacterArmature.001/Root/Body", "UpperLeg.R/LowerLeg.R"),
 ];
-const PLAYER_ASSETS: [&str; 6] = [
-    "models/main_skeleton.glb",
-    "models/casual_torso_arms.glb",
-    "models/casual_legs.glb",
-    "models/casual_feet.glb",
-    "models/casual_head.glb",
-    "models/sword.glb",
-];
+#[allow(dead_code)]
 pub fn spawn_gltf_as_child(
     gltfs: &Res<Assets<Gltf>>,
     asset_handles: &Res<GameAssets>,
@@ -151,14 +148,9 @@ pub fn spawn_gltf_as_child(
 }
 pub fn setup_player(
     mut commands: Commands,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut meshes: ResMut<Assets<Mesh>>,
     asset_server: Res<AssetServer>,
     mut query: Query<(Entity, &NeedsSetup)>,
     client_id: Res<CurrentClientId>,
-    gltfs: Res<Assets<Gltf>>,
-    asset_handles: Res<GameAssets>,
-    mut scene_entities_by_name: ResMut<SceneEntitiesByName>,
     mut player_entity: ResMut<LocalPlayer>,
 ) {
     let collider_height = 1.2;
@@ -167,6 +159,7 @@ pub fn setup_player(
         commands.entity(entity).insert((
             PlayerRoot,
             Player,
+            Name::new(format!("Player {}", setup_info.id)),
             PlayerState {
                 id: setup_info.id,
                 ..Default::default()
@@ -174,72 +167,47 @@ pub fn setup_player(
             AnimateableEntity,
             Transform::default(),
             Visibility::Visible,
-            InheritedVisibility::VISIBLE,
             NetworkedEntity(entity),
+            CreatureStats::new(setup_info.id),
         ));
         let player_mesh = commands
             .spawn((
                 PlayerEntityLink(Some(entity)),
                 Visibility::Visible,
-                InheritedVisibility::VISIBLE,
                 Transform::from_xyz(0.0, -collider_height / 1.3, 0.0),
             ))
             .id();
         commands
             .entity(entity)
             .insert(MeshEntityLink(Some(player_mesh)));
-        spawn_gltf_as_child(
-            &gltfs,
-            &asset_handles,
-            &mut scene_entities_by_name,
-            player_mesh,
-            entity,
-            &mut commands,
-            setup_info.id,
-            Transform::from_xyz(0.0, 0.0, 0.0), //shift down half height of collider
-            PLAYER_ASSETS.to_vec(),
-        );
         //add player as a child so we won't rotate the camera when rotating the player
 
         println!("client id: {} {}", client_id.0, setup_info.id);
         if client_id.0 == setup_info.id {
             //if this is the local player
             commands.entity(player_mesh).insert(LocalPlayerMesh);
-            commands.entity(entity).insert(ThirdPersonCameraTarget);
-            commands
-                .entity(entity)
-                .insert(LocalPlayer { id: setup_info.id });
+            commands.entity(entity).insert((
+                ThirdPersonCameraTarget,
+                LocalPlayer { id: setup_info.id },
+                Visibility::Hidden,
+            ));
             player_entity.id = setup_info.id;
         }
-
-        // The normal map. Note that to generate it in the GIMP image editor, you should
-        // open the depth map, and do Filters → Generic → Normal Map
-        // You should enable the "flip X" checkbox.
-        let normal_handle = asset_server.load_with_settings(
-            "textures/parallax_example/cube_normal.png",
-            // The normal map texture is in linear color space. Lighting won't look correct
-            // if `is_srgb` is `true`, which is the default.
-            |settings: &mut ImageLoaderSettings| settings.is_srgb = false,
+        println!("adding skeleton with id:{}", setup_info.id);
+        let mut rotation = Quat::from_rotation_x(-FRAC_PI_2);
+        rotation = rotation * Quat::from_rotation_z(PI);
+        let player_mesh = spawn_nif_attached(
+            commands.reborrow(),
+            &asset_server,
+            setup_info.id,
+            Transform {
+                translation: Vec3::new(0.0, -collider_height / 1.3, 0.0),
+                rotation,
+                scale: Vec3::splat(0.015),
+            },
         );
-
-        let mut cube = Mesh::from(Cuboid::new(0.15, 0.15, 0.15));
-
-        // NOTE: for normal maps and depth maps to work, the mesh
-        // needs tangents generated.
-        cube.generate_tangents().unwrap();
-
-        let parallax_material = materials.add(StandardMaterial {
-            perceptual_roughness: 0.4,
-            base_color_texture: Some(asset_server.load("textures/parallax_example/cube_color.png")),
-            normal_map_texture: Some(normal_handle),
-            // The depth map is a grayscale texture where black is the highest level and
-            // white the lowest.
-            depth_map: Some(asset_server.load("textures/parallax_example/cube_depth.png")),
-            parallax_depth_scale: 0.09,
-            parallax_mapping_method: ParallaxMappingMethod::Relief { max_steps: 4 },
-            max_parallax_layer_count: ops::exp2(5.0f32),
-            ..default()
-        });
+        commands.entity(entity).add_child(player_mesh);
+        commands.entity(entity).observe(actor_take_hit);
         commands.entity(entity).insert((
             Transform::from_xyz(0.0, 2.0, 0.0),
             Collider::capsule_y(collider_height / 2.0, 0.3),
@@ -264,16 +232,6 @@ pub fn setup_player(
             },
             Speed(4.0),
         ));
-        let cube_weapon = Mesh::from(Cuboid::new(0.04, 0.2, 0.04));
-        commands.entity(entity).with_children(|parent| {
-            parent.spawn((
-                Mesh3d(meshes.add(cube_weapon)),
-                Transform::from_xyz(0.1, 0.0, -0.2),
-                MeshMaterial3d(parallax_material),
-                TransformInterpolation::default(),
-                Weapon,
-            ));
-        });
         println!(
             "player id and transform: {}{}",
             setup_info.id, setup_info.player_transform.translation
@@ -281,6 +239,7 @@ pub fn setup_player(
         commands.entity(entity).remove::<NeedsSetup>();
     }
 }
+#[allow(dead_code)]
 pub fn setup_assets(
     asset_paths: Vec<&str>,
     mut asset_handles: ResMut<GameAssets>,
@@ -298,8 +257,12 @@ pub fn setup(
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    asset_handles: ResMut<GameAssets>,
+    mut gizmo_config_store: ResMut<GizmoConfigStore>, //mesh_query: Query<Entity, With<LocalPlayerMesh>>,
 ) {
+    let (config, _) = gizmo_config_store.config_mut::<DefaultGizmoConfigGroup>();
+    config.enabled = true;
+    spawn_nif_unattached(commands.reborrow(), &asset_server);
+
     commands.spawn((
         Camera3d::default(),
         Camera {
@@ -541,13 +504,13 @@ pub fn setup(
         },
         HudText,
     ));
-    setup_assets(PLAYER_ASSETS.to_vec(), asset_handles, asset_server);
 }
 #[derive(Resource, Default)]
 enum DefaultRenderMode {
     #[default]
     Deferred,
 }
+/*
 pub fn setup_scene_once_loaded(
     mut commands: Commands,
     mesh_query: Query<(&PlayerEntityLink, &Animator, &AnimationEntityLink)>,
@@ -581,32 +544,33 @@ pub fn setup_scene_once_loaded(
                     return;
                 }
                 for node_index in 0..animator.animations.len() {
-                    if node_index != AnimationState::Swinging as usize {
-                        player.play(animator.animations[node_index]).repeat();
+                    /if node_index != AnimationState::Swinging as usize {
+                            player.play(animator.animations[node_index]).repeat();
+                        }
                     }
-                }
 
-                let graph = graphs.get(&animator.graph).unwrap();
-                let swinging_animation = get_clip(
-                    animator.animations[AnimationState::Swinging as usize],
-                    graph,
-                    &mut clips,
-                );
-                swinging_animation.add_event(
-                    0.0,
-                    OnSwingFinished {
-                        entity: player_entity_link.0.unwrap(),
-                    },
-                );
+                    let graph = graphs.get(&animator.graph).unwrap();
+                    let swinging_animation = get_clip(
+                        animator.animations[AnimationState::Swinging as usize],
+                        graph,
+                        &mut clips,
+                    );
+                    //      swinging_animation.add_event(
+                    //        0.0,
+                    //      OnSwingFinished {
+                    //        entity: player_entity_link.0.unwrap(),
+                    //  },
+                    //);
 
-                println!("adding animationntransitions on entity: {}", entity);
-                commands
-                    .entity(entity)
-                    .insert(AnimationGraphHandle(animator.graph.clone()));
+                    println!("adding animationntransitions on entity: {}", entity);
+                    commands
+                        .entity(entity)
+                        .insert(AnimationGraphHandle(animator.graph.clone()));
+
             }
         }
     }
-}
+}*/
 fn create_animation_nodes(
     animation_names: &[&str],
     clip_map: &HashMap<String, Handle<AnimationClip>>,
@@ -657,23 +621,14 @@ fn build_animation_graph(
 }
 
 pub fn detect_gltf_children(
-    trigger: Trigger<SceneInstanceReady>,
-    all_entities_with_children: Query<&Children>,
+    _trigger: Trigger<SceneInstanceReady>,
     players_without_animators: Query<Entity, (With<PlayerEntityLink>, Without<Animator>)>,
     assets_gltf: Res<Assets<Gltf>>,
-    mesh_query: Query<&Mesh3d>,
-    meshes: ResMut<Assets<Mesh>>,
-    materials: ResMut<Assets<StandardMaterial>>,
-    global_transforms: Query<&GlobalTransform>,
     mut commands: Commands,
     asset_handles: Res<GameAssets>,
     mut graphs: ResMut<Assets<AnimationGraph>>,
     mut spawn_state: ResMut<NextState<SpawnSceneState>>,
 ) {
-    info!(
-        "SceneInstanceReady event triggered for entity: {:?}",
-        trigger.entity()
-    );
     // Iterate over loaded GLTF assets
     for (handle, gltf) in assets_gltf.iter() {
         if let Some(asset_handle) = asset_handles
@@ -752,18 +707,22 @@ pub fn detect_gltf_children(
     for handle in asset_handles.gltf_files.iter() {
         println!("found glb me: {:?}", handle);
     } //   walk_tree(&all_entities_with_children, &names, &parent_entity, 0);
-    let parent_entity = trigger.entity();
-    paint_cubes_on_joints(
-        &all_entities_with_children,
-        //   &names,
-        &parent_entity,
-        &mesh_query,
-        meshes,
-        materials,
-        &global_transforms,
-        commands,
-    );
     spawn_state.set(SpawnSceneState::Spawned);
+}
+pub fn insert_nif_animator_links(
+    nif_animator_q: Query<(Entity, &NifAnimator), Added<NifAnimator>>,
+    player_state_q: Query<(Entity, &PlayerState)>,
+    mut commands: Commands,
+) {
+    for (nif_animator_entity, nif_animator) in nif_animator_q {
+        for (player_entity, player_state) in player_state_q {
+            if nif_animator.skeleton_id == player_state.id {
+                commands
+                    .entity(player_entity)
+                    .insert(NifAnimatorLink(nif_animator_entity));
+            }
+        }
+    }
 }
 #[allow(clippy::too_many_arguments)]
 pub fn switch_mode(
@@ -771,7 +730,7 @@ pub fn switch_mode(
     keys: Res<ButtonInput<KeyCode>>,
     mut pause: ResMut<Pause>,
 ) {
-    let mut text = match query.get_single_mut() {
+    let mut text = match query.single_mut() {
         Ok(t) => t,
         Err(e) => {
             match e {
@@ -864,4 +823,200 @@ pub fn switch_mode(
             }
         ));
     }*/
+}
+fn spawn_nif_unattached(mut commands: Commands, asset_server: &Res<AssetServer>) {
+    let head_handle = asset_server.load("data/A_Glass_Helmet.nif");
+    commands.spawn((
+        NifScene(head_handle),
+        Visibility::Visible,
+        Transform {
+            translation: Vec3::new(-0.0, 0.5, -1.0),
+            rotation: Quat::from_rotation_y(PI),
+            scale: Vec3::splat(0.03), //nifs are huge otherwise
+        },
+    ));
+}
+fn spawn_nif_attached(
+    mut commands: Commands,
+    asset_server: &Res<AssetServer>,
+    skeleton_id: u64,
+    transform: Transform,
+) -> Entity {
+    let paths_with_target_bone: Vec<(&str, AttachmentType)> = vec![
+        (
+            "data/base_anim.nif",
+            AttachmentType::MainSkeleton {
+                skeleton_id: skeleton_id,
+            },
+        ),
+        (
+            "data/b_n_dark elf_m_skins.nif",
+            AttachmentType::Skinned { skeleton_id },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Head_01.nif",
+            AttachmentType::Rigid {
+                target_bone: "Head".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Hair_01.nif",
+            AttachmentType::Rigid {
+                target_bone: "Head".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Neck.nif",
+            AttachmentType::Rigid {
+                target_bone: "Neck".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Groin.nif",
+            AttachmentType::Rigid {
+                target_bone: "Groin".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Forearm.nif",
+            AttachmentType::DoubleSidedRigid {
+                target_bone: "Forearm".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Upper Arm.nif",
+            AttachmentType::DoubleSidedRigid {
+                target_bone: "Upper Arm".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Wrist.nif",
+            AttachmentType::DoubleSidedRigid {
+                target_bone: "Wrist".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Upper Leg.nif",
+            AttachmentType::DoubleSidedRigid {
+                target_bone: "Upper Leg".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Knee.nif",
+            AttachmentType::DoubleSidedRigid {
+                target_bone: "Knee".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Ankle.nif",
+            AttachmentType::DoubleSidedRigid {
+                target_bone: "Ankle".to_string(),
+                skeleton_id,
+            },
+        ),
+        (
+            "data/B_N_Dark Elf_M_Foot.nif",
+            AttachmentType::DoubleSidedRigid {
+                target_bone: "Foot".to_string(),
+                skeleton_id,
+            },
+        ),
+    ];
+    let entity = commands.spawn((Visibility::Inherited, transform)).id();
+    spawn_nifs(
+        paths_with_target_bone,
+        &asset_server,
+        entity,
+        &mut commands,
+        Transform::from_scale(Vec3::splat(1.0)),
+    );
+    entity
+}
+
+fn spawn_nifs(
+    paths_with_target_bone: Vec<(&str, AttachmentType)>,
+    asset_server: &Res<AssetServer>,
+    entity: Entity,
+    commands: &mut Commands,
+    transform: Transform,
+) {
+    for (path, mut attachment_type) in paths_with_target_bone {
+        let asset_handle = asset_server.load(path);
+        if let AttachmentType::DoubleSidedRigid {
+            target_bone,
+            skeleton_id,
+        } = attachment_type.clone()
+        {
+            attachment_type = AttachmentType::Rigid {
+                target_bone: format!("Left {}", target_bone),
+                skeleton_id,
+            };
+            let child = commands
+                .spawn((
+                    NifScene(asset_handle.clone()),
+                    attachment_type,
+                    transform,
+                    Visibility::Inherited,
+                ))
+                .id();
+            commands.entity(entity).add_child(child);
+            attachment_type = AttachmentType::Rigid {
+                target_bone: format!("Right {}", target_bone),
+                skeleton_id,
+            };
+        }
+        let child = commands
+            .spawn((
+                NifScene(asset_handle),
+                attachment_type,
+                transform,
+                Visibility::Inherited,
+            ))
+            .id();
+        commands.entity(entity).add_child(child);
+    }
+}
+pub fn add_nif_animation_events(
+    mut commands: Commands,
+    mut clips: ResMut<Assets<AnimationClip>>,
+    animator_q: Query<(Entity, &NifAnimator, &AnimationGraphHandle), Without<KnockdownEventAdded>>,
+    anim_graphs: Res<Assets<AnimationGraph>>,
+    player_query: Query<(Entity, &NifAnimatorLink), Added<NifAnimatorLink>>,
+) {
+    fn get_clip<'a>(
+        node: AnimationNodeIndex,
+        graph: &AnimationGraph,
+        clips: &'a mut Assets<AnimationClip>,
+    ) -> &'a mut AnimationClip {
+        let node = graph.get(node).unwrap();
+        let clip = match &node.node_type {
+            AnimationNodeType::Clip(handle) => clips.get_mut(handle),
+            _ => unreachable!(),
+        };
+        clip.unwrap()
+    }
+
+    for (entity, nif_animator, graph_handle) in animator_q {
+        for (player_entity, nif_animator_link) in player_query {
+            println!("nif: {} player: {}", entity, nif_animator_link.0);
+            if nif_animator_link.0 != entity {
+                continue;
+            }
+            let anim_graph = anim_graphs.get(graph_handle).unwrap();
+            let knockdown_anim = nif_animator.animations.get("knockdown").unwrap();
+            let knockdown_clip = get_clip(*knockdown_anim, anim_graph, &mut clips);
+            let knockdown_clip_duration = knockdown_clip.duration();
+            knockdown_clip.add_event(knockdown_clip_duration, KnockdownFinished(player_entity));
+            commands.entity(entity).insert(KnockdownEventAdded);
+        }
+    }
 }

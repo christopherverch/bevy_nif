@@ -130,7 +130,7 @@ pub fn setup_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
 }
 pub fn despawn_main_menu_ui(mut commands: Commands, mut query: Query<Entity, With<MainMenuRoot>>) {
     for entity in &mut query {
-        commands.entity(entity).despawn_recursive();
+        commands.entity(entity).despawn();
     }
 }
 fn set_initial_focus(

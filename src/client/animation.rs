@@ -1,17 +1,10 @@
-use crate::client::defs::{AttackState, MaskGroup, PlayerState};
-use crate::client::events::{OnSwingFinished, RequestAnimation};
-use crate::client::modular_characters::AnimationEntityLink;
+#![allow(dead_code)]
+
+use crate::client::defs::PlayerState;
+use crate::client::events::RequestAnimation;
 use crate::{AnimationState, RequestedAnimation};
 use bevy::prelude::*;
-
-use super::defs::{Animator, IsThirdPerson, LocalPlayer, MeshEntityLink};
-use super::events::ToggledThirdPerson;
-const PRIMARY_ANIMATIONS: [RequestedAnimation; 4] = [
-    RequestedAnimation::Common(AnimationState::Idle),
-    RequestedAnimation::Common(AnimationState::Running),
-    RequestedAnimation::Common(AnimationState::Jumping),
-    RequestedAnimation::Common(AnimationState::FirstPersonMoving),
-];
+/*
 pub fn observe_swing_finished(
     trigger: Trigger<OnSwingFinished>,
     mut player_query: Query<(&MeshEntityLink, &mut PlayerState)>,
@@ -41,6 +34,10 @@ pub fn handle_animation_request(
     is_third_person: Res<IsThirdPerson>,
     player_entity: Res<LocalPlayer>,
 ) {
+    /*
+    if AnimationState::from(trigger.requested_animation) == AnimationState::Undefined {
+        return;
+    }
     if let Some((mut player_state, animation_entity_link, animator)) =
         find_player_and_mesh(trigger.entity, &mut player_query, &mut mesh_query)
     {
@@ -51,14 +48,9 @@ pub fn handle_animation_request(
         if PRIMARY_ANIMATIONS.contains(&requested_animation) {
             player_state.current_animation = requested_animation.into();
         }
-        println!(
-            "animation triggered with id {} and animationstate {:?}",
-            trigger.entity, requested_animation,
-        );
         let Some(animation_entity) = animation_entity_link.0.get("models/main_skeleton.glb") else {
             return;
         };
-        println!("animating with {:?}", animation_entity);
         let Ok((_, mut animation_player)) = animation_query.get_mut(*animation_entity) else {
             return;
         };
@@ -95,9 +87,9 @@ pub fn handle_animation_request(
                 }
             }
         }
-    }
+    }*/
 }
-
+/*
 fn play_animation_primary(
     animator: &Animator,
     index: AnimationNodeIndex,
@@ -239,7 +231,7 @@ pub fn set_third_person_animation_weights(
             requested_animation: requested.into(),
         });
     }
-}
+}*/
 fn find_player_and_mesh<'a>(
     entity: Entity,
     player_query: &'a mut Query<(&MeshEntityLink, &mut PlayerState)>,
@@ -282,17 +274,17 @@ fn run_swinging_playback(
         }
         _ => {}
     }
-}
+}*/
 pub fn trigger_request_animation(
     mut commands: Commands,
     entity: Entity,
     requested_animation: RequestedAnimation,
     player_state: &mut PlayerState,
 ) {
-    if AnimationState::from(requested_animation).is_primary() {
-        player_state.requested_primary_animation = Some(requested_animation);
+    if AnimationState::from(requested_animation.clone()).is_primary() {
+        player_state.requested_primary_animation = Some(requested_animation.clone());
     } else {
-        player_state.requested_secondary_animation = Some(requested_animation);
+        player_state.requested_secondary_animation = Some(requested_animation.clone());
     }
     commands.trigger(RequestAnimation {
         entity,

@@ -28,6 +28,8 @@ mod send_data;
 mod setup_funcs;
 mod terrain_material;
 mod test_esm;
+mod test_esm2;
+use test_esm2::*;
 mod wav_loader;
 use player_input::*;
 use send_data::*;
@@ -72,6 +74,7 @@ fn main() {
             RapierPhysicsPlugin::<NoUserData>::default()
                 .in_fixed_schedule()
                 .with_length_unit(1.0),
+            // RapierDebugRenderPlugin::default(),
             RenetClientPlugin,
             EguiPlugin {
                 enable_multipass_for_primary_context: true,
@@ -103,6 +106,7 @@ fn main() {
         .init_state::<SpawnSceneState>()
         .add_systems(Startup, setup)
         .add_systems(Startup, test)
+        .add_systems(Startup, test_splatmap)
         /*.add_systems(
             Startup,
             (setup_esm_reader_resource,).before(load_specific_landscape_cell_system),

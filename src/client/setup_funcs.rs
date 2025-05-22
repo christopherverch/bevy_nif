@@ -261,7 +261,7 @@ pub fn setup(
 ) {
     let (config, _) = gizmo_config_store.config_mut::<DefaultGizmoConfigGroup>();
     config.enabled = true;
-    spawn_nif_unattached(commands.reborrow(), &asset_server);
+    //spawn_nif_unattached(commands.reborrow(), &asset_server);
 
     commands.spawn((
         Camera3d::default(),
@@ -289,14 +289,19 @@ pub fn setup(
             },
             ..default()
         },
+        AmbientLight {
+            color: Color::linear_rgb(137.0 / 255.0, 140.0 / 255.0, 160.0 / 255.0),
+            brightness: 3000.0,
+            affects_lightmapped_meshes: true,
+        },
         EnvironmentMapLight {
             diffuse_map: asset_server.load("environment_maps/pisa_diffuse_rgb9e5_zstd.ktx2"),
             specular_map: asset_server.load("environment_maps/pisa_specular_rgb9e5_zstd.ktx2"),
-            intensity: 2000.0,
+            intensity: 0.0,
             ..default()
         },
-        DepthPrepass,
-        MotionVectorPrepass,
+        // DepthPrepass,
+        //MotionVectorPrepass,
         DeferredPrepass,
         Fxaa::default(),
     ));
@@ -312,7 +317,7 @@ pub fn setup(
     ));
     commands.spawn((
         DirectionalLight {
-            illuminance: 15_000.,
+            illuminance: 1_000.,
             shadows_enabled: true,
             ..default()
         },
@@ -355,13 +360,13 @@ pub fn setup(
     let mut forward_mat: StandardMaterial = Color::srgb(0.1, 0.2, 0.1).into();
     forward_mat.opaque_render_method = OpaqueRendererMethod::Forward;
     let forward_mat_h = materials.add(forward_mat);
-
     // Plane
     commands.spawn((
         Mesh3d(meshes.add(Plane3d::default().mesh().size(50.0, 50.0))),
         MeshMaterial3d(forward_mat_h.clone()),
         Collider::cuboid(50.0 / 2.0, 0.0 / 2.0, 50.0 / 2.0),
     ));
+
     let cube_h = meshes.add(Cuboid::new(0.1, 0.1, 0.1));
     let cube_h2 = meshes.add(Cuboid::new(2.0, 2.0, 2.0));
     commands.spawn((
@@ -419,6 +424,9 @@ pub fn setup(
         sphere_pos,
         NotShadowCaster,
     ));
+
+    let sphere_color = Color::srgb(10.0, 4.0, 1.0);
+    let sphere_pos = Transform::from_xyz(0.4, 0.5, -0.8);
     // Light
     commands.spawn((
         PointLight {

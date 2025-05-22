@@ -23,11 +23,13 @@ pub const ATTRIBUTE_TERRAIN_TEXTURE_INDICES: MeshVertexAttribute = MeshVertexAtt
 // The resource you created to hold the handle
 #[derive(Resource, Clone, Deref, DerefMut)]
 pub struct TextureArrayHandle(pub Handle<Image>);
+#[derive(Resource, Clone, Deref, DerefMut)]
+pub struct AlphaMapTextureArrayHandle(pub Handle<Image>); // For alpha maps
 
 #[derive(ShaderType, Clone, Default, Debug)]
 pub struct TerrainMaterialParams {
-    pub tiling_factor: f32,
     pub num_textures_in_array: u32,
+    pub diffuse_tiling_factor: f32,
     // Add any other parameters your shader might need
 }
 
@@ -40,8 +42,11 @@ pub struct TerrainBlendMaterial {
     #[texture(0, dimension = "2d_array")] // This tells the binding to expect a 2D array texture view
     #[sampler(1)]
     pub(crate) source_textures: Handle<Image>, // Changed name for clarity
+    #[texture(2, dimension = "2d_array")] // New binding for the alpha map array
+    #[sampler(3)]
+    pub alpha_map_array: Handle<Image>,
 
-    #[uniform(2)]
+    #[uniform(4)]
     pub(crate) params: TerrainMaterialParams,
 }
 
@@ -57,7 +62,9 @@ impl Material for TerrainBlendMaterial {
     fn alpha_mode(&self) -> AlphaMode {
         AlphaMode::Opaque // Or AlphaMode::Blend if needed
     }
-
+    fn prepass_vertex_shader() -> ShaderRef {
+        "shaders/terrain_prepass_vertex.wgsl".into()
+    }
     fn specialize(
         _pipeline: &MaterialPipeline<Self>,
         descriptor: &mut RenderPipelineDescriptor,
@@ -69,10 +76,8 @@ impl Material for TerrainBlendMaterial {
             Mesh::ATTRIBUTE_NORMAL.at_shader_location(1),
             Mesh::ATTRIBUTE_UV_0.at_shader_location(2),
             Mesh::ATTRIBUTE_COLOR.at_shader_location(3), // VCLR data
-            ATTRIBUTE_TERRAIN_TEXTURE_INDICES.at_shader_location(4), // Your custom attribute
         ])?;
         descriptor.vertex.buffers = vec![vertex_layout];
         Ok(())
     }
 }
-

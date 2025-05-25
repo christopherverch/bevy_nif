@@ -6,15 +6,15 @@ use bevy_rapier3d::prelude::*;
 use cdda_bevy::client::animation::trigger_request_animation;
 use cdda_bevy::client::defs::{
     AttackState, CreatureStats, Direction, IsThirdPerson, LocalPlayer, LocalPlayerMesh,
-    MOVEMENT_VOLUME, PlayerInput, PlayerState, Speed,
+    PlayerInput, PlayerState, Speed,
 };
 use cdda_bevy::client::events::{
-    AttackTrigger, KnockdownFinished, RequestAnimation, TakeHit, ToggledThirdPerson,
+    KnockdownFinished, RequestAnimation, SoundEvent, ToggledThirdPerson, TriggerHit,
+    TryAttackTrigger,
 };
-use cdda_bevy::{AnimationState, RequestedAnimation};
+use cdda_bevy::{AnimationState, NetworkEvent, RequestedAnimation};
 use std::time::Instant;
 
-use crate::wav_loader::MorrowindDecodedWav;
 const GROUND_TIMER: f32 = 0.5;
 const JUMP_SPEED: f32 = 0.06;
 const GRAVITY: f32 = -0.04;
@@ -51,8 +51,9 @@ pub fn keyboard_input(
     }
     if keyboard_input.just_pressed(KeyCode::ControlLeft) {
         commands.trigger(RequestAnimation {
-            entity: player_entity,
+            entity_id: player_state.id,
             requested_animation: AnimationState::SneakIdle.into(),
+            networked: true,
         });
     }
     if keyboard_input.just_pressed(KeyCode::KeyF) {
@@ -72,12 +73,7 @@ pub fn keyboard_input(
             // &mesh_query,
             commands.reborrow(),
         );
-        trigger_request_animation(
-            commands.reborrow(),
-            player_entity,
-            requested_anim,
-            &mut player_state,
-        );
+        trigger_request_animation(commands.reborrow(), requested_anim, &mut player_state, true);
     }
     if keyboard_input.just_pressed(KeyCode::Tab) {
         is_third_person.0 = !is_third_person.0;
@@ -103,9 +99,9 @@ pub fn keyboard_input(
             player_state.attack_state = AttackState::Charging;
             trigger_request_animation(
                 commands.reborrow(),
-                player_entity,
                 RequestedAnimation::SwingCharging,
                 &mut player_state,
+                true,
             );
         }
     }
@@ -128,8 +124,9 @@ pub fn keyboard_input(
                     + 10.0
                         * ((player_state.started_attacking.elapsed().as_millis() / 1200) as f32)
                             .min(1.0);
-                commands.trigger(AttackTrigger {
-                    entity: player_entity,
+                commands.trigger(TryAttackTrigger {
+                    attacker_entity: player_entity,
+                    attacker_id: player_state.id,
                     origin: ray_origin,
                     direction: ray_direction,
                     damage,
@@ -155,8 +152,9 @@ pub fn keyboard_input(
                                 as f32)
                                 / 12.0)
                                 .min(1.0);
-                    commands.trigger(AttackTrigger {
-                        entity: player_entity,
+                    commands.trigger(TryAttackTrigger {
+                        attacker_entity: player_entity,
+                        attacker_id: player_state.id,
                         origin: ray_origin,
                         direction: ray_direction,
                         damage,
@@ -195,7 +193,6 @@ pub fn player_movement(
     mut last_ground_height: Local<f32>,
     //   rapier_context: ReadRapierContext,
     mut highest_air_height: Local<f32>,
-    asset_server: Res<AssetServer>,
 ) {
     for (
         player_entity,
@@ -206,9 +203,6 @@ pub fn player_movement(
         player_speed,
     ) in player_query.iter_mut()
     {
-        if player_state.current_animation == AnimationState::Knockdown {
-            return;
-        }
         player_state.transform = *player_transform;
         //handle animations
         //if we're on the ground
@@ -216,16 +210,18 @@ pub fn player_movement(
             //if we just transitioned to idle:
             if player_input.move_direction.x == 0.0 && player_input.move_direction.y == 0.0 {
                 player_state.is_moving = false;
-                if player_state.current_animation != AnimationState::Idle
-                    && player_state.current_animation != AnimationState::Undefined
-                {
-                    player_state.current_animation = AnimationState::Idle;
-                    trigger_request_animation(
-                        commands.reborrow(),
-                        player_entity,
-                        AnimationState::Idle.into(),
-                        &mut player_state,
-                    );
+                if player_state.current_animation != AnimationState::Knockdown {
+                    if player_state.current_animation != AnimationState::Idle
+                        && player_state.current_animation != AnimationState::Undefined
+                    {
+                        player_state.current_animation = AnimationState::Idle;
+                        trigger_request_animation(
+                            commands.reborrow(),
+                            AnimationState::Idle.into(),
+                            &mut player_state,
+                            true,
+                        );
+                    }
                 }
             } else {
                 player_state.is_moving = true;
@@ -248,9 +244,9 @@ pub fn player_movement(
                             };
                             trigger_request_animation(
                                 commands.reborrow(),
-                                player_entity,
                                 requested_animation.into(),
                                 &mut player_state,
+                                true,
                             );
                         }
                     }
@@ -260,9 +256,9 @@ pub fn player_movement(
                         };
                         trigger_request_animation(
                             commands.reborrow(),
-                            player_entity,
                             requested_animation.into(),
                             &mut player_state,
+                            true,
                         );
                     }
                 }
@@ -297,19 +293,19 @@ pub fn player_movement(
                 *grounded_timer = GROUND_TIMER;
                 *vertical_movement = 0.0;
                 if !was_grounded {
-                    let sound_handle: Handle<MorrowindDecodedWav> =
-                        asset_server.load("sounds/bodyfallMED.wav");
+                    let sound_event = SoundEvent {
+                        sound_anchor_entity: Some(player_entity),
+                        translation: None,
+                        sound_path: "sounds/bodyfallMED.wav".to_string(),
+                        is_attached_to_local_player: true,
+                    };
+                    commands.trigger(sound_event.clone());
+                    commands.trigger(NetworkEvent::Sound(sound_event));
 
-                    commands.spawn((
-                        AudioPlayer(sound_handle),
-                        PlaybackSettings {
-                            volume: MOVEMENT_VOLUME,
-                            ..default()
-                        },
-                    ));
                     commands.trigger(RequestAnimation {
-                        entity: player_entity,
+                        entity_id: player_state.id,
                         requested_animation: RequestedAnimation::ResumeAnimation,
+                        networked: true,
                     });
                 }
 
@@ -324,9 +320,9 @@ pub fn player_movement(
                 if jump_speed > 0.0 {
                     trigger_request_animation(
                         commands.reborrow(),
-                        player_entity,
                         AnimationState::Jumping.into(),
                         &mut player_state,
+                        true,
                     );
                     *vertical_movement = jump_speed;
                     *grounded_timer = 0.0;
@@ -393,7 +389,7 @@ fn hide_player_conditionally(
     }*/
 }
 pub fn trigger_attack(
-    trigger: Trigger<AttackTrigger>,
+    trigger: Trigger<TryAttackTrigger>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -422,21 +418,19 @@ pub fn trigger_attack(
         2.0,
         true,
         QueryFilter {
-            exclude_collider: Some(trigger.entity),
+            exclude_collider: Some(trigger.attacker_entity),
             ..default()
         },
     );
     if let Some((entity, _toi)) = hit {
         println!("hit entity: {}", entity);
         if let Ok(creature) = creature_q.get(entity) {
-            commands.trigger_targets(
-                TakeHit {
-                    creature_id: creature.id,
-                    damage: trigger.damage,
-                    is_from_network: false,
-                },
-                entity,
-            );
+            commands.trigger(TriggerHit {
+                attacker_id: trigger.attacker_id,
+                receiver_id: creature.id,
+                damage: trigger.damage,
+                networked: true,
+            });
         }
         // Color in blue the entity we just hit.
         // Because of the query filter, only colliders attached to a dynamic body
@@ -467,9 +461,9 @@ pub fn knockdown_finished(
         player_state.current_animation = AnimationState::Idle;
         trigger_request_animation(
             commands.reborrow(),
-            player_entity,
             AnimationState::Idle.into(),
             &mut player_state,
+            true,
         );
     }
     println!("knockdown finished!");

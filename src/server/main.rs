@@ -1,24 +1,41 @@
 use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     prelude::*,
+    time::common_conditions::on_timer,
 };
-use bevy_egui::{EguiContexts, EguiPlugin};
+use bevy_egui::EguiPlugin;
 use bevy_renet::{
     RenetServerPlugin,
     renet::{ClientId, RenetServer, ServerEvent},
 };
-use cdda_bevy::networking::{
-    ClientChannel, NetworkedEntities, Player, PlayerCommand, PlayerInput2, Projectile,
-    ServerChannel, ServerMessages, Velocity, setup_level, spawn_fireball,
+use cdda_bevy::{NetworkEventWithId, ServerAcknowledgment, serializer::PlayerStateNetwork};
+use cdda_bevy::{
+    ServerRelayMessage,
+    networking::{
+        ClientChannel, NetworkedEntities, Player, PlayerCommand, PlayerInput2, Projectile,
+        ServerChannel, ServerMessages, Velocity, setup_level, spawn_fireball,
+    },
 };
-use cdda_bevy::serializer::PlayerStateNetwork;
-use std::{collections::HashMap, f32::consts::PI};
+use std::{
+    collections::HashMap,
+    f32::consts::PI,
+    time::{Duration, Instant},
+};
 
 #[derive(Debug, Default, Resource)]
 pub struct ServerLobby {
     pub players: HashMap<ClientId, Entity>,
 }
 
+// How long to remember a processed action ID to prevent duplicates
+const PROCESSED_ACTION_TTL: Duration = Duration::from_secs(30);
+
+#[derive(Resource, Default, Debug)]
+pub struct ProcessedActionCache(
+    // Outer HashMap: Key is ClientId (u64 from Renet)
+    // Inner HashMap: Key is action_id (u64), Value is the Instant it was processed
+    pub HashMap<u64, HashMap<u64, Instant>>,
+);
 const PLAYER_MOVE_SPEED: f32 = 5.0;
 
 #[derive(Debug, Component)]
@@ -73,7 +90,7 @@ fn main() {
     app.add_plugins(EguiPlugin {
         enable_multipass_for_primary_context: true,
     });
-
+    app.insert_resource(ProcessedActionCache::default());
     app.insert_resource(ServerLobby::default());
     app.insert_resource(BotId(0));
     app.insert_resource(PlayerStateNetworkHashMap(HashMap::new()));
@@ -86,10 +103,14 @@ fn main() {
             server_network_sync,
             move_players_system,
             update_projectiles_system,
-            update_visulizer_system,
             spawn_bot,
             bot_autocast,
+            server_handle_client_critical_actions_system,
         ),
+    );
+    app.add_systems(
+        Update,
+        server_prune_action_cache_system.run_if(on_timer(Duration::from_secs(10))),
     );
 
     app.add_systems(FixedUpdate, apply_velocity_system);
@@ -241,8 +262,6 @@ fn update_projectiles_system(
     }
 }
 
-fn update_visulizer_system(mut egui_contexts: EguiContexts, server: Res<RenetServer>) {}
-
 #[allow(clippy::type_complexity)]
 fn server_network_sync(
     mut server: ResMut<RenetServer>,
@@ -374,5 +393,130 @@ fn bot_autocast(
             let message = bincode::serialize(&message).unwrap();
             server.broadcast_message(ServerChannel::ServerMessages, message);
         }
+    }
+}
+
+pub fn server_handle_client_critical_actions_system(
+    mut server: ResMut<RenetServer>,
+    mut cache: ResMut<ProcessedActionCache>,
+    // Potentially ResMut<GameWorldState> or specific queries for validation
+) {
+    for client_id_u64 in server.clients_id() {
+        // Renet uses u64 for client_id
+
+        while let Some(message_bytes) =
+            server.receive_message(client_id_u64, ClientChannel::CriticalActions)
+        {
+            match bincode::deserialize::<NetworkEventWithId>(&message_bytes) {
+                Ok(event) => {
+                    info!("Server received from client {}: {:?}", client_id_u64, event);
+                    let action_id = event.action_id;
+
+                    // Get or create the map for this specific client
+                    let client_specific_cache = cache.0.entry(client_id_u64).or_default();
+
+                    // --- 0. Check if this action_id from this client was already processed ---
+                    if let Some(_processed_timestamp) = client_specific_cache.get(&action_id) {
+                        info!(
+                            "Duplicate action (ID: {}) from client {} detected. Resending ACK.",
+                            action_id, client_id_u64
+                        );
+
+                        // Action was already processed. Do NOT re-apply game effects.
+                        // DO resend the acknowledgment because the client likely missed the first one.
+                        let ack_message = ServerAcknowledgment::ActionConfirmed {
+                            original_action_id: action_id,
+                            server_validation_passed: true, // Assuming it passed previously
+                            reason_if_failed: None,         // Or retrieve original reason if stored
+                        };
+                        if let Ok(payload) = bincode::serialize(&ack_message) {
+                            server.send_message(
+                                client_id_u64,
+                                ServerChannel::CriticalAcknowledgments, // Your ACK channel
+                                payload,
+                            );
+                        }
+                        continue; // Stop further processing for this duplicate action
+                    }
+
+                    // --- 1. Basic Server-Side Validation (Example) ---
+                    let server_validation_passed = true;
+                    let reason_if_failed: Option<String> = None;
+                    // Example: if action_is_implausible() { server_validation_passed = false; reason_if_failed = Some("Implausible action".to_string()); }
+                    // ----------------------------------------------
+
+                    // --- 2. Send Acknowledgment back to Originating Client ---
+                    let ack_message = ServerAcknowledgment::ActionConfirmed {
+                        original_action_id: event.action_id,
+                        server_validation_passed,
+                        reason_if_failed,
+                    };
+                    match bincode::serialize(&ack_message) {
+                        Ok(payload) => server.send_message(
+                            client_id_u64,
+                            ServerChannel::CriticalAcknowledgments,
+                            payload,
+                        ),
+                        Err(e) => error!("Failed to serialize ServerAcknowledgment: {}", e),
+                    }
+
+                    // --- 3. If Validated, Relay to Other Clients ---
+                    if server_validation_passed {
+                        let relay_message = ServerRelayMessage::RelayClientAction {
+                            performing_client_id: client_id_u64,
+                            action: event.clone(), // Send the validated action
+                        };
+                        match bincode::serialize(&relay_message) {
+                            Ok(payload) => {
+                                // Send to all *other* clients
+                                for other_client_id_u64 in server.clients_id() {
+                                    if other_client_id_u64 != client_id_u64 {
+                                        server.send_message(
+                                            other_client_id_u64,
+                                            ServerChannel::CriticalRelay,
+                                            payload.clone(),
+                                        );
+                                    }
+                                }
+                                info!(
+                                    "Server relayed action {:?} from client {}",
+                                    event, client_id_u64
+                                );
+                            }
+                            Err(e) => error!("Failed to serialize ServerRelayMessage: {}", e),
+                        }
+                    }
+                }
+                Err(e) => error!(
+                    "Server failed to deserialize ClientCriticalAction from {}: {}",
+                    client_id_u64, e
+                ),
+            }
+        }
+    }
+}
+pub fn server_prune_action_cache_system(mut cache: ResMut<ProcessedActionCache>) {
+    let current_time = Instant::now();
+    let mut empty_client_caches = Vec::new();
+
+    for (client_id, client_actions) in cache.0.iter_mut() {
+        // Remove entries from this client's HashMap that are older than PROCESSED_ACTION_TTL
+        client_actions.retain(|_action_id, processed_at_timestamp| {
+            current_time.duration_since(*processed_at_timestamp) < PROCESSED_ACTION_TTL
+        });
+
+        // If, after pruning, this client has no cached actions, mark the client's entry for removal
+        if client_actions.is_empty() {
+            empty_client_caches.push(*client_id);
+        }
+    }
+
+    // Remove entire client entries if their action caches became empty
+    for client_id_to_remove in empty_client_caches {
+        cache.0.remove(&client_id_to_remove);
+        debug!(
+            "Removed empty action cache for client {}",
+            client_id_to_remove
+        );
     }
 }

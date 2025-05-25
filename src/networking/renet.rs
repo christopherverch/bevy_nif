@@ -31,8 +31,11 @@ pub enum ClientChannel {
     Input,
     Command,
     PlayerStateNetwork,
+    CriticalActions,
 }
 pub enum ServerChannel {
+    CriticalAcknowledgments,
+    CriticalRelay,
     ServerMessages,
     NetworkedEntities,
 }
@@ -69,6 +72,7 @@ impl From<ClientChannel> for u8 {
             ClientChannel::Command => 0,
             ClientChannel::Input => 1,
             ClientChannel::PlayerStateNetwork => 2,
+            ClientChannel::CriticalActions => 3,
         }
     }
 }
@@ -97,6 +101,13 @@ impl ClientChannel {
                     resend_time: Duration::ZERO,
                 },
             },
+            ChannelConfig {
+                channel_id: Self::CriticalActions.into(),
+                max_memory_usage_bytes: 5 * 1024 * 1024,
+                send_type: SendType::ReliableOrdered {
+                    resend_time: Duration::from_millis(250),
+                },
+            },
         ]
     }
 }
@@ -106,6 +117,8 @@ impl From<ServerChannel> for u8 {
         match channel_id {
             ServerChannel::NetworkedEntities => 0,
             ServerChannel::ServerMessages => 1,
+            ServerChannel::CriticalAcknowledgments => 2,
+            ServerChannel::CriticalRelay => 3,
         }
     }
 }
@@ -120,6 +133,20 @@ impl ServerChannel {
             },
             ChannelConfig {
                 channel_id: Self::ServerMessages.into(),
+                max_memory_usage_bytes: 10 * 1024 * 1024,
+                send_type: SendType::ReliableOrdered {
+                    resend_time: Duration::from_millis(200),
+                },
+            },
+            ChannelConfig {
+                channel_id: Self::CriticalAcknowledgments.into(),
+                max_memory_usage_bytes: 10 * 1024 * 1024,
+                send_type: SendType::ReliableOrdered {
+                    resend_time: Duration::from_millis(200),
+                },
+            },
+            ChannelConfig {
+                channel_id: Self::CriticalRelay.into(),
                 max_memory_usage_bytes: 10 * 1024 * 1024,
                 send_type: SendType::ReliableOrdered {
                     resend_time: Duration::from_millis(200),

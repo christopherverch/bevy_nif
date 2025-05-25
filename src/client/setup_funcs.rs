@@ -1,8 +1,5 @@
-use bevy::asset::RenderAssetUsages;
-use bevy::gltf::Gltf;
-use bevy::render::mesh::{Indices, Mesh, PrimitiveTopology};
+use bevy::render::mesh::Mesh;
 use bevy::{
-    animation::AnimationTargetId,
     core_pipeline::{
         fxaa::Fxaa,
         prepass::{DeferredPrepass, DepthPrepass, MotionVectorPrepass},
@@ -10,190 +7,92 @@ use bevy::{
     },
     pbr::{CascadeShadowConfigBuilder, NotShadowCaster, NotShadowReceiver, OpaqueRendererMethod},
     prelude::*,
-    scene::SceneInstanceReady,
 };
+use bevy_kira_audio::SpatialAudioReceiver;
 use bevy_nif;
-use bevy_nif::nif::animation::NifAnimator;
+use bevy_nif::nif::animation::{NifAnimator, NifAnimatorAdded};
 use bevy_nif::nif::attach_parts::AttachmentType;
 use bevy_nif::nif::spawner::NifScene;
 use bevy_rapier3d::prelude::*;
 use cdda_bevy::client::defs::{
-    AnimateableEntity, AnimationNodeConfig, Animator, CreatureStats, CurrentClientId,
-    KnockdownEventAdded, LocalPlayer, LocalPlayerMesh, MaskGroup, MeshEntityLink, NeedsSetup,
-    NetworkedEntity, NifAnimatorLink, Pause, Player, PlayerCamera, PlayerEntityLink, PlayerRoot,
-    PlayerState, SceneEntitiesByName, SceneName, SpawnSceneState, Speed, TestingComponent,
+    AnimateableEntity, CreatureStats, CurrentClientId, KnockdownEventAdded, LandscapeLoader,
+    LocalPlayer, LocalPlayerMesh, MeshEntityLink, NeedsSetup, NetworkedEntity, NifAnimatorLink,
+    Pause, Player, PlayerCamera, PlayerEntityLink, PlayerState, Speed, TestingComponent,
 };
 use cdda_bevy::client::events::KnockdownFinished;
 use cdda_bevy::client::third_person_camera::{ThirdPersonCamera, ThirdPersonCameraTarget};
-use esm_parser_lib::{EsmReader, LAND_NUM_VERTS, LAND_SIDE_VERTICES, LandPayloadData};
-use std::collections::HashMap;
 use std::f32::consts::*;
-use std::path::PathBuf;
 
-use crate::actor_funcs::actor_take_hit;
+const PLAYER_COLLIDER_HEIGHT: f32 = 1.2;
 #[derive(Component)]
 pub struct HudText;
 
-#[derive(Default, Resource)]
-pub struct GameAssets {
-    pub gltf_files: HashMap<String, Handle<Gltf>>,
-}
-const MASK_GROUP_PATHS_ARMS: [(&str, &str); 12] = [
-    (
-        "CharacterArmature.001/Root/Body/Hips/Abdomen/Torso/Chest",
-        "Shoulder.L/UpperArm.L/LowerArm.L/Wrist.L",
-    ),
-    (
-        "CharacterArmature.001/Root/Body/Hips/Abdomen/Torso/Chest/Shoulder.L/UpperArm.L/LowerArm.L/Wrist.L",
-        "Index1.L/Index2.L/Index3.L/Index4.L",
-    ),
-    (
-        "CharacterArmature.001/Root/Body/Hips/Abdomen/Torso/Chest/Shoulder.L/UpperArm.L/LowerArm.L/Wrist.L",
-        "Middle1.L/Middle2.L/Middle3.L/Middle4.L",
-    ),
-    (
-        "CharacterArmature.001/Root/Body/Hips/Abdomen/Torso/Chest/Shoulder.L/UpperArm.L/LowerArm.L/Wrist.L",
-        "Ring1.L/Ring2.L/Ring3.L/Ring4.L",
-    ),
-    (
-        "CharacterArmature.001/Root/Body/Hips/Abdomen/Torso/Chest/Shoulder.L/UpperArm.L/LowerArm.L/Wrist.L",
-        "Pinky1.L/Pinky2.L/Pinky3.L/Pinky4.L",
-    ),
-    (
-        "CharacterArmature.001/Root/Body/Hips/Abdomen/Torso/Chest/Shoulder.L/UpperArm.L/LowerArm.L/Wrist.L",
-        "Thumb1.L/Thumb2.L/Thumb3.L/Thumb4.L",
-    ),
-    (
-        "CharacterArmature.001/Root/Body/Hips/Abdomen/Torso/Chest/Shoulder.R",
-        "UpperArm.R/LowerArm.R/Wrist.R",
-    ),
-    (
-        "CharacterArmature.001/Root/Body/Hips/Abdomen/Torso/Chest/Shoulder.R/UpperArm.R/LowerArm.R/Wrist.R",
-        "Index1.R/Index2.R/Index3.R/Index4.R",
-    ),
-    (
-        "CharacterArmature.001/Root/Body/Hips/Abdomen/Torso/Chest/Shoulder.R/UpperArm.R/LowerArm.R/Wrist.R",
-        "Middle1.R/Middle2.R/Middle3.R/Middle4.R",
-    ),
-    (
-        "CharacterArmature.001/Root/Body/Hips/Abdomen/Torso/Chest/Shoulder.R/UpperArm.R/LowerArm.R/Wrist.R",
-        "Ring1.R/Ring2.R/Ring3.R/Ring4.R",
-    ),
-    (
-        "CharacterArmature.001/Root/Body/Hips/Abdomen/Torso/Chest/Shoulder.R/UpperArm.R/LowerArm.R/Wrist.R",
-        "Pinky1.R/Pinky2.R/Pinky3.R/Pinky4.R",
-    ),
-    (
-        "CharacterArmature.001/Root/Body/Hips/Abdomen/Torso/Chest/Shoulder.R/UpperArm.R/LowerArm.R/Wrist.R",
-        "Thumb1.R/Thumb2.R/Thumb3.R/Thumb4.R",
-    ),
-];
-const MASK_GROUP_PATHS_BODY_WITHOUT_ARMS: [(&str, &str); 7] = [
-    (
-        "CharacterArmature.001/Root/Body/Hips/Abdomen",
-        "Torso/Chest/Neck/Head",
-    ),
-    ("CharacterArmature.001/Root/", "Foot.L"),
-    ("CharacterArmature.001/Root/", "PT.L"),
-    ("CharacterArmature.001/Root/", "Foot.R"),
-    ("CharacterArmature.001/Root/", "PT.R"),
-    ("CharacterArmature.001/Root/Body", "UpperLeg.L/LowerLeg.L"),
-    ("CharacterArmature.001/Root/Body", "UpperLeg.R/LowerLeg.R"),
-];
-#[allow(dead_code)]
-pub fn spawn_gltf_as_child(
-    gltfs: &Res<Assets<Gltf>>,
-    asset_handles: &Res<GameAssets>,
-    scene_entities_by_name: &mut ResMut<SceneEntitiesByName>,
-    entity: Entity,
-    parent_entity: Entity,
-    commands: &mut Commands,
-    client_id: u64,
-    mut transform: Transform,
-    asset_names: Vec<&str>,
-) {
-    for asset_name in asset_names {
-        let scale = if asset_name == "models/sword.glb" {
-            0.1
-        } else {
-            1.0
-        };
-        println!("trying to spawn asset: {}", asset_name);
-        if let Some(handle) = asset_handles.gltf_files.get(asset_name) {
-            if let Some(gltf) = gltfs.get(handle) {
-                let scene = gltf.default_scene.clone().unwrap();
-                println!("player id: {}", entity);
-                commands.entity(entity).with_children(|parent| {
-                    transform.scale = Vec3::new(scale, scale, scale);
-                    let player_skeleton_entity = parent
-                        .spawn((
-                            SceneRoot(scene.clone()),
-                            transform,
-                            SceneName {
-                                scene_name: asset_name.to_string(),
-                                id: client_id,
-                                parent: parent_entity,
-                            },
-                        ))
-                        .id();
-                    scene_entities_by_name.0.insert(
-                        (asset_name.to_string(), (client_id)),
-                        player_skeleton_entity,
-                    );
-                    println!("inserting entity with id: {}", player_skeleton_entity);
-                });
-            }
-        }
-    }
-}
 pub fn setup_player(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    mut query: Query<(Entity, &NeedsSetup)>,
+    mut query: Query<(Entity, &NeedsSetup), Added<NeedsSetup>>,
     client_id: Res<CurrentClientId>,
-    mut player_entity: ResMut<LocalPlayer>,
+    mut local_player_res: ResMut<LocalPlayer>,
 ) {
-    let collider_height = 1.2;
-    for (entity, setup_info) in &mut query {
-        println!("setting up");
-        commands.entity(entity).insert((
-            PlayerRoot,
+    for (player_entity, setup_info) in &mut query {
+        commands.spawn((
+            LandscapeLoader {
+                cell_x: -2,
+                cell_y: -9,
+            },
+            Visibility::Visible,
+        ));
+        commands.spawn((
+            LandscapeLoader {
+                cell_x: -2,
+                cell_y: -9,
+            },
+            Visibility::Visible,
+        ));
+
+        println!("setting up player");
+        println!("client id: {} {}", client_id.0, setup_info.id);
+
+        //spawn the initial player
+        commands.entity(player_entity).insert((
             Player,
             Name::new(format!("Player {}", setup_info.id)),
             PlayerState {
                 id: setup_info.id,
                 ..Default::default()
             },
+            CreatureStats::new(setup_info.id),
             AnimateableEntity,
+            NetworkedEntity(player_entity),
             Transform::default(),
             Visibility::Visible,
-            NetworkedEntity(entity),
-            CreatureStats::new(setup_info.id),
         ));
+
+        //spawn the player's mesh
         let player_mesh = commands
             .spawn((
-                PlayerEntityLink(Some(entity)),
+                PlayerEntityLink(Some(player_entity)),
                 Visibility::Visible,
-                Transform::from_xyz(0.0, -collider_height / 1.3, 0.0),
+                Transform::from_xyz(0.0, -PLAYER_COLLIDER_HEIGHT / 1.3, 0.0),
             ))
             .id();
         commands
-            .entity(entity)
+            .entity(player_entity)
             .insert(MeshEntityLink(Some(player_mesh)));
-        //add player as a child so we won't rotate the camera when rotating the player
 
-        println!("client id: {} {}", client_id.0, setup_info.id);
+        //if this is the local player
         if client_id.0 == setup_info.id {
-            //if this is the local player
             commands.entity(player_mesh).insert(LocalPlayerMesh);
-            commands.entity(entity).insert((
+            commands.entity(player_entity).insert((
                 ThirdPersonCameraTarget,
                 LocalPlayer { id: setup_info.id },
+                SpatialAudioReceiver,
+                //default to first person, so hide the player
                 Visibility::Hidden,
             ));
-            player_entity.id = setup_info.id;
+            local_player_res.id = setup_info.id;
         }
-        println!("adding skeleton with id:{}", setup_info.id);
+        //rotate because of nif to bevy rotation weirdness
         let mut rotation = Quat::from_rotation_x(-FRAC_PI_2);
         rotation = rotation * Quat::from_rotation_z(PI);
         let player_mesh = spawn_nif_attached(
@@ -201,16 +100,16 @@ pub fn setup_player(
             &asset_server,
             setup_info.id,
             Transform {
-                translation: Vec3::new(0.0, -collider_height / 1.3, 0.0),
+                translation: Vec3::new(0.0, -PLAYER_COLLIDER_HEIGHT / 1.3, 0.0),
                 rotation,
                 scale: Vec3::splat(0.015),
             },
         );
-        commands.entity(entity).add_child(player_mesh);
-        commands.entity(entity).observe(actor_take_hit);
-        commands.entity(entity).insert((
+
+        commands.entity(player_entity).add_child(player_mesh);
+        commands.entity(player_entity).insert((
             Transform::from_xyz(0.0, 2.0, 0.0),
-            Collider::capsule_y(collider_height / 2.0, 0.3),
+            Collider::capsule_y(PLAYER_COLLIDER_HEIGHT / 2.0, 0.3),
             KinematicCharacterController {
                 custom_mass: Some(5.0),
                 up: Vec3::Y,
@@ -236,20 +135,7 @@ pub fn setup_player(
             "player id and transform: {}{}",
             setup_info.id, setup_info.player_transform.translation
         );
-        commands.entity(entity).remove::<NeedsSetup>();
-    }
-}
-#[allow(dead_code)]
-pub fn setup_assets(
-    asset_paths: Vec<&str>,
-    mut asset_handles: ResMut<GameAssets>,
-    asset_server: Res<AssetServer>,
-) {
-    for asset_path in asset_paths {
-        let gltf_scene = asset_server.load(asset_path);
-        asset_handles
-            .gltf_files
-            .insert(asset_path.to_string(), gltf_scene);
+        commands.entity(player_entity).remove::<NeedsSetup>();
     }
 }
 pub fn setup(
@@ -261,7 +147,7 @@ pub fn setup(
 ) {
     let (config, _) = gizmo_config_store.config_mut::<DefaultGizmoConfigGroup>();
     config.enabled = true;
-    //spawn_nif_unattached(commands.reborrow(), &asset_server);
+    spawn_nif_unattached(commands.reborrow(), &asset_server);
 
     commands.spawn((
         Camera3d::default(),
@@ -290,8 +176,8 @@ pub fn setup(
             ..default()
         },
         AmbientLight {
-            color: Color::linear_rgb(137.0 / 255.0, 140.0 / 255.0, 160.0 / 255.0),
-            brightness: 3000.0,
+            color: Color::linear_rgb(1.0, 1.0, 1.0),
+            brightness: 500.0,
             affects_lightmapped_meshes: true,
         },
         EnvironmentMapLight {
@@ -300,8 +186,8 @@ pub fn setup(
             intensity: 0.0,
             ..default()
         },
-        // DepthPrepass,
-        //MotionVectorPrepass,
+        DepthPrepass,
+        MotionVectorPrepass,
         DeferredPrepass,
         Fxaa::default(),
     ));
@@ -317,7 +203,7 @@ pub fn setup(
     ));
     commands.spawn((
         DirectionalLight {
-            illuminance: 1_000.,
+            illuminance: 500.,
             shadows_enabled: true,
             ..default()
         },
@@ -518,220 +404,25 @@ enum DefaultRenderMode {
     #[default]
     Deferred,
 }
-/*
-pub fn setup_scene_once_loaded(
-    mut commands: Commands,
-    mesh_query: Query<(&PlayerEntityLink, &Animator, &AnimationEntityLink)>,
-    graphs: Res<Assets<AnimationGraph>>,
-    mut animation_players: Query<(Entity, &mut AnimationPlayer), Added<AnimationPlayer>>,
-    mut clips: ResMut<Assets<AnimationClip>>,
-) {
-    fn get_clip<'a>(
-        node: AnimationNodeIndex,
-        graph: &AnimationGraph,
-        clips: &'a mut Assets<AnimationClip>,
-    ) -> &'a mut AnimationClip {
-        let node = graph.get(node).unwrap();
-        let clip = match &node.node_type {
-            AnimationNodeType::Clip(handle) => clips.get_mut(handle),
-            _ => unreachable!(),
-        };
-        clip.unwrap()
-    }
 
-    for (entity, mut player) in &mut animation_players {
-        for (player_entity_link, animator, animation_entity_link) in mesh_query.iter() {
-            let Some(animation_entity) = animation_entity_link.0.get("models/main_skeleton.glb")
-            else {
-                return;
-            };
-            if *animation_entity == entity {
-                println!("animation player added on entity: {}", entity);
-
-                if animator.animations.len() == 0 {
-                    return;
-                }
-                for node_index in 0..animator.animations.len() {
-                    /if node_index != AnimationState::Swinging as usize {
-                            player.play(animator.animations[node_index]).repeat();
-                        }
-                    }
-
-                    let graph = graphs.get(&animator.graph).unwrap();
-                    let swinging_animation = get_clip(
-                        animator.animations[AnimationState::Swinging as usize],
-                        graph,
-                        &mut clips,
-                    );
-                    //      swinging_animation.add_event(
-                    //        0.0,
-                    //      OnSwingFinished {
-                    //        entity: player_entity_link.0.unwrap(),
-                    //  },
-                    //);
-
-                    println!("adding animationntransitions on entity: {}", entity);
-                    commands
-                        .entity(entity)
-                        .insert(AnimationGraphHandle(animator.graph.clone()));
-
-            }
-        }
-    }
-}*/
-fn create_animation_nodes(
-    animation_names: &[&str],
-    clip_map: &HashMap<String, Handle<AnimationClip>>,
-) -> Vec<(String, AnimationNodeConfig)> {
-    animation_names
-        .iter()
-        .filter_map(|&name| {
-            clip_map.get(name).map(|clip_handle| {
-                let config = if name == "Swing_Weapon" {
-                    // Mask out the arms for swinging weapons
-                    let mask = !(1 << MaskGroup::ARMS as u64);
-                    AnimationNodeConfig::Masked {
-                        clip: clip_handle.clone(),
-                        mask,
-                        speed: 1.0,
-                    }
-                } else {
-                    AnimationNodeConfig::Standard {
-                        clip: clip_handle.clone(),
-                        speed: 1.0,
-                    }
-                };
-                (name.to_string(), config)
-            })
-        })
-        .collect()
-}
-fn build_animation_graph(
-    node_configs: Vec<(String, AnimationNodeConfig)>,
-) -> (AnimationGraph, Vec<AnimationNodeIndex>) {
-    let mut animation_graph = AnimationGraph::new();
-    let blend_node = animation_graph.add_blend(0.5, animation_graph.root);
-    let mut node_indices = Vec::new();
-
-    for (_name, config) in node_configs {
-        let node_index = match config {
-            AnimationNodeConfig::Standard { clip, speed } => {
-                animation_graph.add_clip(clip, speed, blend_node)
-            }
-            AnimationNodeConfig::Masked { clip, mask, speed } => {
-                animation_graph.add_clip_with_mask(clip, mask, speed, blend_node)
-            }
-        };
-        node_indices.push(node_index);
-    }
-
-    (animation_graph, node_indices)
-}
-
-pub fn detect_gltf_children(
-    _trigger: Trigger<SceneInstanceReady>,
-    players_without_animators: Query<Entity, (With<PlayerEntityLink>, Without<Animator>)>,
-    assets_gltf: Res<Assets<Gltf>>,
-    mut commands: Commands,
-    asset_handles: Res<GameAssets>,
-    mut graphs: ResMut<Assets<AnimationGraph>>,
-    mut spawn_state: ResMut<NextState<SpawnSceneState>>,
-) {
-    // Iterate over loaded GLTF assets
-    for (handle, gltf) in assets_gltf.iter() {
-        if let Some(asset_handle) = asset_handles
-            .gltf_files
-            .get(&"models/main_skeleton.glb".to_string())
-        {
-            //skip any not main_skeleton gltfs
-            if asset_handle.id() != handle {
-                continue;
-            }
-        }
-        println!("found glb {:?}", handle);
-        let animation_names = ["Idle", "Run", "Swing_Weapon", "Jump", "First_Person_Moving"];
-        // Collect relevant animation clips
-        let clips_to_process: Vec<(Box<str>, Handle<AnimationClip>)> = gltf
-            .named_animations
-            .iter()
-            .filter_map(|(name, clip)| {
-                let name_str: &str = &name;
-                println!("Processing animation clip: {}", name_str);
-                if animation_names.contains(&name_str) {
-                    println!("Processing animation clip: {}", name);
-                    Some((name.clone(), clip.clone())) // Keep the name for potential ordering
-                } else {
-                    None
-                }
-            })
-            .collect();
-        let clip_map: HashMap<String, Handle<AnimationClip>> = clips_to_process
-            .into_iter()
-            .map(|(k, v)| (k.to_string(), v))
-            .collect(); // ⬇️ Create animation node configs
-        let node_configs = create_animation_nodes(&animation_names, &clip_map);
-        // Build animation graph
-        let (mut animation_graph, node_indices) = build_animation_graph(node_configs);
-
-        //  Add target masking (arms)
-        for (_, (mask_group_prefix, mask_group_suffix)) in MASK_GROUP_PATHS_ARMS.iter().enumerate()
-        {
-            let prefix: Vec<_> = mask_group_prefix.split('/').map(Name::new).collect();
-            let suffix: Vec<_> = mask_group_suffix.split('/').map(Name::new).collect();
-
-            for chain_length in 1..=suffix.len() {
-                let animation_target_id = AnimationTargetId::from_names(
-                    prefix.iter().chain(suffix[0..chain_length].iter()),
-                );
-                animation_graph
-                    .add_target_to_mask_group(animation_target_id, MaskGroup::ARMS as u32);
-            }
-        }
-        //  Add target masking (torso)
-        for (_, (mask_group_prefix, mask_group_suffix)) in
-            MASK_GROUP_PATHS_BODY_WITHOUT_ARMS.iter().enumerate()
-        {
-            let prefix: Vec<_> = mask_group_prefix.split('/').map(Name::new).collect();
-            let suffix: Vec<_> = mask_group_suffix.split('/').map(Name::new).collect();
-
-            for chain_length in 0..=suffix.len() {
-                let animation_target_id = AnimationTargetId::from_names(
-                    prefix.iter().chain(suffix[0..chain_length].iter()),
-                );
-                animation_graph
-                    .add_target_to_mask_group(animation_target_id, MaskGroup::TORSO as u32);
-            }
-        }
-
-        let graph_handle = graphs.add(animation_graph);
-        if let Some(player) = players_without_animators.iter().next() {
-            commands.entity(player).insert(Animator {
-                animations: node_indices.clone(),
-                graph: graph_handle.clone(),
-            });
-        }
-    }
-
-    for handle in asset_handles.gltf_files.iter() {
-        println!("found glb me: {:?}", handle);
-    } //   walk_tree(&all_entities_with_children, &names, &parent_entity, 0);
-    spawn_state.set(SpawnSceneState::Spawned);
-}
 pub fn insert_nif_animator_links(
-    nif_animator_q: Query<(Entity, &NifAnimator), Added<NifAnimator>>,
-    player_state_q: Query<(Entity, &PlayerState)>,
+    trigger: Trigger<NifAnimatorAdded>,
+    nif_animator_q: Query<(Entity, &NifAnimator)>,
+    creature_q: Query<(Entity, &CreatureStats)>,
     mut commands: Commands,
 ) {
-    for (nif_animator_entity, nif_animator) in nif_animator_q {
-        for (player_entity, player_state) in player_state_q {
-            if nif_animator.skeleton_id == player_state.id {
-                commands
-                    .entity(player_entity)
-                    .insert(NifAnimatorLink(nif_animator_entity));
-            }
+    let Ok((nif_animator_entity, nif_animator)) = nif_animator_q.get(trigger.0) else {
+        return;
+    };
+    for (creature_entity, creature_stats) in creature_q {
+        if nif_animator.skeleton_id == creature_stats.id {
+            commands
+                .entity(creature_entity)
+                .insert(NifAnimatorLink(nif_animator_entity));
         }
     }
 }
+
 #[allow(clippy::too_many_arguments)]
 pub fn switch_mode(
     mut query: Query<&mut Text, With<HudText>>, // Changed to a regular Query with a filter

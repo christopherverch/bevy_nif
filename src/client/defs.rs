@@ -1,12 +1,13 @@
 use crate::serializer::PlayerStateNetwork;
-use crate::{AnimationState, RequestedAnimation, TriggeredAction};
+use crate::{AnimationState, NetworkEvent, RequestedAnimation};
 use bevy::prelude::*;
+use bevy_ecs::component::HookContext;
+use bevy_ecs::world::DeferredWorld;
 use bevy_nif::nif::animation::NifEventType;
-use esm_parser_lib::EsmReader;
+use esm_parser_lib::{EsmReader, LandTexture, Landscape};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::time::Instant;
-pub const MOVEMENT_VOLUME: bevy::audio::Volume = bevy::audio::Volume::Decibels(-12.0);
+use std::time::{Duration, Instant};
 
 #[derive(Resource, Component)]
 pub struct PlayerState {
@@ -22,10 +23,6 @@ pub struct PlayerState {
     pub secondary_animation: AnimationState,
     pub requested_primary_animation: Option<RequestedAnimation>,
     pub requested_secondary_animation: Option<RequestedAnimation>,
-    pub animation_events: Vec<(u8, AnimationEvent)>,
-    pub increasing_network_animation_signifier: u8,
-    pub increasing_network_trigger_signifier: u8,
-    pub triggered_actions: Vec<(u8, TriggeredAction)>,
 }
 impl Default for PlayerState {
     fn default() -> Self {
@@ -42,10 +39,6 @@ impl Default for PlayerState {
             secondary_animation: AnimationState::Idle,
             requested_primary_animation: None,
             requested_secondary_animation: None,
-            animation_events: Vec::new(),
-            increasing_network_animation_signifier: 0,
-            increasing_network_trigger_signifier: 0,
-            triggered_actions: Vec::new(),
         }
     }
 }
@@ -53,10 +46,11 @@ impl PlayerState {
     pub fn update_from_network(&mut self, net: PlayerStateNetwork) {
         self.transform = net.transform.into();
         self.attack_state = net.attack_state;
-        self.animation_events = net.animation_events;
     }
 }
+//we want this to be its own component so we can add it to actors, creatures, etc
 #[derive(Component, Clone, Debug, Serialize, Deserialize, Resource)]
+#[component(on_add = add_creature_to_id_map)]
 pub struct CreatureStats {
     pub id: u64,
     pub health: f32,
@@ -94,6 +88,7 @@ pub enum AnimationEvent {
     },
     RequestedAnimationEvent {
         requested_animation: RequestedAnimation,
+        target_id: u64,
     },
 }
 
@@ -158,13 +153,22 @@ pub enum GameState {
 #[derive(Component)]
 pub struct TestingComponent;
 #[derive(Component)]
-#[require(PlayerState)]
-pub struct PlayerRoot;
-#[derive(Component)]
 pub struct PlayerEntityLink(pub Option<Entity>);
 #[derive(Component)]
 pub struct NetworkedEntity(pub Entity);
+#[derive(Resource, Default, Debug)]
+pub struct NetworkEventWithIdIdCounter(pub u64);
+#[derive(Debug)]
+pub struct SentActionInfo {
+    pub action_payload: NetworkEvent, // Store for potential retry
+    pub time_sent: Duration,
+    pub retries: u8,
+}
+
+#[derive(Resource, Default, Debug)]
+pub struct PendingServerAcks(pub HashMap<u64, SentActionInfo>);
 #[derive(Component)]
+#[require(PlayerState)]
 pub struct Player;
 #[derive(Debug, Resource)]
 pub struct CurrentClientId(pub u64);
@@ -216,5 +220,50 @@ pub struct SceneName {
 pub struct AnimateableEntity;
 #[derive(Component)]
 pub struct KnockdownEventAdded;
+#[derive(Resource)]
+pub struct EsmReaderResource(pub EsmReader<'static>);
+
+#[derive(Resource)]
+pub struct AllLandscapes(pub HashMap<(i32, i32), Landscape>);
+#[derive(Resource)]
+pub struct AllLandTextures(pub HashMap<u32, LandTexture>);
+#[derive(Component)]
+pub struct LandscapeAwaitingImages {
+    pub image_handles: Vec<Handle<Image>>,
+    pub texture_index_map: HashMap<u16, usize>,
+}
+#[derive(Component)]
+pub struct LandscapeLoader {
+    pub cell_x: i32,
+    pub cell_y: i32,
+}
+
+pub const MORROWIND_CELL_SIZE: f32 = 40.96;
+pub const MORROWIND_HEIGHT_SCALE: f32 = 0.04;
 pub const COLLIDER_HEIGHT: f32 = 1.2;
 pub const MESH_HEIGHT_OFFSET: f32 = 0.9;
+#[derive(Resource, Default)]
+pub struct IdToEntityMap(pub HashMap<u64, Entity>);
+fn add_creature_to_id_map(
+    mut world: DeferredWorld,
+    HookContext {
+        entity: creature_entity,
+        ..
+    }: HookContext,
+) {
+    let id_to_insert_option = world
+        .get::<CreatureStats>(creature_entity)
+        .map(|stats| stats.id);
+
+    if let Some(actual_id) = id_to_insert_option {
+        world
+            .resource_mut::<IdToEntityMap>()
+            .0
+            .insert(actual_id, creature_entity);
+    } else {
+        panic!(
+            "CreatureStats not found on entity {:?} for IdToEntityMap insertion",
+            creature_entity
+        );
+    }
+}

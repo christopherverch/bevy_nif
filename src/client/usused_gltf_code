@@ -1,0 +1,331 @@
+
+/*
+pub fn setup_scene_once_loaded(
+    mut commands: Commands,
+    mesh_query: Query<(&PlayerEntityLink, &Animator, &AnimationEntityLink)>,
+    graphs: Res<Assets<AnimationGraph>>,
+    mut animation_players: Query<(Entity, &mut AnimationPlayer), Added<AnimationPlayer>>,
+    mut clips: ResMut<Assets<AnimationClip>>,
+) {
+    fn get_clip<'a>(
+        node: AnimationNodeIndex,
+        graph: &AnimationGraph,
+        clips: &'a mut Assets<AnimationClip>,
+    ) -> &'a mut AnimationClip {
+        let node = graph.get(node).unwrap();
+        let clip = match &node.node_type {
+            AnimationNodeType::Clip(handle) => clips.get_mut(handle),
+            _ => unreachable!(),
+        };
+        clip.unwrap()
+    }
+
+    for (entity, mut player) in &mut animation_players {
+        for (player_entity_link, animator, animation_entity_link) in mesh_query.iter() {
+            let Some(animation_entity) = animation_entity_link.0.get("models/main_skeleton.glb")
+            else {
+                return;
+            };
+            if *animation_entity == entity {
+                println!("animation player added on entity: {}", entity);
+
+                if animator.animations.len() == 0 {
+                    return;
+                }
+                for node_index in 0..animator.animations.len() {
+                    /if node_index != AnimationState::Swinging as usize {
+                            player.play(animator.animations[node_index]).repeat();
+                        }
+                    }
+
+                    let graph = graphs.get(&animator.graph).unwrap();
+                    let swinging_animation = get_clip(
+                        animator.animations[AnimationState::Swinging as usize],
+                        graph,
+                        &mut clips,
+                    );
+                    //      swinging_animation.add_event(
+                    //        0.0,
+                    //      OnSwingFinished {
+                    //        entity: player_entity_link.0.unwrap(),
+                    //  },
+                    //);
+
+                    println!("adding animationntransitions on entity: {}", entity);
+                    commands
+                        .entity(entity)
+                        .insert(AnimationGraphHandle(animator.graph.clone()));
+
+            }
+        }
+    }
+}*/
+pub fn detect_gltf_children(
+    _trigger: Trigger<SceneInstanceReady>,
+    players_without_animators: Query<Entity, (With<PlayerEntityLink>, Without<Animator>)>,
+    assets_gltf: Res<Assets<Gltf>>,
+    mut commands: Commands,
+    asset_handles: Res<GameAssets>,
+    mut graphs: ResMut<Assets<AnimationGraph>>,
+    mut spawn_state: ResMut<NextState<SpawnSceneState>>,
+) {
+    // Iterate over loaded GLTF assets
+    for (handle, gltf) in assets_gltf.iter() {
+        if let Some(asset_handle) = asset_handles
+            .gltf_files
+            .get(&"models/main_skeleton.glb".to_string())
+        {
+            //skip any not main_skeleton gltfs
+            if asset_handle.id() != handle {
+                continue;
+            }
+        }
+        println!("found glb {:?}", handle);
+        let animation_names = ["Idle", "Run", "Swing_Weapon", "Jump", "First_Person_Moving"];
+        // Collect relevant animation clips
+        let clips_to_process: Vec<(Box<str>, Handle<AnimationClip>)> = gltf
+            .named_animations
+            .iter()
+            .filter_map(|(name, clip)| {
+                let name_str: &str = &name;
+                println!("Processing animation clip: {}", name_str);
+                if animation_names.contains(&name_str) {
+                    println!("Processing animation clip: {}", name);
+                    Some((name.clone(), clip.clone())) // Keep the name for potential ordering
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let clip_map: HashMap<String, Handle<AnimationClip>> = clips_to_process
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v))
+            .collect(); // ⬇️ Create animation node configs
+        let node_configs = create_animation_nodes(&animation_names, &clip_map);
+        // Build animation graph
+        let (mut animation_graph, node_indices) = build_animation_graph(node_configs);
+
+        //  Add target masking (arms)
+        for (_, (mask_group_prefix, mask_group_suffix)) in MASK_GROUP_PATHS_ARMS.iter().enumerate()
+        {
+            let prefix: Vec<_> = mask_group_prefix.split('/').map(Name::new).collect();
+            let suffix: Vec<_> = mask_group_suffix.split('/').map(Name::new).collect();
+
+            for chain_length in 1..=suffix.len() {
+                let animation_target_id = AnimationTargetId::from_names(
+                    prefix.iter().chain(suffix[0..chain_length].iter()),
+                );
+                animation_graph
+                    .add_target_to_mask_group(animation_target_id, MaskGroup::ARMS as u32);
+            }
+        }
+        //  Add target masking (torso)
+        for (_, (mask_group_prefix, mask_group_suffix)) in
+            MASK_GROUP_PATHS_BODY_WITHOUT_ARMS.iter().enumerate()
+        {
+            let prefix: Vec<_> = mask_group_prefix.split('/').map(Name::new).collect();
+            let suffix: Vec<_> = mask_group_suffix.split('/').map(Name::new).collect();
+
+            for chain_length in 0..=suffix.len() {
+                let animation_target_id = AnimationTargetId::from_names(
+                    prefix.iter().chain(suffix[0..chain_length].iter()),
+                );
+                animation_graph
+                    .add_target_to_mask_group(animation_target_id, MaskGroup::TORSO as u32);
+            }
+        }
+
+        let graph_handle = graphs.add(animation_graph);
+        if let Some(player) = players_without_animators.iter().next() {
+            commands.entity(player).insert(Animator {
+                animations: node_indices.clone(),
+                graph: graph_handle.clone(),
+            });
+        }
+    }
+
+    for handle in asset_handles.gltf_files.iter() {
+        println!("found glb me: {:?}", handle);
+    } //   walk_tree(&all_entities_with_children, &names, &parent_entity, 0);
+    spawn_state.set(SpawnSceneState::Spawned);
+}
+
+const MASK_GROUP_PATHS_ARMS: [(&str, &str); 12] = [
+    (
+        "CharacterArmature.001/Root/Body/Hips/Abdomen/Torso/Chest",
+        "Shoulder.L/UpperArm.L/LowerArm.L/Wrist.L",
+    ),
+    (
+        "CharacterArmature.001/Root/Body/Hips/Abdomen/Torso/Chest/Shoulder.L/UpperArm.L/LowerArm.L/Wrist.L",
+        "Index1.L/Index2.L/Index3.L/Index4.L",
+    ),
+    (
+        "CharacterArmature.001/Root/Body/Hips/Abdomen/Torso/Chest/Shoulder.L/UpperArm.L/LowerArm.L/Wrist.L",
+        "Middle1.L/Middle2.L/Middle3.L/Middle4.L",
+    ),
+    (
+        "CharacterArmature.001/Root/Body/Hips/Abdomen/Torso/Chest/Shoulder.L/UpperArm.L/LowerArm.L/Wrist.L",
+        "Ring1.L/Ring2.L/Ring3.L/Ring4.L",
+    ),
+    (
+        "CharacterArmature.001/Root/Body/Hips/Abdomen/Torso/Chest/Shoulder.L/UpperArm.L/LowerArm.L/Wrist.L",
+        "Pinky1.L/Pinky2.L/Pinky3.L/Pinky4.L",
+    ),
+    (
+        "CharacterArmature.001/Root/Body/Hips/Abdomen/Torso/Chest/Shoulder.L/UpperArm.L/LowerArm.L/Wrist.L",
+        "Thumb1.L/Thumb2.L/Thumb3.L/Thumb4.L",
+    ),
+    (
+        "CharacterArmature.001/Root/Body/Hips/Abdomen/Torso/Chest/Shoulder.R",
+        "UpperArm.R/LowerArm.R/Wrist.R",
+    ),
+    (
+        "CharacterArmature.001/Root/Body/Hips/Abdomen/Torso/Chest/Shoulder.R/UpperArm.R/LowerArm.R/Wrist.R",
+        "Index1.R/Index2.R/Index3.R/Index4.R",
+    ),
+    (
+        "CharacterArmature.001/Root/Body/Hips/Abdomen/Torso/Chest/Shoulder.R/UpperArm.R/LowerArm.R/Wrist.R",
+        "Middle1.R/Middle2.R/Middle3.R/Middle4.R",
+    ),
+    (
+        "CharacterArmature.001/Root/Body/Hips/Abdomen/Torso/Chest/Shoulder.R/UpperArm.R/LowerArm.R/Wrist.R",
+        "Ring1.R/Ring2.R/Ring3.R/Ring4.R",
+    ),
+    (
+        "CharacterArmature.001/Root/Body/Hips/Abdomen/Torso/Chest/Shoulder.R/UpperArm.R/LowerArm.R/Wrist.R",
+        "Pinky1.R/Pinky2.R/Pinky3.R/Pinky4.R",
+    ),
+    (
+        "CharacterArmature.001/Root/Body/Hips/Abdomen/Torso/Chest/Shoulder.R/UpperArm.R/LowerArm.R/Wrist.R",
+        "Thumb1.R/Thumb2.R/Thumb3.R/Thumb4.R",
+    ),
+];
+const MASK_GROUP_PATHS_BODY_WITHOUT_ARMS: [(&str, &str); 7] = [
+    (
+        "CharacterArmature.001/Root/Body/Hips/Abdomen",
+        "Torso/Chest/Neck/Head",
+    ),
+    ("CharacterArmature.001/Root/", "Foot.L"),
+    ("CharacterArmature.001/Root/", "PT.L"),
+    ("CharacterArmature.001/Root/", "Foot.R"),
+    ("CharacterArmature.001/Root/", "PT.R"),
+    ("CharacterArmature.001/Root/Body", "UpperLeg.L/LowerLeg.L"),
+    ("CharacterArmature.001/Root/Body", "UpperLeg.R/LowerLeg.R"),
+];
+#[allow(dead_code)]
+pub fn spawn_gltf_as_child(
+    gltfs: &Res<Assets<Gltf>>,
+    asset_handles: &Res<GameAssets>,
+    scene_entities_by_name: &mut ResMut<SceneEntitiesByName>,
+    entity: Entity,
+    parent_entity: Entity,
+    commands: &mut Commands,
+    client_id: u64,
+    mut transform: Transform,
+    asset_names: Vec<&str>,
+) {
+    for asset_name in asset_names {
+        let scale = if asset_name == "models/sword.glb" {
+            0.1
+        } else {
+            1.0
+        };
+        println!("trying to spawn asset: {}", asset_name);
+        if let Some(handle) = asset_handles.gltf_files.get(asset_name) {
+            if let Some(gltf) = gltfs.get(handle) {
+                let scene = gltf.default_scene.clone().unwrap();
+                println!("player id: {}", entity);
+                commands.entity(entity).with_children(|parent| {
+                    transform.scale = Vec3::new(scale, scale, scale);
+                    let player_skeleton_entity = parent
+                        .spawn((
+                            SceneRoot(scene.clone()),
+                            transform,
+                            SceneName {
+                                scene_name: asset_name.to_string(),
+                                id: client_id,
+                                parent: parent_entity,
+                            },
+                        ))
+                        .id();
+                    scene_entities_by_name.0.insert(
+                        (asset_name.to_string(), (client_id)),
+                        player_skeleton_entity,
+                    );
+                    println!("inserting entity with id: {}", player_skeleton_entity);
+                });
+            }
+        }
+    }
+}
+fn build_animation_graph(
+    node_configs: Vec<(String, AnimationNodeConfig)>,
+) -> (AnimationGraph, Vec<AnimationNodeIndex>) {
+    let mut animation_graph = AnimationGraph::new();
+    let blend_node = animation_graph.add_blend(0.5, animation_graph.root);
+    let mut node_indices = Vec::new();
+
+    for (_name, config) in node_configs {
+        let node_index = match config {
+            AnimationNodeConfig::Standard { clip, speed } => {
+                animation_graph.add_clip(clip, speed, blend_node)
+            }
+            AnimationNodeConfig::Masked { clip, mask, speed } => {
+                animation_graph.add_clip_with_mask(clip, mask, speed, blend_node)
+            }
+        };
+        node_indices.push(node_index);
+    }
+
+    (animation_graph, node_indices)
+}
+        //   .add_systems(Update, setup_scene_once_loaded.after(detect_gltf_children))
+        // .add_systems(
+        //   Update,
+        // insert_animation_links.before(setup_scene_once_loaded),
+        //)
+fn create_animation_nodes(
+    animation_names: &[&str],
+    clip_map: &HashMap<String, Handle<AnimationClip>>,
+) -> Vec<(String, AnimationNodeConfig)> {
+    animation_names
+        .iter()
+        .filter_map(|&name| {
+            clip_map.get(name).map(|clip_handle| {
+                let config = if name == "Swing_Weapon" {
+                    // Mask out the arms for swinging weapons
+                    let mask = !(1 << MaskGroup::ARMS as u64);
+                    AnimationNodeConfig::Masked {
+                        clip: clip_handle.clone(),
+                        mask,
+                        speed: 1.0,
+                    }
+                } else {
+                    AnimationNodeConfig::Standard {
+                        clip: clip_handle.clone(),
+                        speed: 1.0,
+                    }
+                };
+                (name.to_string(), config)
+            })
+        })
+        .collect()
+}
+
+
+pub fn setup_assets(
+    asset_paths: Vec<&str>,
+    mut asset_handles: ResMut<GameAssets>,
+    asset_server: Res<AssetServer>,
+) {
+    for asset_path in asset_paths {
+        let gltf_scene = asset_server.load(asset_path);
+        asset_handles
+            .gltf_files
+            .insert(asset_path.to_string(), gltf_scene);
+    }
+}
+#[derive(Default, Resource)]
+pub struct GameAssets {
+    pub gltf_files: HashMap<String, Handle<Gltf>>,
+}

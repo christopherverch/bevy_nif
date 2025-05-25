@@ -41,7 +41,7 @@ impl Plugin for ThirdPersonCameraPlugin {
             )
             .add_systems(
                 PostUpdate,
-                sync_player_camera
+                sync_camera_and_player
                     .before(TransformSystem::TransformPropagate)
                     .in_set(CameraSyncSet),
             );
@@ -224,7 +224,7 @@ impl Offset {
 /// ```
 #[derive(Component)]
 pub struct ThirdPersonCameraTarget;
-fn sync_player_camera(
+fn sync_camera_and_player(
     mut player_q: Query<
         &Transform,
         (
@@ -312,7 +312,6 @@ fn sync_player_camera(
 
             // 5. Set the mesh's transform
             player_mesh_transform.translation = final_mesh_translation - Vec3::new(0.0, 0.45, 0.0);
-            //forward and back
             //player_mesh_transform.translation += cam_transform.forward().normalize() * testing_transform.translation.x;
             player_mesh_transform.rotation = final_rotation;
         }

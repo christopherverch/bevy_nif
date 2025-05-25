@@ -1,43 +1,44 @@
 //! This example compares Forward, Forward + Prepass, and Deferred rendering.
+use actor_funcs::apply_hit;
 use bevy::{
-    audio::AddAudioSource,
     pbr::{DefaultOpaqueRendererMethod, DirectionalLightShadowMap},
     prelude::*,
     scene::SceneInstanceReady,
 };
 use bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
+use bevy_kira_audio::{AudioPlugin, SpatialAudioPlugin};
 use bevy_nif::BevyNifPlugin;
+use bevy_rapier3d::prelude::RapierPhysicsPlugin;
 use bevy_rapier3d::prelude::*;
 use bevy_renet::RenetClientPlugin;
-use cdda_bevy::client::third_person_camera::*;
-use cdda_bevy::client::ui::*;
-//use bsatoollib as bsa;
-use bevy_rapier3d::prelude::RapierPhysicsPlugin; //, TimestepMode};
 use cdda_bevy::client::defs::*;
 use cdda_bevy::client::modular_characters::*;
+use cdda_bevy::client::third_person_camera::*;
+use cdda_bevy::client::ui::*;
 use cdda_bevy::networking::PlayerCommand;
+use handle_nif_events::handle_nif_trigger;
 use sound::generate_sound;
 use std::f32::consts::*;
 use std::time::Instant;
 use terrain_material::TerrainBlendMaterial;
-use wav_loader::{MorrowindDecodedWav, MorrowindWavLoader};
 mod actor_funcs;
+mod handle_nif_events;
+mod initial_esm_parse;
+mod landscape_loader;
 mod player_input;
 mod send_data;
 mod setup_funcs;
 mod terrain_material;
-mod test_esm;
 mod test_esm2;
-use test_esm2::*;
-mod wav_loader;
+use initial_esm_parse::*;
+use landscape_loader::*;
 use player_input::*;
 use send_data::*;
 use setup_funcs::*;
-use test_esm::*;
 mod actor_animation;
 mod sound;
-use actor_animation::{handle_animation_request, test_animations, test_nif_trigger};
+use actor_animation::{handle_animation_request, test_animations};
 #[derive(Debug)]
 struct ClientServerEntity {
     client_entity: Entity,
@@ -80,7 +81,10 @@ fn main() {
                 enable_multipass_for_primary_context: true,
             },
             WorldInspectorPlugin::default(),
+            AudioPlugin,
+            SpatialAudioPlugin,
         ))
+        .add_plugins(MaterialPlugin::<TerrainBlendMaterial>::default())
         .insert_resource(Pause(true));
     add_netcode_network(&mut app);
     app.edit_schedule(FixedUpdate, |schedule| {
@@ -98,57 +102,36 @@ fn main() {
         .insert_resource(PlayerState::default())
         .insert_resource(LocalPlayer::default())
         .insert_resource(Animations::default())
+        .insert_resource(IdToEntityMap::default())
         .insert_resource(SceneEntitiesByName::default())
-        .init_asset::<MorrowindDecodedWav>()
+        /*   .init_asset::<MorrowindDecodedWav>()
         .init_asset_loader::<MorrowindWavLoader>()
-        .add_audio_source::<MorrowindDecodedWav>()
+        .add_audio_source::<MorrowindDecodedWav>()*/
         .init_state::<GameState>()
         .init_state::<SpawnSceneState>()
         .add_systems(Startup, setup)
-        .add_systems(Startup, test)
-        .add_systems(Startup, test_splatmap)
-        /*.add_systems(
-            Startup,
-            (setup_esm_reader_resource,).before(load_specific_landscape_cell_system),
-        )
-        .add_systems(
-            Startup,
-            (load_specific_landscape_cell_system).after(setup_esm_reader_resource),
-        )
-        .add_systems(Update, mesh_landscape_on_load_event)*/
+        .add_systems(Startup, populate_esm_resources)
         .add_systems(Update, setup_player)
-        .add_systems(Update, await_image_loading)
         .add_systems(Update, add_nif_animation_events)
-        //   .add_systems(Update, setup_scene_once_loaded.after(detect_gltf_children))
-        // .add_systems(
-        //   Update,
-        // insert_animation_links.before(setup_scene_once_loaded),
-        //)
         .add_event::<SceneInstanceReady>()
         .add_systems(Update, keyboard_input)
-        .add_observer(detect_gltf_children)
+        .add_observer(generate_sound)
         .add_observer(assemble_parts)
         .add_observer(handle_animation_request)
-        .add_observer(handle_animation_request)
-        .add_observer(test_nif_trigger)
+        .add_observer(handle_nif_trigger)
         .add_observer(trigger_attack)
+        .add_observer(apply_hit)
         .add_observer(knockdown_finished)
-        .add_observer(generate_sound)
-        .add_plugins(MaterialPlugin::<TerrainBlendMaterial>::default())
-        .insert_resource(GameAssets::default())
-        /*       .add_systems(
-            PostUpdate,
-            camera_movement.after(PhysicsSet::StepSimulation),
-        )*/
-        .add_systems(Update, attach_camera_to_player)
+        .add_observer(insert_nif_animator_links)
         .add_systems(Update, test_animations)
+        .add_systems(Update, load_landscape)
+        .add_systems(Update, setup_landscape_images)
         .add_systems(OnEnter(GameState::MainMenu), setup_main_menu)
         .add_systems(OnEnter(GameState::Connecting), despawn_main_menu_ui)
         .add_systems(OnEnter(GameState::Connecting), connect_to_server)
         .add_systems(OnEnter(GameState::Offline), spawn_player_offline)
         .add_systems(FixedUpdate, player_movement)
         .add_systems(Update, (switch_mode, animate_light_direction))
-        .add_systems(Update, insert_nif_animator_links)
         .run();
 }
 fn spawn_player_offline(mut commands: Commands) {
@@ -161,18 +144,7 @@ fn spawn_player_offline(mut commands: Commands) {
     //let player_transform_server =
     //  Transform::from_xyz(translation[0], translation[1], translation[2]);
 }
-fn attach_camera_to_player(
-    mut commands: Commands,
-    player_query: Query<&ChildOf, (Added<PlayerRoot>, With<LocalPlayer>)>,
-    mut camera_query: Query<(Entity, &mut Transform), With<PlayerCamera>>,
-) {
-    if let Ok(player) = player_query.single() {
-        if let Ok((camera_entity, mut camera_transform)) = camera_query.single_mut() {
-            camera_transform.translation = Vec3::ZERO;
-            commands.entity(player.parent()).add_child(camera_entity);
-        }
-    }
-}
+
 fn animate_light_direction(
     time: Res<Time>,
     mut query: Query<&mut Transform, With<DirectionalLight>>,

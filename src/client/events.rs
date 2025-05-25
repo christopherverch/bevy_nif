@@ -1,10 +1,12 @@
 use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
 
 use crate::RequestedAnimation;
 #[derive(Event, Clone)]
 pub struct RequestAnimation {
-    pub entity: Entity,
+    pub entity_id: u64,
     pub requested_animation: RequestedAnimation,
+    pub networked: bool,
 }
 #[derive(Event, Clone)]
 pub struct ToggledThirdPerson {
@@ -16,21 +18,28 @@ pub struct OnSwingFinished {
     pub entity: Entity,
 }
 #[derive(Event, Reflect, Clone)]
-pub struct AttackTrigger {
-    pub entity: Entity,
+pub struct TryAttackTrigger {
+    pub attacker_entity: Entity,
+    pub attacker_id: u64,
     pub origin: Vec3,
     pub direction: Vec3,
     pub damage: f32,
 }
-#[derive(Event, Reflect, Clone)]
-pub struct TakeHit {
-    pub creature_id: u64,
+#[derive(Event, Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct TriggerHit {
+    pub attacker_id: u64,
+    pub receiver_id: u64,
     pub damage: f32,
-    pub is_from_network: bool,
+    pub networked: bool,
 }
 
 #[derive(Event, Reflect, Clone)]
 pub struct KnockdownFinished(pub Entity);
 
-#[derive(Event, Reflect, Clone)]
-pub struct SoundEvent(pub String);
+#[derive(Event, Debug, Serialize, Deserialize, Clone)]
+pub struct SoundEvent {
+    pub sound_anchor_entity: Option<Entity>,
+    pub translation: Option<Vec3>,
+    pub sound_path: String,
+    pub is_attached_to_local_player: bool,
+}

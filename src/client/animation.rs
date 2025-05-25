@@ -277,9 +277,9 @@ fn run_swinging_playback(
 }*/
 pub fn trigger_request_animation(
     mut commands: Commands,
-    entity: Entity,
     requested_animation: RequestedAnimation,
     player_state: &mut PlayerState,
+    networked: bool,
 ) {
     if AnimationState::from(requested_animation.clone()).is_primary() {
         player_state.requested_primary_animation = Some(requested_animation.clone());
@@ -287,7 +287,8 @@ pub fn trigger_request_animation(
         player_state.requested_secondary_animation = Some(requested_animation.clone());
     }
     commands.trigger(RequestAnimation {
-        entity,
+        entity_id: player_state.id,
         requested_animation,
+        networked,
     });
 }

@@ -63,14 +63,14 @@ impl AssetLoader for NifAssetLoader {
                 ParsedBlock::MaterialProperty(mat_prop) => {
                     let mut material = StandardMaterial::default();
                     material.base_color = Color::srgb(
-                        mat_prop.diffuse_color.0[0],
-                        mat_prop.diffuse_color.0[1],
-                        mat_prop.diffuse_color.0[2],
+                        mat_prop.diffuse_color[0],
+                        mat_prop.diffuse_color[1],
+                        mat_prop.diffuse_color[2],
                     );
                     material.emissive = LinearRgba::rgb(
-                        mat_prop.emissive_color.0[0],
-                        mat_prop.emissive_color.0[1],
-                        mat_prop.emissive_color.0[2],
+                        mat_prop.emissive_color[0],
+                        mat_prop.emissive_color[1],
+                        mat_prop.emissive_color[2],
                     );
                     material.metallic = 0.1;
                     material.perceptual_roughness =

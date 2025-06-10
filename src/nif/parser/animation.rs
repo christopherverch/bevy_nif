@@ -1,5 +1,5 @@
 use crate::animation::{
-    BoneData, BoneVertData, NiSequenceStreamHelper, NiSkinData, NiSkinInstance,
+    BoneData, BoneVertData, NiSequenceStreamHelper, NiSkinData, NiSkinInstance, NifAxisOrder,
 };
 use crate::nif::error::{ParseError, Result};
 use crate::nif::parser::base_parsers::parse_niobjectnet_fields;
@@ -121,74 +121,140 @@ pub fn parse_nikeyframedata_fields(
     cursor: &mut Cursor<&[u8]>,
     _block_index: u32,
 ) -> Result<NiKeyframeData> {
-    // Rotations (Quaternions)
-    let num_rotation_keys = cursor.read_u32::<LittleEndian>()?;
-    let mut rotation_type_opt = None; // Renamed to Option
-    let mut quaternion_keys = Vec::with_capacity(num_rotation_keys as usize);
-    if num_rotation_keys > 0 {
-        let rotation_type_raw = cursor.read_u32::<LittleEndian>()?;
-        let parsed_rotation_type = KeyType::from(rotation_type_raw);
-        rotation_type_opt = Some(parsed_rotation_type); // Store the type
-        if num_rotation_keys > 10000 {
+    // --- Rotation Data ---
+    let num_rotation_keys_for_quat = cursor.read_u32::<LittleEndian>()?; // This count is for Quaternion keys if type is not XYZ
+    let rotation_type_raw = cursor.read_u32::<LittleEndian>()?;
+    let parsed_rotation_type = KeyType::from(rotation_type_raw); //
+
+    let rotation_type_opt: Option<KeyType>;
+    let mut quaternion_keys: Vec<KeyQuaternion> = Vec::new();
+    let mut x_rotation_interp_opt: Option<KeyType> = None;
+    let mut x_rotation_keys_opt: Option<Vec<KeyFloat>> = None;
+    let mut y_rotation_interp_opt: Option<KeyType> = None;
+    let mut y_rotation_keys_opt: Option<Vec<KeyFloat>> = None;
+    let mut z_rotation_interp_opt: Option<KeyType> = None;
+    let mut z_rotation_keys_opt: Option<Vec<KeyFloat>> = None;
+    let mut axis_order_opt: Option<NifAxisOrder> = None;
+
+    if parsed_rotation_type == KeyType::XyzRotation {
+        //
+        rotation_type_opt = Some(KeyType::XyzRotation);
+        // NIF spec for 4.0.0.2: if Rotation Type is XYZ_ROTATION_KEY, num_rotation_keys (for quats) must be 0.
+        if num_rotation_keys_for_quat != 0 {
+            warn!(
+                "NiKeyframeData: Rotation type is XYZ but Num Rotation Keys (for Quat) is {}. Expected 0.",
+                num_rotation_keys_for_quat
+            );
+        }
+
+        let (x_interp, x_keys) = parse_float_key_list(cursor)?;
+        x_rotation_interp_opt = Some(x_interp);
+        x_rotation_keys_opt = Some(x_keys);
+
+        let (y_interp, y_keys) = parse_float_key_list(cursor)?;
+        y_rotation_interp_opt = Some(y_interp);
+        y_rotation_keys_opt = Some(y_keys);
+
+        let (z_interp, z_keys) = parse_float_key_list(cursor)?;
+        z_rotation_interp_opt = Some(z_interp);
+        z_rotation_keys_opt = Some(z_keys);
+
+        let axis_order_raw = cursor.read_u32::<LittleEndian>()?;
+        axis_order_opt = Some(NifAxisOrder::from(axis_order_raw));
+    } else if num_rotation_keys_for_quat > 0 {
+        rotation_type_opt = Some(parsed_rotation_type);
+        quaternion_keys.reserve(num_rotation_keys_for_quat as usize);
+        if num_rotation_keys_for_quat > 10000 {
+            // Sanity check from your original code
             return Err(ParseError::InvalidData(
                 "Too many rotation keys".to_string(),
             ));
-        } // Sanity check
-        for _ in 0..num_rotation_keys {
-            quaternion_keys.push(read_key_quat(cursor, parsed_rotation_type)?); // Pass type
         }
+        for _ in 0..num_rotation_keys_for_quat {
+            quaternion_keys.push(read_key_quat(cursor, parsed_rotation_type)?); //
+        }
+    } else {
+        // No rotation keys (and not XYZ type explicitly)
+        rotation_type_opt = Some(parsed_rotation_type); // Still store the type, even if no keys
+        // or None if type is only valid with keys
     }
 
-    // Translations (Vec3)
-    let num_translation_keys = cursor.read_u32::<LittleEndian>()?;
+    // --- Translations (Vec3) ---
+    let num_translation_keys = cursor.read_u32::<LittleEndian>()?; //
     let mut translation_interp = KeyType::Linear; // Default assumption
     let mut translations = Vec::with_capacity(num_translation_keys as usize);
     if num_translation_keys > 0 {
-        // *** Read the interpolation type for translations ***
-        let translation_interp_raw = cursor.read_u32::<LittleEndian>()?;
-        translation_interp = KeyType::from(translation_interp_raw);
+        let translation_interp_raw = cursor.read_u32::<LittleEndian>()?; //
+        translation_interp = KeyType::from(translation_interp_raw); //
 
         if num_translation_keys > 10000 {
+            // Sanity check
             return Err(ParseError::InvalidData(
                 "Too many translation keys".to_string(),
             ));
-        } // Sanity check
+        }
         for _ in 0..num_translation_keys {
-            // *** Pass the interpolation type to the key reader ***
-            translations.push(read_key_vec3(cursor, translation_interp)?);
+            translations.push(read_key_vec3(cursor, translation_interp)?); //
         }
     }
 
-    // Scales (Float)
-    let num_scale_keys = cursor.read_u32::<LittleEndian>()?;
+    // --- Scales (Float) ---
+    let num_scale_keys = cursor.read_u32::<LittleEndian>()?; //
     let mut scale_interp = KeyType::Linear; // Default assumption
     let mut scales = Vec::with_capacity(num_scale_keys as usize);
     if num_scale_keys > 0 {
-        // *** Read the interpolation type for scales ***
-        let scale_interp_raw = cursor.read_u32::<LittleEndian>()?;
-        scale_interp = KeyType::from(scale_interp_raw);
+        let scale_interp_raw = cursor.read_u32::<LittleEndian>()?; //
+        scale_interp = KeyType::from(scale_interp_raw); //
 
         if num_scale_keys > 10000 {
+            // Sanity check
             return Err(ParseError::InvalidData("Too many scale keys".to_string()));
-        } // Sanity check
+        }
         for _ in 0..num_scale_keys {
-            // *** Pass the interpolation type to the key reader ***
-            scales.push(read_key_float(cursor, scale_interp)?);
+            scales.push(read_key_float(cursor, scale_interp)?); //
         }
     }
 
     let key_data = NiKeyframeData {
         rotation_type: rotation_type_opt,
         quaternion_keys,
+        x_rotation_interp: x_rotation_interp_opt,
+        x_rotation_keys: x_rotation_keys_opt,
+        y_rotation_interp: y_rotation_interp_opt,
+        y_rotation_keys: y_rotation_keys_opt,
+        z_rotation_interp: z_rotation_interp_opt,
+        z_rotation_keys: z_rotation_keys_opt,
+        axis_order: axis_order_opt,
         translation_interp,
         translations,
         scale_interp,
         scales,
     };
-
-    Ok(key_data)
+    Ok(key_data) //
 }
+// Helper function to parse a list of float keys (for XYZ components)
+fn parse_float_key_list(cursor: &mut Cursor<&[u8]>) -> Result<(KeyType, Vec<KeyFloat>)> {
+    let num_keys = cursor.read_u32::<LittleEndian>()?;
+    let mut interp_type = KeyType::Linear; // Default or read if present
+    let mut keys = Vec::with_capacity(num_keys as usize);
 
+    if num_keys > 0 {
+        let interp_raw = cursor.read_u32::<LittleEndian>()?;
+        interp_type = KeyType::from(interp_raw);
+
+        if num_keys > 10000 {
+            // Sanity check from your original code
+            return Err(ParseError::InvalidData(format!(
+                "Too many float keys: {}",
+                num_keys
+            )));
+        }
+        for _ in 0..num_keys {
+            keys.push(read_key_float(cursor, interp_type)?); //
+        }
+    }
+    Ok((interp_type, keys))
+}
 pub fn parse_nitribasedgeomdata_fields(
     cursor: &mut Cursor<&[u8]>,
     geom_base: NiGeometryData,

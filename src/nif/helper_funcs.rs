@@ -1,7 +1,4 @@
-use crate::{
-    Vector3,
-    nif::types::{NiTransform, NiTriShapeData},
-};
+use crate::nif::types::{NiTransform, NiTriShapeData};
 use bevy::{
     asset::RenderAssetUsages,
     prelude::*,
@@ -26,14 +23,14 @@ pub fn convert_nif_mesh(data: &NiTriShapeData) -> Option<Mesh> {
     }
 
     // Convert vertex positions
-    let converted_vertices: Vec<[f32; 3]> = vertices_nif.iter().map(|v| v.0).collect();
+    let converted_vertices: Vec<[f32; 3]> = vertices_nif.iter().map(|v| [v.x, v.y, v.z]).collect();
     // Convert normals (if they exist)
     let converted_normals: Option<Vec<[f32; 3]>> = data
         .tri_base
         .geom_base
         .normals
         .as_ref()
-        .map(|n| n.iter().map(|v| v.0).collect());
+        .map(|n| n.iter().map(|v| [v.x, v.y, v.z]).collect());
 
     // Convert UVs (use the first UV set if it exists)
     let converted_uvs: Option<Vec<[f32; 2]>> = data
@@ -41,7 +38,7 @@ pub fn convert_nif_mesh(data: &NiTriShapeData) -> Option<Mesh> {
         .geom_base
         .uv_sets
         .get(0) // Get the first UV set
-        .map(|uv_set| uv_set.iter().map(|v| v.0).collect());
+        .map(|uv_set| uv_set.iter().map(|v| [v.x, v.y]).collect());
     let final_mesh_opt: Option<Mesh>;
 
     // Create the Bevy Mesh
@@ -107,7 +104,7 @@ pub fn convert_nif_transform(nif_transform: &NiTransform) -> Transform {
     );
     let initial_rotation = Quat::from_mat3(&rot_mat);
 
-    let initial_translation = Vec3::from_array(nif_transform.translation.0);
+    let initial_translation = nif_transform.translation;
     // Assuming uniform scale. If NIF has non-uniform scale, it would need handling here too.
     let initial_scale = Vec3::splat(nif_transform.scale);
 
@@ -132,7 +129,7 @@ pub fn convert_nif_transform(nif_transform: &NiTransform) -> Transform {
     bevy_space_transform
 }
 fn create_mesh_with_flat_normals(
-    original_vertices_nif: &Vec<Vector3>,
+    original_vertices_nif: &Vec<Vec3>,
     original_indices: &[u16],
     original_uvs: Option<&Vec<[f32; 2]>>, // Pass converted UVs if available
 ) -> Option<Mesh> {
@@ -188,9 +185,9 @@ fn create_mesh_with_flat_normals(
         }
 
         // Get vertex positions
-        let v0 = Vec3::from_array(original_vertices_nif[idx0].0);
-        let v1 = Vec3::from_array(original_vertices_nif[idx1].0);
-        let v2 = Vec3::from_array(original_vertices_nif[idx2].0);
+        let v0 = original_vertices_nif[idx0];
+        let v1 = original_vertices_nif[idx1];
+        let v2 = original_vertices_nif[idx2];
 
         // Calculate face normal
         let edge1 = v1 - v0;

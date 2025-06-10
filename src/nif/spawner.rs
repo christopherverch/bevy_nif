@@ -1,12 +1,12 @@
-use crate::animation::NiSkinData;
-use crate::animation::NiSkinInstance;
 // src/nif/spawner.rs
-use super::animation::SkeletonMap;
 use super::attach_parts::AttachmentType;
 use super::loader::Nif;
+use crate::animation::NiSkinData;
+use crate::animation::NiSkinInstance;
 use crate::nif::helper_funcs::{convert_nif_transform, resolve_nif_path};
 use crate::nif::skeleton::*;
 use crate::nif::types::*;
+use crate::nif_animation::SkeletonMap;
 use bevy::asset::{Assets, Handle};
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::pbr::{MeshMaterial3d, StandardMaterial};
@@ -37,7 +37,6 @@ pub struct LoadedNifScene(pub Handle<Nif>);
 #[derive(Resource, Default, Debug, Component)]
 pub struct NifScene(pub Handle<Nif>);
 pub fn spawn_nif_scenes(
-    // Other needed Bevy resources and queries
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -62,7 +61,7 @@ pub fn spawn_nif_scenes(
                 let target_skeleton_id = attachment_type.get_target_skeleton_id();
                 if let Some(path) = asset_handle.path() {
                     if path.to_string().contains("base_anim.nif") {
-                        //maybe find a better way of checking this
+                        // maybe find a better way of checking this
                         is_main_skeleton = true;
                     }
                 }
@@ -72,8 +71,8 @@ pub fn spawn_nif_scenes(
                     .is_none()
                     && !is_main_skeleton
                 {
-                    //if this isn't the skeleton asset path and we have no skeleton for this target,
-                    //continue checking until/if we have an asset we CAN set up
+                    // if this isn't the skeleton asset path and we have no skeleton for this target,
+                    // continue checking until/if we have an asset we CAN set up
                     return None;
                 }
 
@@ -95,10 +94,10 @@ pub fn spawn_nif_scenes(
     };
 
     // --- Data Conversion and Spawning ---
-    //pass 2
+    // pass 2
     let mut entity_map: HashMap<usize, Entity> = HashMap::new();
 
-    // Spawn the top-level scene root entity (optional, but good practice)
+    // Spawn the top-level scene root entity
     let scene_root_entity = commands
         .spawn((
             Transform {
@@ -301,7 +300,7 @@ fn spawn_nif_node_recursive(
                                 let mask_cutoff = threshold as f32 / 255.0;
                                 final_alpha_mode = Some(AlphaMode::Mask(mask_cutoff));
                                 // Alpha-masked materials often benefit from being double-sided
-                                // You might want to handle this later when applying the final material
+                                // might want to handle this later when applying the final material
                                 // e.g., set `final_material.double_sided = true;`
                             } else if enable_blending {
                                 // Use Blend mode if blending is enabled (and testing is not)
@@ -491,8 +490,8 @@ fn spawn_nif_node_recursive(
                 // 2. Spawn Skeleton Hierarchy
                 let mut skeleton_ready = false;
                 if !is_main_skeleton {
-                    //if not the main skeleton, we can only get here if the skeleton is already
-                    //set up correctly
+                    // if not the main skeleton, we can only get here if the skeleton is already
+                    // set up correctly
                     skeleton_ready = true;
                 } else {
                     if let Some(skeleton_root_index) = si.skeleton_root {

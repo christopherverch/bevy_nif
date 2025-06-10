@@ -135,4 +135,36 @@ impl Skeleton {
         }
         children
     }
+    pub fn is_descendant_of_or_is(&self, bone_name: &str, ancestor_name: &str) -> bool {
+        if bone_name == ancestor_name {
+            return true;
+        }
+
+        let mut current_bone_id_opt = self.name_to_id.get(bone_name).copied();
+
+        while let Some(current_bone_id) = current_bone_id_opt {
+            // Get the current bone's data
+            let current_bone_data = match self.get_bone_by_id(current_bone_id) {
+                Some(b) => b,
+                None => return false, // Should not happen if ID came from name_to_id
+            };
+
+            // Check parent
+            if let Some(parent_id) = current_bone_data.parent {
+                let parent_bone_data = match self.get_bone_by_id(parent_id) {
+                    Some(p) => p,
+                    None => return false, // Parent ID exists but no data, should not happen
+                };
+                if parent_bone_data.name == ancestor_name {
+                    return true;
+                }
+                current_bone_id_opt = Some(parent_id); // Move to the parent for next iteration
+            } else {
+                // No parent, we've reached a root without finding the ancestor
+                return false;
+            }
+        }
+        // If bone_name was not found in name_to_id initially
+        false
+    }
 }

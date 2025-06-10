@@ -1,8 +1,7 @@
 use std::collections::VecDeque;
 
-use crate::nif::spawner::NifInstantiated;
+use crate::{nif::spawner::NifInstantiated, nif_animation::SkeletonMap};
 
-use super::animation::SkeletonMap;
 use bevy::{prelude::*, render::render_resource::Face};
 
 #[derive(Component, PartialEq, Clone, Debug)]

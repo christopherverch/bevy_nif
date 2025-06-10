@@ -8,8 +8,10 @@ repository = "https://github.com/christopherverch/bevy_nif"
 readme = "readme.md"
 [dependencies]
 anyhow = "1.0.98"
-bevy = { version = "0.16", default-features = false, features = ["bevy_asset", "animation", "bevy_log"] }
+bevy = { version = "0.16", default-features = false, features = ["bevy_asset", "bevy_core_pipeline", "bevy_pbr", "bevy_scene","animation", "bevy_log", "dynamic_linking","x11", "tonemapping_luts"] }
+bevy-inspector-egui = "0.31.0"
 bevy_animation = "0.16"
+bevy_third_person_camera = "0.3.0"
 binrw = "0.14.1"
 bitflags = "2.9.0"
 bmp = "0.5.0"

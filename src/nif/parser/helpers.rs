@@ -1,16 +1,15 @@
 // src/nif/parser/helpers.rs
 
 // --- Imports ---
-// Assuming ParseError and structs like Vector3, Matrix3x3, RecordLink, Vector2, Vector4 are defined
+// Assuming ParseError and structs like Vec3, Matrix3x3, RecordLink, Vec2, Vec4 are defined
 // in the parent `nif` module (e.g., src/nif/structs.rs) or crate root (e.g., src/error.rs)
 // Adjust these paths as needed based on your project structure.
 use crate::NiTransform; // Adjust path if needed
 use crate::nif::error::ParseError; // Adjust path if needed
 use crate::nif::types::{
-    KeyFloat, KeyQuaternion, KeyType, KeyVec3, Matrix3x3, Plane, Quaternion, RecordLink, Vector2,
-    Vector3, Vector4,
+    KeyFloat, KeyQuaternion, KeyType, KeyVec3, Matrix3x3, Plane, Quaternion, RecordLink,
 };
-use bevy::math::Quat;
+use bevy::math::{Quat, Vec2, Vec3, Vec4};
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::io::{Cursor, Read};
 
@@ -50,12 +49,12 @@ pub fn read_link(cursor: &mut Cursor<&[u8]>) -> Result<RecordLink> {
     }
 }
 
-pub fn read_vector3(cursor: &mut Cursor<&[u8]>) -> Result<Vector3> {
-    Ok(Vector3([
+pub fn read_vector3(cursor: &mut Cursor<&[u8]>) -> Result<Vec3> {
+    Ok(Vec3::new(
         cursor.read_f32::<LittleEndian>()?,
         cursor.read_f32::<LittleEndian>()?,
         cursor.read_f32::<LittleEndian>()?,
-    ]))
+    ))
 }
 
 pub fn read_matrix3x3(cursor: &mut Cursor<&[u8]>) -> Result<Matrix3x3> {
@@ -84,20 +83,20 @@ pub fn read_link_list(cursor: &mut Cursor<&[u8]>) -> Result<Vec<RecordLink>> {
     Ok(links)
 }
 
-pub fn read_vector2(cursor: &mut Cursor<&[u8]>) -> Result<Vector2> {
-    Ok(Vector2([
+pub fn read_vector2(cursor: &mut Cursor<&[u8]>) -> Result<Vec2> {
+    Ok(Vec2::new(
         cursor.read_f32::<LittleEndian>()?,
         cursor.read_f32::<LittleEndian>()?,
-    ]))
+    ))
 }
 
-pub fn read_vector4(cursor: &mut Cursor<&[u8]>) -> Result<Vector4> {
-    Ok(Vector4([
+pub fn read_vector4(cursor: &mut Cursor<&[u8]>) -> Result<Vec4> {
+    Ok(Vec4::new(
         cursor.read_f32::<LittleEndian>()?,
         cursor.read_f32::<LittleEndian>()?,
         cursor.read_f32::<LittleEndian>()?,
         cursor.read_f32::<LittleEndian>()?,
-    ]))
+    ))
 }
 pub fn read_key_float(cursor: &mut Cursor<&[u8]>, key_type: KeyType) -> Result<KeyFloat> {
     let time = cursor.read_f32::<LittleEndian>()?;

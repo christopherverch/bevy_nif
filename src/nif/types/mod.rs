@@ -15,9 +15,7 @@ pub use animation::{
     KeyFloat, KeyQuaternion, KeyType, KeyVec3, MorphTarget, NiGeomMorpherController,
     NiKeyframeController, NiKeyframeData, NiMorphData, Quaternion, TextKey,
 };
-pub use base::{
-    BoundingSphere, Matrix3x3, NiTransform, NifHeader, Plane, RecordLink, Vector2, Vector3, Vector4,
-};
+pub use base::{BoundingSphere, Matrix3x3, NiTransform, NifHeader, Plane, RecordLink};
 pub use effects::{CoordGenType, EffectType, NiDynamicEffect, NiTextureEffect};
 pub use extra_data::{NiExtraData, NiTextKeyExtraData};
 pub use geometry::{NiGeometryData, NiTriBasedGeomData, NiTriShapeData};

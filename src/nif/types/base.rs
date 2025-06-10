@@ -13,23 +13,6 @@ pub struct NifHeader {
     pub num_blocks: u32,
 }
 
-// --- Newtype Wrappers for Arrays (to implement Default) ---
-
-#[derive(Debug, Clone, Copy)]
-pub struct Vector3(pub [f32; 3]); // Wrap the array
-
-impl Default for Vector3 {
-    fn default() -> Self {
-        Vector3([0.0, 0.0, 0.0])
-    }
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Vector2(pub [f32; 2]); // For UV coordinates
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Vector4(pub [f32; 4]); // For RGBA vertex colors
-
 #[derive(Debug, Clone, Copy)]
 pub struct Matrix3x3(pub [[f32; 3]; 3]); // Wrap the 2D array
 
@@ -44,7 +27,7 @@ pub struct Matrix4x4(pub [[f32; 4]; 4]); // Row-major or column-major? Assume st
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Plane {
-    pub normal: Vector3,
+    pub normal: Vec3,
     pub constant: f32,
 }
 
@@ -52,22 +35,22 @@ pub struct Plane {
 #[derive(Debug, Clone, Default)]
 pub struct NiTransform {
     pub rotation: Matrix3x3,
-    pub translation: Vector3,
+    pub translation: Vec3,
     pub scale: f32,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct BoundingSphere {
-    pub center: Vector3,
+    pub center: Vec3,
     pub radius: f32,
 }
 
-#[derive(Debug, Clone, Copy)] // Use Copy if Vector3/Matrix3x3/f32 are Copy
+#[derive(Debug, Clone, Copy)] // Use Copy if Vec3/Matrix3x3/f32 are Copy
 pub struct BoundingBox {
     // NIF format often stores Box as Center, Axes (Rotation Matrix), Extent (Half-dimensions)
-    pub center: Vector3,
-    pub axes: Matrix3x3, // Or [Vector3; 3] depending on definition
-    pub extent: Vector3, // Extents along each axis (half-sizes)
+    pub center: Vec3,
+    pub axes: Matrix3x3, // Or [Vec3; 3] depending on definition
+    pub extent: Vec3,    // Extents along each axis (half-sizes)
 }
 #[derive(Debug, Clone)]
 pub enum BoundingVolume {

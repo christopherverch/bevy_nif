@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use super::base::{BoundingVolume, NiTransform, RecordLink, Vector3};
+use super::base::{BoundingVolume, NiTransform, RecordLink};
 use bevy::prelude::*;
 use bevy::reflect::TypePath;
 use std::fmt::Debug;
@@ -27,7 +27,7 @@ pub struct NiAVObject {
     pub net_base: NiObjectNET,
     pub flags: u16,
     pub transform: NiTransform,
-    pub velocity: Vector3,
+    pub velocity: Vec3,
     pub properties: Vec<RecordLink>,
     // Add this field to store the bounding sphere when present:
     pub bounding_volume: Option<BoundingVolume>,

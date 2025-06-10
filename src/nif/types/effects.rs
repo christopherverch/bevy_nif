@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use super::base::{Matrix3x3, Plane, RecordLink, Vector3};
+use super::base::{Matrix3x3, Plane, RecordLink};
 use super::scene::NiAVObject;
 use super::textures::{ClampMode, FilterMode};
 use bevy::prelude::*;
@@ -67,7 +67,7 @@ pub struct NiTextureEffect {
     pub dynamic_effect_base: NiDynamicEffect,
     // *** Specific fields remain the same ***
     pub model_projection_matrix: Matrix3x3,
-    pub model_projection_translation: Vector3,
+    pub model_projection_translation: Vec3,
     pub texture_filtering: FilterMode,
     pub texture_clamping: ClampMode,
     pub texture_type: EffectType,

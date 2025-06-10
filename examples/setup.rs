@@ -17,16 +17,6 @@ pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         },
     );
     rotation = rotation * Quat::from_rotation_z(PI);
-    spawn_nif_attached(
-        commands.reborrow(),
-        &asset_server,
-        1,
-        Transform {
-            translation: Vec3::new(-2.0, -2.5, -3.0),
-            rotation,
-            scale: Vec3::splat(0.03),
-        },
-    );
 }
 use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 
@@ -110,15 +100,7 @@ pub fn setup_scene(
         DeferredPrepass,
         Fxaa::default(),
     ));
-    let font = asset_server.load("fonts/FiraMono-Medium.ttf");
-    commands.spawn((
-        Text2d::new(""),
-        TextFont {
-            font,
-            font_size: 00.0,
-            ..default()
-        },
-    ));
+
     let transform_almost_down = Transform::from_rotation(Quat::from_axis_angle(
         Vec3::X,
         std::f32::consts::PI / 2.0 * -0.98,

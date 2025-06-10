@@ -1,6 +1,8 @@
 #![allow(dead_code)]
+use bevy::math::{Vec2, Vec3, Vec4};
+
 use super::NiProperty;
-use super::base::{BoundingSphere, Vector2, Vector3, Vector4};
+use super::base::BoundingSphere;
 use std::fmt::Debug;
 use std::ops::Deref;
 
@@ -10,14 +12,14 @@ pub struct NiGeometryData {
     // Note: No NiObjectNET base here normally
     pub num_vertices: u16,
     pub has_vertices: bool,
-    pub vertices: Option<Vec<Vector3>>, // Make Option<> for conditional reading
+    pub vertices: Option<Vec<Vec3>>, // Make Option<> for conditional reading
     pub has_normals: bool,
-    pub normals: Option<Vec<Vector3>>,
+    pub normals: Option<Vec<Vec3>>,
     pub bounding_sphere: BoundingSphere,
     pub has_vertex_colors: bool,
-    pub vertex_colors: Option<Vec<Vector4>>, // RGBA
-    pub num_uv_sets: u16,                    // Derived from flags in 4.0.0.2
-    pub uv_sets: Vec<Vec<Vector2>>,          // List of UV sets (each set is a Vec)
+    pub vertex_colors: Option<Vec<Vec4>>, // RGBA
+    pub num_uv_sets: u16,                 // Derived from flags in 4.0.0.2
+    pub uv_sets: Vec<Vec<Vec2>>,          // List of UV sets (each set is a Vec)
 }
 
 // Inherits (conceptually) from NiGeometryData

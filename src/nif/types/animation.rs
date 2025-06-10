@@ -1,12 +1,11 @@
 #![allow(dead_code)]
-use super::base::{RecordLink, Vector3};
+use super::base::RecordLink;
 use super::{NiObjectNET, NiTransform};
 use bevy::prelude::*;
 use bevy::reflect::TypePath;
 use std::fmt::Debug;
 use std::ops::Deref;
-// Using Bevy's Quat directly if possible, otherwise define alias
-pub type Quaternion = bevy::math::Quat; // Assuming you use Bevy's Quat elsewhere
+pub type Quaternion = bevy::math::Quat;
 #[derive(Asset, Clone, Debug, Default, TypePath)] // Add Asset, TypePath if this is a top-level asset
 pub struct NiKeyframeController {
     // Corresponds to NiTimeController base fields for this version
@@ -50,50 +49,53 @@ impl From<u32> for KeyType {
 pub struct KeyFloat {
     pub time: f32,
     pub value: f32,
-    // --- ADDED/MODIFIED: Store extra data ---
     pub forward_tangent: Option<f32>,  // For Quadratic keys
     pub backward_tangent: Option<f32>, // For Quadratic keys
-    pub tension: Option<f32>,          // For TBC keys
-    pub bias: Option<f32>,             // For TBC keys
-    pub continuity: Option<f32>,       // For TBC keys
+    pub tension: Option<f32>,
+    pub bias: Option<f32>,
+    pub continuity: Option<f32>,
 }
 
 #[derive(Asset, TypePath, Debug, Clone, Copy, Default)]
 pub struct KeyVec3 {
     pub time: f32,
-    pub value: Vector3,
-    // --- ADDED/MODIFIED: Store extra data ---
-    pub forward_tangent: Option<Vector3>,  // For Quadratic keys
-    pub backward_tangent: Option<Vector3>, // For Quadratic keys
-    pub tension: Option<f32>,              // For TBC keys
-    pub bias: Option<f32>,                 // For TBC keys
-    pub continuity: Option<f32>,           // For TBC keys
+    pub value: Vec3,
+    pub forward_tangent: Option<Vec3>,  // For Quadratic keys
+    pub backward_tangent: Option<Vec3>, // For Quadratic keys
+    pub tension: Option<f32>,
+    pub bias: Option<f32>,
+    pub continuity: Option<f32>,
 }
 
 #[derive(Asset, TypePath, Debug, Clone, Copy, Default)]
 pub struct KeyQuaternion {
     pub time: f32,
     pub value: Quaternion,
-    // --- ADDED/MODIFIED: Store extra data ---
     // Assuming tangents are also Quaternions for Quadratic keys
     pub forward_tangent: Option<Quaternion>,
     pub backward_tangent: Option<Quaternion>,
-    // TBC parameters
     pub tension: Option<f32>,
     pub bias: Option<f32>,
     pub continuity: Option<f32>,
 }
 
-#[derive(Asset, TypePath, Clone, Debug, Default)] // Added Asset, TypePath
+#[derive(Asset, TypePath, Clone, Debug, Default)]
 pub struct NiKeyframeData {
-    pub rotation_type: Option<KeyType>, // Rotation type (if keys exist)
-    pub quaternion_keys: Vec<KeyQuaternion>,
-    pub translation_interp: KeyType, // Interpolation type for ALL translation keys
+    pub rotation_type: Option<KeyType>, // This still indicates the primary rotation type
+    pub quaternion_keys: Vec<KeyQuaternion>, // Used if rotation_type is not XYZ
+
+    pub x_rotation_interp: Option<KeyType>, // Interpolation type for X euler keys
+    pub x_rotation_keys: Option<Vec<KeyFloat>>,
+    pub y_rotation_interp: Option<KeyType>, // Interpolation type for Y euler keys
+    pub y_rotation_keys: Option<Vec<KeyFloat>>,
+    pub z_rotation_interp: Option<KeyType>, // Interpolation type for Z euler keys
+    pub z_rotation_keys: Option<Vec<KeyFloat>>,
+    pub axis_order: Option<NifAxisOrder>, // Present if rotation_type is XYZ
+    pub translation_interp: KeyType,
     pub translations: Vec<KeyVec3>,
-    pub scale_interp: KeyType, // Interpolation type for ALL scale keys
+    pub scale_interp: KeyType,
     pub scales: Vec<KeyFloat>,
 }
-
 // Represents a single text keyframe
 #[derive(Asset, Clone, Debug, Default, TypePath)]
 pub struct TextKey {
@@ -117,12 +119,11 @@ pub struct NiGeomMorpherController {
 }
 #[derive(Asset, Clone, Debug, Default, TypePath)]
 pub struct MorphTarget {
-    // Added fields based on NifSkope view for NiMorphData structure
-    pub num_keys: u32, // Number of interpolation keys for this target's weight
+    pub num_keys: u32,          // Number of interpolation keys for this target's weight
     pub interpolation: KeyType, // Interpolation type for the keys
-    pub keys: Vec<KeyFloat>, // Interpolation keys (time/value pairs, maybe more for non-linear)
+    pub keys: Vec<KeyFloat>,    // Interpolation keys (time/value pairs, maybe more for non-linear)
     // Vertex data remains
-    pub vertices: Vec<Vector3>, // The actual vertex data for this target
+    pub vertices: Vec<Vec3>, // The actual vertex data for this target
 }
 
 // --- NiMorphData struct stays the same ---
@@ -131,11 +132,10 @@ pub struct NiMorphData {
     pub num_morph_targets: u32,
     pub num_vertices: u32,
     pub relative_targets: bool,
-    pub morph_targets: Vec<MorphTarget>, // Holds the struct above
+    pub morph_targets: Vec<MorphTarget>,
 }
 #[derive(Asset, Clone, Debug, Default, TypePath)]
 pub struct NiSkinInstance {
-    // Note: Inherits NiObject, not NiObjectNET
     pub data: RecordLink,          // Link to NiSkinData block (Required)
     pub skeleton_root: RecordLink, // Link to the root NiNode of the skeleton (Required)
     pub num_bones: u32,            // Number of bones influencing the mesh
@@ -149,13 +149,11 @@ pub struct BoneVertData {
 }
 #[derive(Asset, Clone, Debug, Default, TypePath)]
 pub struct BoneData {
-    // Fields now match NifSkope screenshot order and types
-    pub bone_transform: NiTransform, // Contains Rot(Matrix33), Trans(Vector3), Scale(float)
-    pub bounding_sphere_offset: Vector3,
+    pub bone_transform: NiTransform, // Contains Rot(Matrix33), Trans(Vec3), Scale(float)
+    pub bounding_sphere_offset: Vec3,
     pub bounding_sphere_radius: f32,
     pub num_vertices: u16, // ushort in NifSkope
     pub vertex_weights: Vec<BoneVertData>,
-    // REMOVED unknown_16_bytes field
 }
 
 /// Contains the skinning data for a mesh, including bone transforms and vertex weights.
@@ -188,14 +186,43 @@ pub struct NiStreamFooter {
 #[derive(Debug, Clone, Default, TypePath)] // Add TypePath if needed
 pub struct NiSequenceStreamHelper {
     pub net_base: NiObjectNET,
-    // No additional fields specific to NiSequenceStreamHelper itself
 }
 
-// Optional Deref if you want to access NiObjectNET fields directly
 impl Deref for NiSequenceStreamHelper {
     type Target = NiObjectNET;
     #[inline]
     fn deref(&self) -> &Self::Target {
         &self.net_base
+    }
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum NifAxisOrder {
+    #[default]
+    Xyz, // 0
+    Xzy, // 1
+    Yzx, // 2
+    Yxz, // 3
+    Zxy, // 4
+    Zyx, // 5
+    // NIF versions 10.1.0.0 and later also include these
+    Xyx, // 6
+    Yzy, // 7
+    Zxz, // 8
+    Unknown(u32),
+}
+impl From<u32> for NifAxisOrder {
+    fn from(value: u32) -> Self {
+        match value {
+            0 => NifAxisOrder::Xyz,
+            1 => NifAxisOrder::Xzy,
+            2 => NifAxisOrder::Yzx,
+            3 => NifAxisOrder::Yxz,
+            4 => NifAxisOrder::Zxy,
+            5 => NifAxisOrder::Zyx,
+            6 => NifAxisOrder::Xyx,
+            7 => NifAxisOrder::Yzy,
+            8 => NifAxisOrder::Zxz,
+            _ => NifAxisOrder::Unknown(value),
+        }
     }
 }

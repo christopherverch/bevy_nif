@@ -1,5 +1,4 @@
 #![allow(dead_code)]
-use super::base::Vector3;
 use super::scene::NiObjectNET;
 use bevy::prelude::*;
 use bevy::reflect::TypePath;
@@ -15,10 +14,10 @@ pub struct NiProperty {
 pub struct NiMaterialProperty {
     pub property_base: NiProperty,
     pub flags: u16, // Present in v4.0.0.2
-    pub ambient_color: Vector3,
-    pub diffuse_color: Vector3,
-    pub specular_color: Vector3,
-    pub emissive_color: Vector3,
+    pub ambient_color: Vec3,
+    pub diffuse_color: Vec3,
+    pub specular_color: Vec3,
+    pub emissive_color: Vec3,
     pub glossiness: f32,
     pub alpha: f32,
     // emissive_mult is not present in v4.0.0.2

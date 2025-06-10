@@ -1,0 +1,4382 @@
+warning: unused manifest key: target.x86_64-pc-windows-gnu.linker
+warning: unused manifest key: target.x86_64-pc-windows-gnu.rustflags
+warning: value assigned to `bone_entity` is never read
+    --> crates/bevy_nif/src/nif/animation.rs:1098:9
+     |
+1098 |         bone_entity = None;
+     |         ^^^^^^^^^^^
+     |
+     = help: maybe it is overwritten before being read?
+     = note: `#[warn(unused_assignments)]` on by default
+
+warning: `bevy_nif` (lib) generated 1 warning
+warning: unused import: `Direction`
+ --> src/lib.rs:4:12
+  |
+4 |     defs::{Direction, NetworkAnimEvent},
+  |            ^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: `cdda_bevy` (lib) generated 1 warning (run `cargo fix --lib -p cdda_bevy` to apply 1 suggestion)
+warning: unused imports: `LandPayloadData` and `Landscape`
+  --> src/client/landscape/landscape_loader.rs:28:36
+   |
+28 |     LAND_TEXTURE_SQUARES_PER_SIDE, LandPayloadData, LandTexture, LandVertexColor, LandVertexNormal,
+   |                                    ^^^^^^^^^^^^^^^
+29 |     Landscape,
+   |     ^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `landscape_spawning_despawning::spawn_despawn_landscapes`
+  --> src/client/main.rs:30:5
+   |
+30 |     landscape_spawning_despawning::spawn_despawn_landscapes,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Direction`
+  --> src/client/setup_funcs.rs:18:56
+   |
+18 |     AnimateableEntity, CreatureStats, CurrentClientId, Direction, KnockdownEventAdded, LocalPlayer,
+   |                                                        ^^^^^^^^^
+
+warning: unused import: `test_animations`
+  --> src/client/main.rs:43:77
+   |
+43 | use actor_animation::{handle_animation_request, handle_set_anim_speed_seek, test_animations};
+   |                                                                             ^^^^^^^^^^^^^^^
+
+warning: unused variable: `player_state`
+  --> src/client/actor_animation.rs:26:5
+   |
+26 |     player_state: &mut PlayerState,
+   |     ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_player_state`
+   |
+   = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `skeleton_id`
+  --> src/client/actor_animation.rs:27:5
+   |
+27 |     skeleton_id: u64,
+   |     ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_skeleton_id`
+
+warning: function `spawn_despawn_landscapes` is never used
+ --> src/client/landscape/landscape_spawning_despawning.rs:7:8
+  |
+7 | pub fn spawn_despawn_landscapes(
+  |        ^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` on by default
+
+warning: function `test_animations` is never used
+   --> src/client/actor_animation.rs:332:8
+    |
+332 | pub fn test_animations(
+    |        ^^^^^^^^^^^^^^^
+
+warning: `cdda_bevy` (bin "client") generated 8 warnings (run `cargo fix --bin "client"` to apply 4 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.18s
+     Running `/home/cv/cdda_bevy/target/debug/client`
+[2m2025-06-05T01:36:37.868482Z[0m [32m INFO[0m [2mbevy_render::renderer[0m[2m:[0m AdapterInfo { name: "AMD Radeon RX 6800 XT (RADV NAVI21)", vendor: 4098, device: 29631, device_type: DiscreteGpu, driver: "radv", driver_info: "Mesa 24.2.8-1~bpo12+1pop1~1744225826~22.04~b077665", backend: Vulkan }
+[2m2025-06-05T01:36:38.227480Z[0m [32m INFO[0m [2mbevy_render::batching::gpu_preprocessing[0m[2m:[0m GPU preprocessing is fully supported on this device.
+[2m2025-06-05T01:36:38.240757Z[0m [32m INFO[0m [2mbevy_winit::system[0m[2m:[0m Creating new window App (0v1)
+[2m2025-06-05T01:36:38.240843Z[0m [32m INFO[0m [2mwinit::platform_impl::linux::x11::window[0m[2m:[0m Guessed window scale factor: 1
+[2m2025-06-05T01:36:38.565698Z[0m [33m WARN[0m [2mbevy_pbr::render::mesh_view_bindings[0m[2m:[0m Too many textures in mesh pipeline view layout, this might cause us to hit `wgpu::Limits::max_sampled_textures_per_shader_stage` in some environments.
+Failed to parse server address: invalid socket address syntax
+[2m2025-06-05T01:36:39.670900Z[0m [32m INFO[0m [2mclient[0m[2m:[0m spawning player offline
+[2m2025-06-05T01:36:39.672442Z[0m [32m INFO[0m [2mclient::setup_funcs[0m[2m:[0m setting up player with client id: 0 0
+[2m2025-06-05T01:36:39.744092Z[0m [32m INFO[0m [2mbevy_nif::nif::helper_funcs[0m[2m:[0m Successfully computed flat normals. Final vertex count: 1194
+[2m2025-06-05T01:36:39.831462Z[0m [32m INFO[0m [2mbevy_nif::nif::animation[0m[2m:[0m Animation 'swimknockdown' (started 343.800) was implicitly stopped at 344.667 by new animation 'swimdeathknockdown' starting. No prior explicit stop key was found or applicable for it.
+[2m2025-06-05T01:36:39.832144Z[0m [32m INFO[0m [2mbevy_nif::nif::animation[0m[2m:[0m Active animation 'swimdeathknockdown' (ending due to mismatched stop) using its own explicit stop at 346.333.
+[2m2025-06-05T01:36:39.832761Z[0m [33m WARN[0m [2mbevy_nif::nif::animation[0m[2m:[0m Orphaned/mismatched stop key: 'SwimKnockdown: Stop' (for animation 'swimknockdown') at time 346.800. Active animation was finalized.
+[2m2025-06-05T01:36:39.919350Z[0m [32m INFO[0m [2mclient::setup_funcs[0m[2m:[0m adding knockdown event to nif entity: 116v1 with animator link: 116v1
+[2m2025-06-05T01:36:39.935268Z[0m [32m INFO[0m [2mclient::actor_animation[0m[2m:[0m triggered networked setanimspeed "jump": 1
+[2m2025-06-05T01:36:39.935622Z[0m [32m INFO[0m [2msymphonia_core::probe[0m[2m:[0m found the format marker [52, 49, 46, 46] @ 0+2 bytes.    
+[2m2025-06-05T01:36:40.331551Z[0m [32m INFO[0m [2mclient::actor_animation[0m[2m:[0m trying to play anim runforward
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnlefthh_loop",
+    NodeIndex(5),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimturnright_loop",
+    NodeIndex(67),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimknockout_loop",
+    NodeIndex(121),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakrighthh",
+    NodeIndex(6),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runbackhh_loop",
+    NodeIndex(131),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft",
+    NodeIndex(208),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle2_loop",
+    NodeIndex(135),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkright_loop",
+    NodeIndex(48),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneaklefthh",
+    NodeIndex(10),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright1h_loop",
+    NodeIndex(61),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback",
+    NodeIndex(158),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback_loop",
+    NodeIndex(159),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback1h_loop",
+    NodeIndex(161),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft2w_loop",
+    NodeIndex(89),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward_loop",
+    NodeIndex(17),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimknockdown",
+    NodeIndex(36),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback2c",
+    NodeIndex(109),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward",
+    NodeIndex(16),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "hit3",
+    NodeIndex(175),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "death3",
+    NodeIndex(205),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkrighthh",
+    NodeIndex(2),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft2c",
+    NodeIndex(107),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle8",
+    NodeIndex(55),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft1h",
+    NodeIndex(12),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward_loop",
+    NodeIndex(81),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft2c_loop",
+    NodeIndex(96),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunback",
+    NodeIndex(28),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft1h_loop",
+    NodeIndex(59),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "jump2w",
+    NodeIndex(176),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnrighthh_loop",
+    NodeIndex(207),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakbackhh",
+    NodeIndex(179),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "hit1",
+    NodeIndex(157),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward1h",
+    NodeIndex(76),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle2",
+    NodeIndex(134),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright",
+    NodeIndex(137),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunright",
+    NodeIndex(42),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walklefthh",
+    NodeIndex(114),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback1h",
+    NodeIndex(155),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward2c",
+    NodeIndex(185),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward_loop",
+    NodeIndex(188),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle7",
+    NodeIndex(191),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft2c_loop",
+    NodeIndex(166),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "torch",
+    NodeIndex(171),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft2c",
+    NodeIndex(38),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright2w_loop",
+    NodeIndex(178),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimknockout",
+    NodeIndex(120),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft2w",
+    NodeIndex(34),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft1h_loop",
+    NodeIndex(13),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright1h",
+    NodeIndex(60),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimturnleft",
+    NodeIndex(78),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "deathknockdown",
+    NodeIndex(144),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunforward_loop",
+    NodeIndex(182),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright1h_loop",
+    NodeIndex(20),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward2w_loop",
+    NodeIndex(31),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runrighthh",
+    NodeIndex(128),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle2c",
+    NodeIndex(136),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright2c_loop",
+    NodeIndex(164),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "spellturnleft",
+    NodeIndex(14),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft_loop",
+    NodeIndex(52),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "death4",
+    NodeIndex(57),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunright_loop",
+    NodeIndex(43),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward2c_loop",
+    NodeIndex(168),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback1h",
+    NodeIndex(183),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "knockdown",
+    NodeIndex(172),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idlehh",
+    NodeIndex(37),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idleswim",
+    NodeIndex(162),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft2c",
+    NodeIndex(165),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "knockout",
+    NodeIndex(173),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright1h_loop",
+    NodeIndex(190),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward2c",
+    NodeIndex(167),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright2c_loop",
+    NodeIndex(27),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft1h",
+    NodeIndex(58),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkforward",
+    NodeIndex(198),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward",
+    NodeIndex(187),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneaklefthh_loop",
+    NodeIndex(11),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "deathknockout",
+    NodeIndex(21),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright2w",
+    NodeIndex(116),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idlecrossbow",
+    NodeIndex(99),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkbackhh_loop",
+    NodeIndex(149),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforwardhh_loop",
+    NodeIndex(41),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback2w",
+    NodeIndex(142),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft",
+    NodeIndex(68),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle4",
+    NodeIndex(200),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "death2",
+    NodeIndex(211),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkleft",
+    NodeIndex(24),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakrighthh_loop",
+    NodeIndex(7),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunforward",
+    NodeIndex(181),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "spellturnright_loop",
+    NodeIndex(9),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "jump2c",
+    NodeIndex(147),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft2w",
+    NodeIndex(118),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward1h_loop",
+    NodeIndex(94),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright2w",
+    NodeIndex(177),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright1h",
+    NodeIndex(19),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward2c_loop",
+    NodeIndex(186),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft2w_loop",
+    NodeIndex(123),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforwardhh",
+    NodeIndex(201),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward",
+    NodeIndex(80),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward2c",
+    NodeIndex(124),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright2c",
+    NodeIndex(26),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward2w",
+    NodeIndex(71),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback_loop",
+    NodeIndex(33),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright2w_loop",
+    NodeIndex(117),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft1h",
+    NodeIndex(44),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright2c_loop",
+    NodeIndex(63),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runbackhh",
+    NodeIndex(130),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkback",
+    NodeIndex(64),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runlefthh_loop",
+    NodeIndex(154),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright_loop",
+    NodeIndex(170),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback2w_loop",
+    NodeIndex(194),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward1h_loop",
+    NodeIndex(77),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward2w_loop",
+    NodeIndex(72),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback2c",
+    NodeIndex(196),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright",
+    NodeIndex(53),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback2c_loop",
+    NodeIndex(197),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft1h_loop",
+    NodeIndex(45),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft_loop",
+    NodeIndex(209),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback",
+    NodeIndex(100),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle2w",
+    NodeIndex(70),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft",
+    NodeIndex(132),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback_loop",
+    NodeIndex(101),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward1h_loop",
+    NodeIndex(50),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle5",
+    NodeIndex(97),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward2w",
+    NodeIndex(104),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "jumphh",
+    NodeIndex(141),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforwardhh_loop",
+    NodeIndex(202),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward2w",
+    NodeIndex(30),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft2c_loop",
+    NodeIndex(108),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "knockout_loop",
+    NodeIndex(174),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback1h",
+    NodeIndex(160),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle",
+    NodeIndex(23),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback2c",
+    NodeIndex(73),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft2c",
+    NodeIndex(95),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkbackhh",
+    NodeIndex(148),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkback_loop",
+    NodeIndex(65),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunleft_loop",
+    NodeIndex(127),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft",
+    NodeIndex(51),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle6",
+    NodeIndex(75),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "hit4",
+    NodeIndex(111),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft1h_loop",
+    NodeIndex(113),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle8_loop",
+    NodeIndex(56),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforwardhh",
+    NodeIndex(82),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright2w",
+    NodeIndex(84),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback2c_loop",
+    NodeIndex(110),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforwardhh_loop",
+    NodeIndex(83),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback",
+    NodeIndex(32),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimturnleft_loop",
+    NodeIndex(79),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "hit5",
+    NodeIndex(103),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "spellturnleft_loop",
+    NodeIndex(15),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkright",
+    NodeIndex(47),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimturnright",
+    NodeIndex(66),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft2w",
+    NodeIndex(122),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright2c",
+    NodeIndex(62),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback2w",
+    NodeIndex(193),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnrighthh",
+    NodeIndex(206),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft_loop",
+    NodeIndex(133),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright_loop",
+    NodeIndex(138),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright2c",
+    NodeIndex(139),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward1h",
+    NodeIndex(93),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright2c_loop",
+    NodeIndex(140),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runrighthh_loop",
+    NodeIndex(129),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle7_loop",
+    NodeIndex(192),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft1h",
+    NodeIndex(112),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunleft",
+    NodeIndex(126),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright1h_loop",
+    NodeIndex(151),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakbackhh_loop",
+    NodeIndex(180),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle3",
+    NodeIndex(46),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft2w_loop",
+    NodeIndex(35),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkrighthh_loop",
+    NodeIndex(3),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback2w",
+    NodeIndex(86),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward2c_loop",
+    NodeIndex(125),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "hit2",
+    NodeIndex(22),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkforward_loop",
+    NodeIndex(199),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnlefthh",
+    NodeIndex(4),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimdeath",
+    NodeIndex(98),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "death1",
+    NodeIndex(210),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback1h_loop",
+    NodeIndex(184),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright2w_loop",
+    NodeIndex(85),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunback_loop",
+    NodeIndex(29),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback2c_loop",
+    NodeIndex(74),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright2c",
+    NodeIndex(163),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "death5",
+    NodeIndex(195),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle1h",
+    NodeIndex(204),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle9",
+    NodeIndex(18),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright_loop",
+    NodeIndex(54),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft_loop",
+    NodeIndex(69),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idlesneak",
+    NodeIndex(152),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright_loop",
+    NodeIndex(146),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright",
+    NodeIndex(169),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft2w",
+    NodeIndex(88),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright1h",
+    NodeIndex(189),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkleft_loop",
+    NodeIndex(25),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft2w_loop",
+    NodeIndex(119),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward1h",
+    NodeIndex(49),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforwardhh",
+    NodeIndex(40),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright2w",
+    NodeIndex(90),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback2w_loop",
+    NodeIndex(143),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runlefthh",
+    NodeIndex(153),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright2w_loop",
+    NodeIndex(91),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft2c_loop",
+    NodeIndex(39),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback1h_loop",
+    NodeIndex(156),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimdeathknockdown",
+    NodeIndex(92),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "jump",
+    NodeIndex(102),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback2w_loop",
+    NodeIndex(87),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "pickprobe",
+    NodeIndex(106),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright1h",
+    NodeIndex(150),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "jump1h",
+    NodeIndex(203),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright",
+    NodeIndex(145),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walklefthh_loop",
+    NodeIndex(115),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "spellturnright",
+    NodeIndex(8),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward2w_loop",
+    NodeIndex(105),
+)
+[2m2025-06-05T01:36:40.333562Z[0m [32m INFO[0m [2mclient::actor_animation[0m[2m:[0m playing animation runforward
+[2m2025-06-05T01:36:40.333579Z[0m [32m INFO[0m [2mclient::actor_animation[0m[2m:[0m triggered networked animation AnimationConfig { name: "runforward", repeat: Never, priority: 0, mask: BlendMask(LOWER_BODY | TORSO | LEFT_ARM | RIGHT_ARM) }
+[src/client/actor_animation.rs:240:9] animation = (
+    NodeIndex(187),
+    ActiveAnimation {
+        weight: 1.0,
+        repeat: Never,
+        speed: 1.0,
+        elapsed: 0.0,
+        seek_time: 0.0,
+        last_seek_time: None,
+        completions: 0,
+        just_completed: false,
+        paused: false,
+    },
+)
+[2m2025-06-05T01:36:40.537060Z[0m [32m INFO[0m [2mclient::handle_nif_events[0m[2m:[0m nif event triggered: LoopAnimation { animation_name: "runforward" } 0
+[2m2025-06-05T01:36:40.537203Z[0m [32m INFO[0m [2mclient::actor_animation[0m[2m:[0m trying to play anim runforward_loop
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnlefthh_loop",
+    NodeIndex(5),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimturnright_loop",
+    NodeIndex(67),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimknockout_loop",
+    NodeIndex(121),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakrighthh",
+    NodeIndex(6),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runbackhh_loop",
+    NodeIndex(131),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft",
+    NodeIndex(208),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle2_loop",
+    NodeIndex(135),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkright_loop",
+    NodeIndex(48),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneaklefthh",
+    NodeIndex(10),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright1h_loop",
+    NodeIndex(61),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback",
+    NodeIndex(158),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback_loop",
+    NodeIndex(159),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback1h_loop",
+    NodeIndex(161),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft2w_loop",
+    NodeIndex(89),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward_loop",
+    NodeIndex(17),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimknockdown",
+    NodeIndex(36),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback2c",
+    NodeIndex(109),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward",
+    NodeIndex(16),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "hit3",
+    NodeIndex(175),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "death3",
+    NodeIndex(205),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkrighthh",
+    NodeIndex(2),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft2c",
+    NodeIndex(107),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle8",
+    NodeIndex(55),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft1h",
+    NodeIndex(12),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward_loop",
+    NodeIndex(81),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft2c_loop",
+    NodeIndex(96),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunback",
+    NodeIndex(28),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft1h_loop",
+    NodeIndex(59),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "jump2w",
+    NodeIndex(176),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnrighthh_loop",
+    NodeIndex(207),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakbackhh",
+    NodeIndex(179),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "hit1",
+    NodeIndex(157),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward1h",
+    NodeIndex(76),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle2",
+    NodeIndex(134),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright",
+    NodeIndex(137),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunright",
+    NodeIndex(42),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walklefthh",
+    NodeIndex(114),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback1h",
+    NodeIndex(155),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward2c",
+    NodeIndex(185),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward_loop",
+    NodeIndex(188),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle7",
+    NodeIndex(191),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft2c_loop",
+    NodeIndex(166),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "torch",
+    NodeIndex(171),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft2c",
+    NodeIndex(38),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright2w_loop",
+    NodeIndex(178),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimknockout",
+    NodeIndex(120),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft2w",
+    NodeIndex(34),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft1h_loop",
+    NodeIndex(13),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright1h",
+    NodeIndex(60),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimturnleft",
+    NodeIndex(78),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "deathknockdown",
+    NodeIndex(144),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunforward_loop",
+    NodeIndex(182),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright1h_loop",
+    NodeIndex(20),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward2w_loop",
+    NodeIndex(31),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runrighthh",
+    NodeIndex(128),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle2c",
+    NodeIndex(136),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright2c_loop",
+    NodeIndex(164),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "spellturnleft",
+    NodeIndex(14),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft_loop",
+    NodeIndex(52),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "death4",
+    NodeIndex(57),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunright_loop",
+    NodeIndex(43),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward2c_loop",
+    NodeIndex(168),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback1h",
+    NodeIndex(183),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "knockdown",
+    NodeIndex(172),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idlehh",
+    NodeIndex(37),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idleswim",
+    NodeIndex(162),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft2c",
+    NodeIndex(165),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "knockout",
+    NodeIndex(173),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright1h_loop",
+    NodeIndex(190),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward2c",
+    NodeIndex(167),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright2c_loop",
+    NodeIndex(27),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft1h",
+    NodeIndex(58),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkforward",
+    NodeIndex(198),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward",
+    NodeIndex(187),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneaklefthh_loop",
+    NodeIndex(11),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "deathknockout",
+    NodeIndex(21),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright2w",
+    NodeIndex(116),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idlecrossbow",
+    NodeIndex(99),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkbackhh_loop",
+    NodeIndex(149),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforwardhh_loop",
+    NodeIndex(41),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback2w",
+    NodeIndex(142),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft",
+    NodeIndex(68),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle4",
+    NodeIndex(200),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "death2",
+    NodeIndex(211),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkleft",
+    NodeIndex(24),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakrighthh_loop",
+    NodeIndex(7),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunforward",
+    NodeIndex(181),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "spellturnright_loop",
+    NodeIndex(9),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "jump2c",
+    NodeIndex(147),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft2w",
+    NodeIndex(118),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward1h_loop",
+    NodeIndex(94),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright2w",
+    NodeIndex(177),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright1h",
+    NodeIndex(19),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward2c_loop",
+    NodeIndex(186),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft2w_loop",
+    NodeIndex(123),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforwardhh",
+    NodeIndex(201),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward",
+    NodeIndex(80),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward2c",
+    NodeIndex(124),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright2c",
+    NodeIndex(26),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward2w",
+    NodeIndex(71),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback_loop",
+    NodeIndex(33),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright2w_loop",
+    NodeIndex(117),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft1h",
+    NodeIndex(44),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright2c_loop",
+    NodeIndex(63),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runbackhh",
+    NodeIndex(130),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkback",
+    NodeIndex(64),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runlefthh_loop",
+    NodeIndex(154),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright_loop",
+    NodeIndex(170),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback2w_loop",
+    NodeIndex(194),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward1h_loop",
+    NodeIndex(77),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward2w_loop",
+    NodeIndex(72),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback2c",
+    NodeIndex(196),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright",
+    NodeIndex(53),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback2c_loop",
+    NodeIndex(197),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft1h_loop",
+    NodeIndex(45),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft_loop",
+    NodeIndex(209),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback",
+    NodeIndex(100),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle2w",
+    NodeIndex(70),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft",
+    NodeIndex(132),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback_loop",
+    NodeIndex(101),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward1h_loop",
+    NodeIndex(50),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle5",
+    NodeIndex(97),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward2w",
+    NodeIndex(104),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "jumphh",
+    NodeIndex(141),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforwardhh_loop",
+    NodeIndex(202),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward2w",
+    NodeIndex(30),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft2c_loop",
+    NodeIndex(108),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "knockout_loop",
+    NodeIndex(174),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback1h",
+    NodeIndex(160),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle",
+    NodeIndex(23),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback2c",
+    NodeIndex(73),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft2c",
+    NodeIndex(95),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkbackhh",
+    NodeIndex(148),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkback_loop",
+    NodeIndex(65),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunleft_loop",
+    NodeIndex(127),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft",
+    NodeIndex(51),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle6",
+    NodeIndex(75),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "hit4",
+    NodeIndex(111),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft1h_loop",
+    NodeIndex(113),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle8_loop",
+    NodeIndex(56),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforwardhh",
+    NodeIndex(82),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright2w",
+    NodeIndex(84),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback2c_loop",
+    NodeIndex(110),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforwardhh_loop",
+    NodeIndex(83),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback",
+    NodeIndex(32),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimturnleft_loop",
+    NodeIndex(79),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "hit5",
+    NodeIndex(103),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "spellturnleft_loop",
+    NodeIndex(15),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkright",
+    NodeIndex(47),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimturnright",
+    NodeIndex(66),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft2w",
+    NodeIndex(122),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright2c",
+    NodeIndex(62),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback2w",
+    NodeIndex(193),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnrighthh",
+    NodeIndex(206),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft_loop",
+    NodeIndex(133),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright_loop",
+    NodeIndex(138),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright2c",
+    NodeIndex(139),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward1h",
+    NodeIndex(93),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright2c_loop",
+    NodeIndex(140),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runrighthh_loop",
+    NodeIndex(129),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle7_loop",
+    NodeIndex(192),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft1h",
+    NodeIndex(112),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunleft",
+    NodeIndex(126),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright1h_loop",
+    NodeIndex(151),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakbackhh_loop",
+    NodeIndex(180),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle3",
+    NodeIndex(46),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft2w_loop",
+    NodeIndex(35),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkrighthh_loop",
+    NodeIndex(3),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback2w",
+    NodeIndex(86),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward2c_loop",
+    NodeIndex(125),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "hit2",
+    NodeIndex(22),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkforward_loop",
+    NodeIndex(199),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnlefthh",
+    NodeIndex(4),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimdeath",
+    NodeIndex(98),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "death1",
+    NodeIndex(210),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback1h_loop",
+    NodeIndex(184),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright2w_loop",
+    NodeIndex(85),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunback_loop",
+    NodeIndex(29),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback2c_loop",
+    NodeIndex(74),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright2c",
+    NodeIndex(163),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "death5",
+    NodeIndex(195),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle1h",
+    NodeIndex(204),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle9",
+    NodeIndex(18),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright_loop",
+    NodeIndex(54),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft_loop",
+    NodeIndex(69),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idlesneak",
+    NodeIndex(152),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright_loop",
+    NodeIndex(146),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright",
+    NodeIndex(169),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft2w",
+    NodeIndex(88),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright1h",
+    NodeIndex(189),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkleft_loop",
+    NodeIndex(25),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft2w_loop",
+    NodeIndex(119),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward1h",
+    NodeIndex(49),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforwardhh",
+    NodeIndex(40),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright2w",
+    NodeIndex(90),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback2w_loop",
+    NodeIndex(143),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runlefthh",
+    NodeIndex(153),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright2w_loop",
+    NodeIndex(91),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft2c_loop",
+    NodeIndex(39),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback1h_loop",
+    NodeIndex(156),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimdeathknockdown",
+    NodeIndex(92),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "jump",
+    NodeIndex(102),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback2w_loop",
+    NodeIndex(87),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "pickprobe",
+    NodeIndex(106),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright1h",
+    NodeIndex(150),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "jump1h",
+    NodeIndex(203),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright",
+    NodeIndex(145),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walklefthh_loop",
+    NodeIndex(115),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "spellturnright",
+    NodeIndex(8),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward2w_loop",
+    NodeIndex(105),
+)
+[2m2025-06-05T01:36:40.539896Z[0m [32m INFO[0m [2mclient::actor_animation[0m[2m:[0m playing animation runforward_loop
+[src/client/actor_animation.rs:240:9] animation = (
+    NodeIndex(188),
+    ActiveAnimation {
+        weight: 1.0,
+        repeat: Forever,
+        speed: 1.0,
+        elapsed: 0.0,
+        seek_time: 0.0,
+        last_seek_time: None,
+        completions: 0,
+        just_completed: false,
+        paused: false,
+    },
+)
+[2m2025-06-05T01:36:40.590725Z[0m [32m INFO[0m [2mclient::actor_animation[0m[2m:[0m trying to play anim idle
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnlefthh_loop",
+    NodeIndex(5),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimturnright_loop",
+    NodeIndex(67),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimknockout_loop",
+    NodeIndex(121),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakrighthh",
+    NodeIndex(6),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runbackhh_loop",
+    NodeIndex(131),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft",
+    NodeIndex(208),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle2_loop",
+    NodeIndex(135),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkright_loop",
+    NodeIndex(48),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneaklefthh",
+    NodeIndex(10),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright1h_loop",
+    NodeIndex(61),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback",
+    NodeIndex(158),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback_loop",
+    NodeIndex(159),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback1h_loop",
+    NodeIndex(161),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft2w_loop",
+    NodeIndex(89),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward_loop",
+    NodeIndex(17),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimknockdown",
+    NodeIndex(36),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback2c",
+    NodeIndex(109),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward",
+    NodeIndex(16),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "hit3",
+    NodeIndex(175),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "death3",
+    NodeIndex(205),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkrighthh",
+    NodeIndex(2),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft2c",
+    NodeIndex(107),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle8",
+    NodeIndex(55),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft1h",
+    NodeIndex(12),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward_loop",
+    NodeIndex(81),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft2c_loop",
+    NodeIndex(96),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunback",
+    NodeIndex(28),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft1h_loop",
+    NodeIndex(59),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "jump2w",
+    NodeIndex(176),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnrighthh_loop",
+    NodeIndex(207),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakbackhh",
+    NodeIndex(179),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "hit1",
+    NodeIndex(157),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward1h",
+    NodeIndex(76),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle2",
+    NodeIndex(134),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright",
+    NodeIndex(137),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunright",
+    NodeIndex(42),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walklefthh",
+    NodeIndex(114),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback1h",
+    NodeIndex(155),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward2c",
+    NodeIndex(185),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward_loop",
+    NodeIndex(188),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle7",
+    NodeIndex(191),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft2c_loop",
+    NodeIndex(166),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "torch",
+    NodeIndex(171),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft2c",
+    NodeIndex(38),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright2w_loop",
+    NodeIndex(178),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimknockout",
+    NodeIndex(120),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft2w",
+    NodeIndex(34),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft1h_loop",
+    NodeIndex(13),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright1h",
+    NodeIndex(60),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimturnleft",
+    NodeIndex(78),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "deathknockdown",
+    NodeIndex(144),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunforward_loop",
+    NodeIndex(182),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright1h_loop",
+    NodeIndex(20),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward2w_loop",
+    NodeIndex(31),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runrighthh",
+    NodeIndex(128),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle2c",
+    NodeIndex(136),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright2c_loop",
+    NodeIndex(164),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "spellturnleft",
+    NodeIndex(14),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft_loop",
+    NodeIndex(52),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "death4",
+    NodeIndex(57),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunright_loop",
+    NodeIndex(43),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward2c_loop",
+    NodeIndex(168),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback1h",
+    NodeIndex(183),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "knockdown",
+    NodeIndex(172),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idlehh",
+    NodeIndex(37),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idleswim",
+    NodeIndex(162),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft2c",
+    NodeIndex(165),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "knockout",
+    NodeIndex(173),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright1h_loop",
+    NodeIndex(190),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward2c",
+    NodeIndex(167),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright2c_loop",
+    NodeIndex(27),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft1h",
+    NodeIndex(58),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkforward",
+    NodeIndex(198),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward",
+    NodeIndex(187),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneaklefthh_loop",
+    NodeIndex(11),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "deathknockout",
+    NodeIndex(21),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright2w",
+    NodeIndex(116),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idlecrossbow",
+    NodeIndex(99),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkbackhh_loop",
+    NodeIndex(149),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforwardhh_loop",
+    NodeIndex(41),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback2w",
+    NodeIndex(142),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft",
+    NodeIndex(68),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle4",
+    NodeIndex(200),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "death2",
+    NodeIndex(211),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkleft",
+    NodeIndex(24),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakrighthh_loop",
+    NodeIndex(7),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunforward",
+    NodeIndex(181),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "spellturnright_loop",
+    NodeIndex(9),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "jump2c",
+    NodeIndex(147),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft2w",
+    NodeIndex(118),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward1h_loop",
+    NodeIndex(94),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright2w",
+    NodeIndex(177),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright1h",
+    NodeIndex(19),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward2c_loop",
+    NodeIndex(186),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft2w_loop",
+    NodeIndex(123),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforwardhh",
+    NodeIndex(201),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward",
+    NodeIndex(80),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward2c",
+    NodeIndex(124),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright2c",
+    NodeIndex(26),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward2w",
+    NodeIndex(71),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback_loop",
+    NodeIndex(33),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright2w_loop",
+    NodeIndex(117),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft1h",
+    NodeIndex(44),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright2c_loop",
+    NodeIndex(63),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runbackhh",
+    NodeIndex(130),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkback",
+    NodeIndex(64),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runlefthh_loop",
+    NodeIndex(154),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright_loop",
+    NodeIndex(170),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback2w_loop",
+    NodeIndex(194),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward1h_loop",
+    NodeIndex(77),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward2w_loop",
+    NodeIndex(72),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback2c",
+    NodeIndex(196),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright",
+    NodeIndex(53),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback2c_loop",
+    NodeIndex(197),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft1h_loop",
+    NodeIndex(45),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft_loop",
+    NodeIndex(209),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback",
+    NodeIndex(100),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle2w",
+    NodeIndex(70),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft",
+    NodeIndex(132),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback_loop",
+    NodeIndex(101),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward1h_loop",
+    NodeIndex(50),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle5",
+    NodeIndex(97),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward2w",
+    NodeIndex(104),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "jumphh",
+    NodeIndex(141),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforwardhh_loop",
+    NodeIndex(202),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward2w",
+    NodeIndex(30),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft2c_loop",
+    NodeIndex(108),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "knockout_loop",
+    NodeIndex(174),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback1h",
+    NodeIndex(160),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle",
+    NodeIndex(23),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback2c",
+    NodeIndex(73),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft2c",
+    NodeIndex(95),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkbackhh",
+    NodeIndex(148),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkback_loop",
+    NodeIndex(65),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunleft_loop",
+    NodeIndex(127),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft",
+    NodeIndex(51),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle6",
+    NodeIndex(75),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "hit4",
+    NodeIndex(111),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft1h_loop",
+    NodeIndex(113),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle8_loop",
+    NodeIndex(56),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforwardhh",
+    NodeIndex(82),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright2w",
+    NodeIndex(84),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback2c_loop",
+    NodeIndex(110),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforwardhh_loop",
+    NodeIndex(83),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback",
+    NodeIndex(32),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimturnleft_loop",
+    NodeIndex(79),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "hit5",
+    NodeIndex(103),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "spellturnleft_loop",
+    NodeIndex(15),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkright",
+    NodeIndex(47),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimturnright",
+    NodeIndex(66),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft2w",
+    NodeIndex(122),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright2c",
+    NodeIndex(62),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback2w",
+    NodeIndex(193),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnrighthh",
+    NodeIndex(206),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft_loop",
+    NodeIndex(133),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright_loop",
+    NodeIndex(138),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright2c",
+    NodeIndex(139),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward1h",
+    NodeIndex(93),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright2c_loop",
+    NodeIndex(140),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runrighthh_loop",
+    NodeIndex(129),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle7_loop",
+    NodeIndex(192),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft1h",
+    NodeIndex(112),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunleft",
+    NodeIndex(126),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright1h_loop",
+    NodeIndex(151),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakbackhh_loop",
+    NodeIndex(180),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle3",
+    NodeIndex(46),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft2w_loop",
+    NodeIndex(35),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkrighthh_loop",
+    NodeIndex(3),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback2w",
+    NodeIndex(86),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward2c_loop",
+    NodeIndex(125),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "hit2",
+    NodeIndex(22),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkforward_loop",
+    NodeIndex(199),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnlefthh",
+    NodeIndex(4),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimdeath",
+    NodeIndex(98),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "death1",
+    NodeIndex(210),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback1h_loop",
+    NodeIndex(184),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright2w_loop",
+    NodeIndex(85),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunback_loop",
+    NodeIndex(29),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback2c_loop",
+    NodeIndex(74),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright2c",
+    NodeIndex(163),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "death5",
+    NodeIndex(195),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle1h",
+    NodeIndex(204),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle9",
+    NodeIndex(18),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright_loop",
+    NodeIndex(54),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft_loop",
+    NodeIndex(69),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idlesneak",
+    NodeIndex(152),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright_loop",
+    NodeIndex(146),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright",
+    NodeIndex(169),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft2w",
+    NodeIndex(88),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright1h",
+    NodeIndex(189),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkleft_loop",
+    NodeIndex(25),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft2w_loop",
+    NodeIndex(119),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward1h",
+    NodeIndex(49),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforwardhh",
+    NodeIndex(40),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright2w",
+    NodeIndex(90),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback2w_loop",
+    NodeIndex(143),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runlefthh",
+    NodeIndex(153),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright2w_loop",
+    NodeIndex(91),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft2c_loop",
+    NodeIndex(39),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback1h_loop",
+    NodeIndex(156),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimdeathknockdown",
+    NodeIndex(92),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "jump",
+    NodeIndex(102),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback2w_loop",
+    NodeIndex(87),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "pickprobe",
+    NodeIndex(106),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright1h",
+    NodeIndex(150),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "jump1h",
+    NodeIndex(203),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright",
+    NodeIndex(145),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walklefthh_loop",
+    NodeIndex(115),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "spellturnright",
+    NodeIndex(8),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward2w_loop",
+    NodeIndex(105),
+)
+[2m2025-06-05T01:36:40.592620Z[0m [32m INFO[0m [2mclient::actor_animation[0m[2m:[0m playing animation idle
+[2m2025-06-05T01:36:40.592639Z[0m [32m INFO[0m [2mclient::actor_animation[0m[2m:[0m triggered networked animation AnimationConfig { name: "idle", repeat: Forever, priority: 0, mask: BlendMask(LOWER_BODY | TORSO | LEFT_ARM | RIGHT_ARM) }
+[src/client/actor_animation.rs:240:9] animation = (
+    NodeIndex(23),
+    ActiveAnimation {
+        weight: 1.0,
+        repeat: Forever,
+        speed: 1.0,
+        elapsed: 0.0,
+        seek_time: 0.0,
+        last_seek_time: None,
+        completions: 0,
+        just_completed: false,
+        paused: false,
+    },
+)
+[2m2025-06-05T01:36:40.945098Z[0m [32m INFO[0m [2mclient::actor_animation[0m[2m:[0m trying to play anim runforward
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnlefthh_loop",
+    NodeIndex(5),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimturnright_loop",
+    NodeIndex(67),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimknockout_loop",
+    NodeIndex(121),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakrighthh",
+    NodeIndex(6),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runbackhh_loop",
+    NodeIndex(131),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft",
+    NodeIndex(208),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle2_loop",
+    NodeIndex(135),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkright_loop",
+    NodeIndex(48),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneaklefthh",
+    NodeIndex(10),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright1h_loop",
+    NodeIndex(61),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback",
+    NodeIndex(158),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback_loop",
+    NodeIndex(159),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback1h_loop",
+    NodeIndex(161),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft2w_loop",
+    NodeIndex(89),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward_loop",
+    NodeIndex(17),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimknockdown",
+    NodeIndex(36),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback2c",
+    NodeIndex(109),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward",
+    NodeIndex(16),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "hit3",
+    NodeIndex(175),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "death3",
+    NodeIndex(205),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkrighthh",
+    NodeIndex(2),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft2c",
+    NodeIndex(107),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle8",
+    NodeIndex(55),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft1h",
+    NodeIndex(12),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward_loop",
+    NodeIndex(81),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft2c_loop",
+    NodeIndex(96),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunback",
+    NodeIndex(28),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft1h_loop",
+    NodeIndex(59),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "jump2w",
+    NodeIndex(176),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnrighthh_loop",
+    NodeIndex(207),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakbackhh",
+    NodeIndex(179),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "hit1",
+    NodeIndex(157),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward1h",
+    NodeIndex(76),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle2",
+    NodeIndex(134),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright",
+    NodeIndex(137),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunright",
+    NodeIndex(42),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walklefthh",
+    NodeIndex(114),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback1h",
+    NodeIndex(155),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward2c",
+    NodeIndex(185),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward_loop",
+    NodeIndex(188),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle7",
+    NodeIndex(191),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft2c_loop",
+    NodeIndex(166),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "torch",
+    NodeIndex(171),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft2c",
+    NodeIndex(38),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright2w_loop",
+    NodeIndex(178),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimknockout",
+    NodeIndex(120),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft2w",
+    NodeIndex(34),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft1h_loop",
+    NodeIndex(13),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright1h",
+    NodeIndex(60),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimturnleft",
+    NodeIndex(78),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "deathknockdown",
+    NodeIndex(144),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunforward_loop",
+    NodeIndex(182),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright1h_loop",
+    NodeIndex(20),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward2w_loop",
+    NodeIndex(31),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runrighthh",
+    NodeIndex(128),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle2c",
+    NodeIndex(136),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright2c_loop",
+    NodeIndex(164),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "spellturnleft",
+    NodeIndex(14),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft_loop",
+    NodeIndex(52),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "death4",
+    NodeIndex(57),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunright_loop",
+    NodeIndex(43),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward2c_loop",
+    NodeIndex(168),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback1h",
+    NodeIndex(183),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "knockdown",
+    NodeIndex(172),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idlehh",
+    NodeIndex(37),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idleswim",
+    NodeIndex(162),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft2c",
+    NodeIndex(165),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "knockout",
+    NodeIndex(173),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright1h_loop",
+    NodeIndex(190),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward2c",
+    NodeIndex(167),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright2c_loop",
+    NodeIndex(27),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft1h",
+    NodeIndex(58),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkforward",
+    NodeIndex(198),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward",
+    NodeIndex(187),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneaklefthh_loop",
+    NodeIndex(11),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "deathknockout",
+    NodeIndex(21),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright2w",
+    NodeIndex(116),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idlecrossbow",
+    NodeIndex(99),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkbackhh_loop",
+    NodeIndex(149),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforwardhh_loop",
+    NodeIndex(41),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback2w",
+    NodeIndex(142),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft",
+    NodeIndex(68),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle4",
+    NodeIndex(200),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "death2",
+    NodeIndex(211),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkleft",
+    NodeIndex(24),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakrighthh_loop",
+    NodeIndex(7),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunforward",
+    NodeIndex(181),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "spellturnright_loop",
+    NodeIndex(9),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "jump2c",
+    NodeIndex(147),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft2w",
+    NodeIndex(118),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward1h_loop",
+    NodeIndex(94),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright2w",
+    NodeIndex(177),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright1h",
+    NodeIndex(19),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward2c_loop",
+    NodeIndex(186),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft2w_loop",
+    NodeIndex(123),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforwardhh",
+    NodeIndex(201),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward",
+    NodeIndex(80),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward2c",
+    NodeIndex(124),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright2c",
+    NodeIndex(26),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward2w",
+    NodeIndex(71),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback_loop",
+    NodeIndex(33),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright2w_loop",
+    NodeIndex(117),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft1h",
+    NodeIndex(44),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright2c_loop",
+    NodeIndex(63),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runbackhh",
+    NodeIndex(130),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkback",
+    NodeIndex(64),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runlefthh_loop",
+    NodeIndex(154),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright_loop",
+    NodeIndex(170),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback2w_loop",
+    NodeIndex(194),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward1h_loop",
+    NodeIndex(77),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward2w_loop",
+    NodeIndex(72),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback2c",
+    NodeIndex(196),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright",
+    NodeIndex(53),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback2c_loop",
+    NodeIndex(197),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft1h_loop",
+    NodeIndex(45),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft_loop",
+    NodeIndex(209),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback",
+    NodeIndex(100),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle2w",
+    NodeIndex(70),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft",
+    NodeIndex(132),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback_loop",
+    NodeIndex(101),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward1h_loop",
+    NodeIndex(50),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle5",
+    NodeIndex(97),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward2w",
+    NodeIndex(104),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "jumphh",
+    NodeIndex(141),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforwardhh_loop",
+    NodeIndex(202),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward2w",
+    NodeIndex(30),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft2c_loop",
+    NodeIndex(108),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "knockout_loop",
+    NodeIndex(174),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback1h",
+    NodeIndex(160),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle",
+    NodeIndex(23),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback2c",
+    NodeIndex(73),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft2c",
+    NodeIndex(95),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkbackhh",
+    NodeIndex(148),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkback_loop",
+    NodeIndex(65),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunleft_loop",
+    NodeIndex(127),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft",
+    NodeIndex(51),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle6",
+    NodeIndex(75),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "hit4",
+    NodeIndex(111),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft1h_loop",
+    NodeIndex(113),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle8_loop",
+    NodeIndex(56),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforwardhh",
+    NodeIndex(82),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright2w",
+    NodeIndex(84),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback2c_loop",
+    NodeIndex(110),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforwardhh_loop",
+    NodeIndex(83),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback",
+    NodeIndex(32),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimturnleft_loop",
+    NodeIndex(79),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "hit5",
+    NodeIndex(103),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "spellturnleft_loop",
+    NodeIndex(15),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkright",
+    NodeIndex(47),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimturnright",
+    NodeIndex(66),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft2w",
+    NodeIndex(122),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright2c",
+    NodeIndex(62),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback2w",
+    NodeIndex(193),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnrighthh",
+    NodeIndex(206),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft_loop",
+    NodeIndex(133),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright_loop",
+    NodeIndex(138),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright2c",
+    NodeIndex(139),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward1h",
+    NodeIndex(93),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright2c_loop",
+    NodeIndex(140),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runrighthh_loop",
+    NodeIndex(129),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle7_loop",
+    NodeIndex(192),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft1h",
+    NodeIndex(112),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunleft",
+    NodeIndex(126),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright1h_loop",
+    NodeIndex(151),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakbackhh_loop",
+    NodeIndex(180),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle3",
+    NodeIndex(46),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft2w_loop",
+    NodeIndex(35),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkrighthh_loop",
+    NodeIndex(3),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback2w",
+    NodeIndex(86),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward2c_loop",
+    NodeIndex(125),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "hit2",
+    NodeIndex(22),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkforward_loop",
+    NodeIndex(199),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnlefthh",
+    NodeIndex(4),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimdeath",
+    NodeIndex(98),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "death1",
+    NodeIndex(210),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback1h_loop",
+    NodeIndex(184),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright2w_loop",
+    NodeIndex(85),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunback_loop",
+    NodeIndex(29),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback2c_loop",
+    NodeIndex(74),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright2c",
+    NodeIndex(163),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "death5",
+    NodeIndex(195),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle1h",
+    NodeIndex(204),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle9",
+    NodeIndex(18),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright_loop",
+    NodeIndex(54),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft_loop",
+    NodeIndex(69),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idlesneak",
+    NodeIndex(152),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright_loop",
+    NodeIndex(146),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright",
+    NodeIndex(169),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft2w",
+    NodeIndex(88),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright1h",
+    NodeIndex(189),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkleft_loop",
+    NodeIndex(25),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft2w_loop",
+    NodeIndex(119),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward1h",
+    NodeIndex(49),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforwardhh",
+    NodeIndex(40),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright2w",
+    NodeIndex(90),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback2w_loop",
+    NodeIndex(143),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runlefthh",
+    NodeIndex(153),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright2w_loop",
+    NodeIndex(91),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft2c_loop",
+    NodeIndex(39),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback1h_loop",
+    NodeIndex(156),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimdeathknockdown",
+    NodeIndex(92),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "jump",
+    NodeIndex(102),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback2w_loop",
+    NodeIndex(87),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "pickprobe",
+    NodeIndex(106),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright1h",
+    NodeIndex(150),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "jump1h",
+    NodeIndex(203),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright",
+    NodeIndex(145),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walklefthh_loop",
+    NodeIndex(115),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "spellturnright",
+    NodeIndex(8),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward2w_loop",
+    NodeIndex(105),
+)
+[2m2025-06-05T01:36:40.947052Z[0m [32m INFO[0m [2mclient::actor_animation[0m[2m:[0m playing animation runforward
+[2m2025-06-05T01:36:40.947066Z[0m [32m INFO[0m [2mclient::actor_animation[0m[2m:[0m triggered networked animation AnimationConfig { name: "runforward", repeat: Never, priority: 0, mask: BlendMask(LOWER_BODY | TORSO | LEFT_ARM | RIGHT_ARM) }
+[src/client/actor_animation.rs:240:9] animation = (
+    NodeIndex(187),
+    ActiveAnimation {
+        weight: 1.0,
+        repeat: Never,
+        speed: 1.0,
+        elapsed: 0.0,
+        seek_time: 0.0,
+        last_seek_time: None,
+        completions: 0,
+        just_completed: false,
+        paused: false,
+    },
+)
+[2m2025-06-05T01:36:41.035596Z[0m [32m INFO[0m [2mclient::actor_animation[0m[2m:[0m trying to play anim idle
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnlefthh_loop",
+    NodeIndex(5),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimturnright_loop",
+    NodeIndex(67),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimknockout_loop",
+    NodeIndex(121),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakrighthh",
+    NodeIndex(6),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runbackhh_loop",
+    NodeIndex(131),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft",
+    NodeIndex(208),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle2_loop",
+    NodeIndex(135),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkright_loop",
+    NodeIndex(48),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneaklefthh",
+    NodeIndex(10),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright1h_loop",
+    NodeIndex(61),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback",
+    NodeIndex(158),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback_loop",
+    NodeIndex(159),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback1h_loop",
+    NodeIndex(161),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft2w_loop",
+    NodeIndex(89),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward_loop",
+    NodeIndex(17),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimknockdown",
+    NodeIndex(36),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback2c",
+    NodeIndex(109),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward",
+    NodeIndex(16),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "hit3",
+    NodeIndex(175),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "death3",
+    NodeIndex(205),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkrighthh",
+    NodeIndex(2),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft2c",
+    NodeIndex(107),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle8",
+    NodeIndex(55),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft1h",
+    NodeIndex(12),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward_loop",
+    NodeIndex(81),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft2c_loop",
+    NodeIndex(96),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunback",
+    NodeIndex(28),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft1h_loop",
+    NodeIndex(59),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "jump2w",
+    NodeIndex(176),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnrighthh_loop",
+    NodeIndex(207),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakbackhh",
+    NodeIndex(179),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "hit1",
+    NodeIndex(157),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward1h",
+    NodeIndex(76),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle2",
+    NodeIndex(134),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright",
+    NodeIndex(137),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunright",
+    NodeIndex(42),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walklefthh",
+    NodeIndex(114),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback1h",
+    NodeIndex(155),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward2c",
+    NodeIndex(185),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward_loop",
+    NodeIndex(188),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle7",
+    NodeIndex(191),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft2c_loop",
+    NodeIndex(166),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "torch",
+    NodeIndex(171),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft2c",
+    NodeIndex(38),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright2w_loop",
+    NodeIndex(178),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimknockout",
+    NodeIndex(120),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft2w",
+    NodeIndex(34),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft1h_loop",
+    NodeIndex(13),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright1h",
+    NodeIndex(60),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimturnleft",
+    NodeIndex(78),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "deathknockdown",
+    NodeIndex(144),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunforward_loop",
+    NodeIndex(182),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright1h_loop",
+    NodeIndex(20),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward2w_loop",
+    NodeIndex(31),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runrighthh",
+    NodeIndex(128),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle2c",
+    NodeIndex(136),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright2c_loop",
+    NodeIndex(164),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "spellturnleft",
+    NodeIndex(14),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft_loop",
+    NodeIndex(52),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "death4",
+    NodeIndex(57),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunright_loop",
+    NodeIndex(43),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward2c_loop",
+    NodeIndex(168),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback1h",
+    NodeIndex(183),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "knockdown",
+    NodeIndex(172),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idlehh",
+    NodeIndex(37),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idleswim",
+    NodeIndex(162),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft2c",
+    NodeIndex(165),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "knockout",
+    NodeIndex(173),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright1h_loop",
+    NodeIndex(190),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward2c",
+    NodeIndex(167),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright2c_loop",
+    NodeIndex(27),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft1h",
+    NodeIndex(58),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkforward",
+    NodeIndex(198),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward",
+    NodeIndex(187),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneaklefthh_loop",
+    NodeIndex(11),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "deathknockout",
+    NodeIndex(21),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright2w",
+    NodeIndex(116),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idlecrossbow",
+    NodeIndex(99),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkbackhh_loop",
+    NodeIndex(149),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforwardhh_loop",
+    NodeIndex(41),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback2w",
+    NodeIndex(142),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft",
+    NodeIndex(68),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle4",
+    NodeIndex(200),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "death2",
+    NodeIndex(211),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkleft",
+    NodeIndex(24),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakrighthh_loop",
+    NodeIndex(7),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunforward",
+    NodeIndex(181),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "spellturnright_loop",
+    NodeIndex(9),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "jump2c",
+    NodeIndex(147),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft2w",
+    NodeIndex(118),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward1h_loop",
+    NodeIndex(94),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright2w",
+    NodeIndex(177),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright1h",
+    NodeIndex(19),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward2c_loop",
+    NodeIndex(186),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft2w_loop",
+    NodeIndex(123),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforwardhh",
+    NodeIndex(201),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward",
+    NodeIndex(80),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward2c",
+    NodeIndex(124),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright2c",
+    NodeIndex(26),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward2w",
+    NodeIndex(71),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback_loop",
+    NodeIndex(33),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright2w_loop",
+    NodeIndex(117),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft1h",
+    NodeIndex(44),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright2c_loop",
+    NodeIndex(63),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runbackhh",
+    NodeIndex(130),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkback",
+    NodeIndex(64),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runlefthh_loop",
+    NodeIndex(154),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright_loop",
+    NodeIndex(170),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback2w_loop",
+    NodeIndex(194),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward1h_loop",
+    NodeIndex(77),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforward2w_loop",
+    NodeIndex(72),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback2c",
+    NodeIndex(196),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright",
+    NodeIndex(53),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback2c_loop",
+    NodeIndex(197),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft1h_loop",
+    NodeIndex(45),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft_loop",
+    NodeIndex(209),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback",
+    NodeIndex(100),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle2w",
+    NodeIndex(70),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft",
+    NodeIndex(132),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback_loop",
+    NodeIndex(101),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward1h_loop",
+    NodeIndex(50),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle5",
+    NodeIndex(97),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward2w",
+    NodeIndex(104),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "jumphh",
+    NodeIndex(141),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforwardhh_loop",
+    NodeIndex(202),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward2w",
+    NodeIndex(30),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft2c_loop",
+    NodeIndex(108),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "knockout_loop",
+    NodeIndex(174),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback1h",
+    NodeIndex(160),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle",
+    NodeIndex(23),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback2c",
+    NodeIndex(73),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft2c",
+    NodeIndex(95),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkbackhh",
+    NodeIndex(148),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkback_loop",
+    NodeIndex(65),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunleft_loop",
+    NodeIndex(127),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft",
+    NodeIndex(51),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle6",
+    NodeIndex(75),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "hit4",
+    NodeIndex(111),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft1h_loop",
+    NodeIndex(113),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle8_loop",
+    NodeIndex(56),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforwardhh",
+    NodeIndex(82),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright2w",
+    NodeIndex(84),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback2c_loop",
+    NodeIndex(110),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforwardhh_loop",
+    NodeIndex(83),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback",
+    NodeIndex(32),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimturnleft_loop",
+    NodeIndex(79),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "hit5",
+    NodeIndex(103),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "spellturnleft_loop",
+    NodeIndex(15),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkright",
+    NodeIndex(47),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimturnright",
+    NodeIndex(66),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft2w",
+    NodeIndex(122),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright2c",
+    NodeIndex(62),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback2w",
+    NodeIndex(193),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnrighthh",
+    NodeIndex(206),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft_loop",
+    NodeIndex(133),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright_loop",
+    NodeIndex(138),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright2c",
+    NodeIndex(139),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward1h",
+    NodeIndex(93),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright2c_loop",
+    NodeIndex(140),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runrighthh_loop",
+    NodeIndex(129),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle7_loop",
+    NodeIndex(192),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft1h",
+    NodeIndex(112),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunleft",
+    NodeIndex(126),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright1h_loop",
+    NodeIndex(151),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakbackhh_loop",
+    NodeIndex(180),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle3",
+    NodeIndex(46),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnleft2w_loop",
+    NodeIndex(35),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkrighthh_loop",
+    NodeIndex(3),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback2w",
+    NodeIndex(86),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward2c_loop",
+    NodeIndex(125),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "hit2",
+    NodeIndex(22),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkforward_loop",
+    NodeIndex(199),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnlefthh",
+    NodeIndex(4),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimdeath",
+    NodeIndex(98),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "death1",
+    NodeIndex(210),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback1h_loop",
+    NodeIndex(184),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright2w_loop",
+    NodeIndex(85),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimrunback_loop",
+    NodeIndex(29),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runback2c_loop",
+    NodeIndex(74),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runright2c",
+    NodeIndex(163),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "death5",
+    NodeIndex(195),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle1h",
+    NodeIndex(204),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idle9",
+    NodeIndex(18),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright_loop",
+    NodeIndex(54),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkleft_loop",
+    NodeIndex(69),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "idlesneak",
+    NodeIndex(152),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright_loop",
+    NodeIndex(146),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright",
+    NodeIndex(169),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft2w",
+    NodeIndex(88),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright1h",
+    NodeIndex(189),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimwalkleft_loop",
+    NodeIndex(25),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runleft2w_loop",
+    NodeIndex(119),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkforward1h",
+    NodeIndex(49),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakforwardhh",
+    NodeIndex(40),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright2w",
+    NodeIndex(90),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkback2w_loop",
+    NodeIndex(143),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runlefthh",
+    NodeIndex(153),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakright2w_loop",
+    NodeIndex(91),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakleft2c_loop",
+    NodeIndex(39),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback1h_loop",
+    NodeIndex(156),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "swimdeathknockdown",
+    NodeIndex(92),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "jump",
+    NodeIndex(102),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "sneakback2w_loop",
+    NodeIndex(87),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "pickprobe",
+    NodeIndex(106),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "turnright1h",
+    NodeIndex(150),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "jump1h",
+    NodeIndex(203),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walkright",
+    NodeIndex(145),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "walklefthh_loop",
+    NodeIndex(115),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "spellturnright",
+    NodeIndex(8),
+)
+[src/client/actor_animation.rs:31:9] animation = (
+    "runforward2w_loop",
+    NodeIndex(105),
+)
+[2m2025-06-05T01:36:41.037491Z[0m [32m INFO[0m [2mclient::actor_animation[0m[2m:[0m playing animation idle
+[2m2025-06-05T01:36:41.037508Z[0m [32m INFO[0m [2mclient::actor_animation[0m[2m:[0m triggered networked animation AnimationConfig { name: "idle", repeat: Forever, priority: 0, mask: BlendMask(LOWER_BODY | TORSO | LEFT_ARM | RIGHT_ARM) }
+[src/client/actor_animation.rs:240:9] animation = (
+    NodeIndex(23),
+    ActiveAnimation {
+        weight: 1.0,
+        repeat: Forever,
+        speed: 1.0,
+        elapsed: 0.0,
+        seek_time: 0.0,
+        last_seek_time: None,
+        completions: 0,
+        just_completed: false,
+        paused: false,
+    },
+)
+[2m2025-06-05T01:36:41.391072Z[0m [32m INFO[0m [2mbevy_window::system[0m[2m:[0m No windows are open, exiting    
+[2m2025-06-05T01:36:41.395885Z[0m [32m INFO[0m [2mbevy_winit::system[0m[2m:[0m Closing window 0v1

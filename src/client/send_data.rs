@@ -11,11 +11,11 @@ use bevy_renet::{
     renet::{ClientId, RenetClient},
 };
 use cdda_bevy::client::defs::{
-    AnimationEvent, CreatureStats, CurrentClientId, IdToEntityMap, LocalPlayer, MeshEntityLink,
-    NeedsSetup, NetworkEventWithIdIdCounter, NetworkedEntity, PendingServerAcks, PlayerState,
+    CreatureStats, CurrentClientId, IdToEntityMap, LocalPlayer, MeshEntityLink, NeedsSetup,
+    NetworkAnimEvent, NetworkEventWithIdCounter, NetworkedEntity, PendingServerAcks, PlayerState,
     SentActionInfo, ServerIP,
 };
-use cdda_bevy::client::events::{RequestAnimation, TriggerHit};
+use cdda_bevy::client::events::RequestAnimation;
 use cdda_bevy::networking::renet::PROTOCOL_ID;
 use cdda_bevy::networking::{
     ClientChannel, NetworkedEntities, PlayerCommand, ServerChannel, ServerMessages,
@@ -45,7 +45,7 @@ pub fn add_netcode_network(app: &mut App) {
         .insert_resource(ClientLobby::default())
         .insert_resource(InterpolationSpeeds::default())
         .insert_resource(ServerIP(("127.0.0.1").to_string())) // Default IP Address
-        .insert_resource(NetworkEventWithIdIdCounter(0))
+        .insert_resource(NetworkEventWithIdCounter(0))
         .insert_resource(PendingServerAcks(HashMap::new()));
 
     app.add_systems(
@@ -456,7 +456,7 @@ pub fn add_critical_network_event(
     // take an option since observers can't be put in sets, so it will run
     // whether we're connected or not
     client_opt: Option<ResMut<RenetClient>>,
-    mut action_id_counter: ResMut<NetworkEventWithIdIdCounter>,
+    mut action_id_counter: ResMut<NetworkEventWithIdCounter>,
     mut pending_acks: ResMut<PendingServerAcks>,
     time: Res<Time>,
     // local_player_query: Query<&Transform, With<LocalPlayer>>,
@@ -482,7 +482,7 @@ pub fn add_critical_network_event(
                     retries: 0,
                 },
             );
-            info!("Client sent PlayerAttack (ID: {})", action_id);
+            info!("Client sent event (ID: {})", action_id);
         }
         Err(e) => error!("Failed to serialize PlayerAttack: {}", e),
     }
@@ -490,7 +490,7 @@ pub fn add_critical_network_event(
 
 pub fn client_trigger_attack_system(
     mut client: ResMut<RenetClient>,
-    mut action_id_counter: ResMut<NetworkEventWithIdIdCounter>,
+    mut action_id_counter: ResMut<NetworkEventWithIdCounter>,
     mut pending_acks: ResMut<PendingServerAcks>,
     time: Res<Time>,
     input: Res<ButtonInput<KeyCode>>, // Example trigger
@@ -571,7 +571,6 @@ pub fn client_handle_server_acks_system(
 }
 pub fn client_handle_relayed_actions_system(
     mut client: ResMut<RenetClient>,
-    id_to_entity_map: Res<IdToEntityMap>,
     mut commands: Commands,
 ) {
     while let Some(message_bytes) = client.receive_message(ServerChannel::CriticalRelay) {
@@ -583,27 +582,28 @@ pub fn client_handle_relayed_actions_system(
                 // This client is NOT `performing_client_id` (unless server relays own actions, unusual)
 
                 info!(
-                    "Received relayed action from client {}: {:?}: {:?}",
-                    performing_client_id,
-                    action,
-                    id_to_entity_map.0.get(&performing_client_id),
+                    "Received relayed action from client {}: {:?}",
+                    performing_client_id, action,
                 );
                 let payload = action.payload;
                 match payload {
                     NetworkEvent::Animation(animation_event) => match animation_event {
-                        AnimationEvent::NifAnimationEvent { event_type } => {
+                        NetworkAnimEvent::NifAnimEvent {
+                            event_type,
+                            skeleton_id,
+                        } => {
                             commands.trigger(NifEvent {
-                                skeleton_id: performing_client_id,
+                                skeleton_id,
                                 event_type: event_type.clone(),
                             });
                         }
-                        AnimationEvent::RequestedAnimationEvent {
-                            requested_animation,
-                            target_id,
+                        NetworkAnimEvent::BevyAnimEvent {
+                            animation_config,
+                            skeleton_id,
                         } => {
                             commands.trigger(RequestAnimation {
-                                entity_id: target_id,
-                                requested_animation: requested_animation.clone(),
+                                skeleton_id,
+                                animation_config,
                                 networked: false,
                             });
                         }
@@ -614,6 +614,10 @@ pub fn client_handle_relayed_actions_system(
                     }
                     NetworkEvent::Sound(sound) => {
                         commands.trigger(sound);
+                    }
+                    NetworkEvent::SetAnimSpeedSeek(mut anim_speed_event) => {
+                        anim_speed_event.networked = false;
+                        commands.trigger(anim_speed_event);
                     }
                     _ => {}
                 }

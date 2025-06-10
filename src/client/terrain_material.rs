@@ -1,9 +1,7 @@
 use bevy::{
     prelude::*,
     reflect::TypePath,
-    render::render_resource::{
-            AsBindGroup, ShaderRef, ShaderType,
-        },
+    render::render_resource::{AsBindGroup, ShaderRef, ShaderType},
 };
 
 #[derive(Resource, Clone, Deref, DerefMut)]
@@ -15,6 +13,7 @@ pub struct AlphaMapTextureArrayHandle(pub Handle<Image>);
 pub struct TerrainMaterialParams {
     pub num_textures_in_array: u32,
     pub diffuse_tiling_factor: f32,
+    pub base_vtex_grid_dim: f32,
 }
 
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]

@@ -1,6 +1,7 @@
 use bevy::prelude::*;
+use bevy_nif::nif::animation::BlendMask;
 use cdda_bevy::{
-    AnimationState, NetworkEvent,
+    AnimationConfig, NetworkEvent, RepeatAnim,
     client::{
         defs::{CreatureStats, IdToEntityMap, IsThirdPerson, LocalPlayer, PlayerState},
         events::{RequestAnimation, SoundEvent, TriggerHit},
@@ -35,8 +36,13 @@ pub fn apply_hit(
     receiver_creature_stats.health -= trigger.damage;
     if receiver_creature_stats.health <= 0.0 {
         commands.trigger(RequestAnimation {
-            entity_id: trigger.receiver_id,
-            requested_animation: AnimationState::Death.into(),
+            skeleton_id: trigger.receiver_id,
+            animation_config: AnimationConfig {
+                name: "death4".to_string(),
+                repeat: RepeatAnim::Never,
+                priority: 10,
+                mask: BlendMask::all(),
+            },
             networked: trigger.networked,
         });
         //if it's the local player that died
@@ -60,8 +66,13 @@ pub fn apply_hit(
     if trigger.damage > 12.0 {
         println!("requesting knockdown for {}", receiver_entity);
         commands.trigger(RequestAnimation {
-            entity_id: trigger.receiver_id,
-            requested_animation: AnimationState::Knockdown.into(),
+            skeleton_id: trigger.receiver_id,
+            animation_config: AnimationConfig {
+                name: "knockdown".to_string(),
+                repeat: RepeatAnim::Never,
+                priority: 10,
+                mask: BlendMask::all(),
+            },
             networked: trigger.networked,
         });
     }

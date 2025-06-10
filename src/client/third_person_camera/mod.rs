@@ -1,5 +1,5 @@
 mod mouse;
-use crate::client::defs::{IsThirdPerson, MESH_HEIGHT_OFFSET};
+use crate::client::defs::{FIRST_PERSON_CAMERA_HEIGHT_OFFSET, IsThirdPerson, MESH_HEIGHT_OFFSET};
 use bevy::{
     prelude::*,
     window::{CursorGrabMode, PrimaryWindow},
@@ -9,15 +9,6 @@ use mouse::MousePlugin;
 
 use super::defs::{LocalPlayerMesh, TestingComponent};
 
-/// # Examples
-///
-/// ```
-/// use bevy::prelude::*;
-/// use bevy_third_person_camera::ThirdPersonCameraPlugin;
-/// fn main() {
-///     App::new().add_plugins(ThirdPersonCameraPlugin);
-/// }
-/// ```
 pub struct ThirdPersonCameraPlugin;
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
@@ -34,7 +25,6 @@ impl Plugin for ThirdPersonCameraPlugin {
             .add_systems(
                 Update,
                 (
-                    aim.run_if(aim_condition),
                     toggle_x_offset.run_if(toggle_x_offset_condition),
                     toggle_cursor.run_if(toggle_cursor_condition),
                 ),
@@ -47,34 +37,8 @@ impl Plugin for ThirdPersonCameraPlugin {
             );
     }
 }
-/// # Examples
-///
-/// ```
-/// use bevy::prelude::*;
-/// use bevy_third_person_camera::ThirdPersonCamera;
-/// fn spawn_camera(mut commands: Commands) {
-///     commands.spawn((
-///         ThirdPersonCamera::default(),
-///         Camera3dBundle::default()
-///     ));
-/// }
-/// ```
 #[derive(Component)]
 pub struct ThirdPersonCamera {
-    /// Flag to indicate if the aim functionality is turned on.
-    /// Default is false
-    pub aim_enabled: bool,
-    /// The mouse aim button binding.
-    /// Default is MouseButton::Right
-    pub aim_button: MouseButton,
-    /// The speed at which aiming occurs.
-    /// Default is 3.0
-    pub aim_speed: f32,
-    /// The zoom level of the aim zooming functionality.
-    /// This value should be >= 0.l, and <= Zoom.min.
-    /// The smaller the value, the greater the zoom distance. 0.1 would essentially look like 'first person'.
-    /// Default is 0.7
-    pub aim_zoom: f32,
     /// Flag to indicate if the cursor lock toggle functionality is turned on.
     /// When enabled and the cursor lock is NOT active, the mouse can freely move about the window without the camera's transform changing.
     /// Example usage: Browsing a character inventory without moving the camera.
@@ -131,10 +95,6 @@ pub struct ThirdPersonCamera {
 impl Default for ThirdPersonCamera {
     fn default() -> Self {
         ThirdPersonCamera {
-            aim_enabled: false,
-            aim_button: MouseButton::Right,
-            aim_speed: 3.0,
-            aim_zoom: 0.7,
             cursor_lock_key: KeyCode::Escape,
             cursor_lock_toggle_enabled: true,
             cursor_lock_active: true,
@@ -142,7 +102,7 @@ impl Default for ThirdPersonCamera {
             mouse_orbit_button_enabled: false,
             mouse_orbit_button: MouseButton::Middle,
             offset_enabled: true,
-            offset: Offset::new(0.0, 0.6),
+            offset: Offset::new(0.0, 1.6),
             offset_toggle_enabled: false,
             offset_toggle_speed: 5.0,
             offset_toggle_key: KeyCode::KeyE,
@@ -158,7 +118,6 @@ pub struct Zoom {
     pub min: f32,
     pub max: f32,
     radius: f32,
-    radius_copy: Option<f32>,
 }
 
 impl Zoom {
@@ -167,7 +126,6 @@ impl Zoom {
             min,
             max,
             radius: min,
-            radius_copy: None,
         }
     }
 }
@@ -190,38 +148,6 @@ impl Offset {
     }
 }
 
-/// Customizable gamepad settings
-///
-/// # Examples
-///
-/// ```
-/// use bevy::prelude::*;
-/// use bevy_third_person_camera::{CustomGamepadSettings, ThirdPersonCamera};
-/// fn spawn_camera(mut commands: Commands) {
-///    let gamepad = Gamepad::new(0);
-///    commands.spawn((
-///        ThirdPersonCamera {
-///            ..default()
-///        },
-///        Camera3dBundle::default(),
-///    ));
-/// }
-/// ```
-
-/// The desired target for the third person camera to look at
-///
-/// # Examples
-///
-/// ```
-/// use bevy::prelude::*;
-/// use bevy_third_person_camera::ThirdPersonCameraTarget;
-/// fn spawn_player(mut commands: Commands) {
-///     commands.spawn((
-///         PbrBundle::default(),
-///         ThirdPersonCameraTarget
-///     ));
-/// }
-/// ```
 #[derive(Component)]
 pub struct ThirdPersonCameraTarget;
 fn sync_camera_and_player(
@@ -295,7 +221,9 @@ fn sync_camera_and_player(
             let final_rotation = target_rotation_yaw * Quat::from_rotation_x(-pitch);
 
             let camera_offset = Vec3::new(0.0, Y_OFFSET, 0.0);
-            cam_transform.translation = player.translation + camera_offset;
+            cam_transform.translation = player.translation
+                + camera_offset
+                + Vec3::new(0.0, FIRST_PERSON_CAMERA_HEIGHT_OFFSET, 0.0);
 
             // **Rotation around the center - Relative Offset Approach**
             // 1. Calculate the offset from the player's center to the mesh's center
@@ -332,76 +260,6 @@ fn sync_camera_and_player(
         }
     }
 }*/
-// only run aiming logic if `aim_enabled` is true
-fn aim_condition(cam_q: Query<&ThirdPersonCamera, With<ThirdPersonCamera>>) -> bool {
-    let Ok(cam) = cam_q.single() else {
-        return false;
-    };
-    cam.aim_enabled
-}
-
-fn aim(
-    mut cam_q: Query<
-        (&mut ThirdPersonCamera, &Transform),
-        (With<ThirdPersonCamera>, Without<ThirdPersonCameraTarget>),
-    >,
-    mouse: Res<ButtonInput<MouseButton>>,
-    mut player_q: Query<&mut Transform, With<ThirdPersonCameraTarget>>,
-    time: Res<Time>,
-) {
-    let Ok((mut cam, cam_transform)) = cam_q.single_mut() else {
-        return;
-    };
-
-    let Ok(mut player_transform) = player_q.single_mut() else {
-        return;
-    };
-
-    // check if aim button was pressed
-    let is_mouse_aiming = mouse.pressed(cam.aim_button);
-
-    if is_mouse_aiming {
-        // rotate player or target to face direction he is aiming
-        player_transform.look_to(*cam_transform.forward(), Vec3::Y);
-
-        let desired_zoom = cam.zoom.min * cam.aim_zoom;
-
-        // radius_copy is used for restoring the radius (zoom) to it's
-        // original value after releasing the aim button
-        if cam.zoom.radius_copy.is_none() {
-            cam.zoom.radius_copy = Some(cam.zoom.radius);
-        }
-
-        let zoom_factor =
-            (cam.zoom.radius_copy.unwrap() / cam.aim_zoom) * cam.aim_speed * time.delta_secs();
-
-        // stop zooming in if current radius is less than desired zoom
-        if cam.zoom.radius <= desired_zoom || cam.zoom.radius - zoom_factor <= desired_zoom {
-            cam.zoom.radius = desired_zoom;
-        } else {
-            cam.zoom.radius -= zoom_factor;
-        }
-    } else {
-        if let Some(radius_copy) = cam.zoom.radius_copy {
-            let zoom_factor = (radius_copy / cam.aim_zoom) * cam.aim_speed * time.delta_secs();
-
-            // stop zooming out if current radius is greater than original radius
-            if cam.zoom.radius >= radius_copy || cam.zoom.radius + zoom_factor >= radius_copy {
-                cam.zoom.radius = radius_copy;
-                cam.zoom.radius_copy = None;
-            } else {
-                cam.zoom.radius += (radius_copy / cam.aim_zoom) * cam.aim_speed * time.delta_secs();
-            }
-        }
-    }
-}
-
-pub fn zoom_condition(cam_q: Query<&ThirdPersonCamera, With<ThirdPersonCamera>>) -> bool {
-    let Ok(cam) = cam_q.single() else {
-        return false;
-    };
-    return cam.zoom_enabled && cam.cursor_lock_active;
-}
 
 // only run toggle_x_offset if `offset_toggle_enabled` is true
 fn toggle_x_offset_condition(cam_q: Query<&ThirdPersonCamera, With<ThirdPersonCamera>>) -> bool {

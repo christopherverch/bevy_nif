@@ -10,17 +10,18 @@ use bevy::{
 };
 use bevy_kira_audio::SpatialAudioReceiver;
 use bevy_nif;
-use bevy_nif::nif::animation::{NifAnimator, NifAnimatorAdded};
+use bevy_nif::nif::animation::{BlendMask, NifAnimator, NifAnimatorAdded};
 use bevy_nif::nif::attach_parts::AttachmentType;
 use bevy_nif::nif::spawner::NifScene;
 use bevy_rapier3d::prelude::*;
 use cdda_bevy::client::defs::{
-    AnimateableEntity, CreatureStats, CurrentClientId, KnockdownEventAdded, LandscapeLoader,
-    LocalPlayer, LocalPlayerMesh, MeshEntityLink, NeedsSetup, NetworkedEntity, NifAnimatorLink,
-    Pause, Player, PlayerCamera, PlayerEntityLink, PlayerState, Speed, TestingComponent,
+    AnimateableEntity, CreatureStats, CurrentClientId, Direction, KnockdownEventAdded, LocalPlayer,
+    LocalPlayerMesh, MeshEntityLink, NeedsSetup, NetworkedEntity, NifAnimatorLink, Pause, Player,
+    PlayerCamera, PlayerEntityLink, PlayerState, Speed, TestingComponent,
 };
-use cdda_bevy::client::events::KnockdownFinished;
+use cdda_bevy::client::events::{KnockdownFinished, RequestAnimation};
 use cdda_bevy::client::third_person_camera::{ThirdPersonCamera, ThirdPersonCameraTarget};
+use cdda_bevy::{AnimationConfig, RepeatAnim};
 use std::f32::consts::*;
 
 const PLAYER_COLLIDER_HEIGHT: f32 = 1.2;
@@ -35,24 +36,10 @@ pub fn setup_player(
     mut local_player_res: ResMut<LocalPlayer>,
 ) {
     for (player_entity, setup_info) in &mut query {
-        commands.spawn((
-            LandscapeLoader {
-                cell_x: -2,
-                cell_y: -9,
-            },
-            Visibility::Visible,
-        ));
-        commands.spawn((
-            LandscapeLoader {
-                cell_x: -2,
-                cell_y: -9,
-            },
-            Visibility::Visible,
-        ));
-
-        println!("setting up player");
-        println!("client id: {} {}", client_id.0, setup_info.id);
-
+        info!(
+            "setting up player with client id: {} {}",
+            client_id.0, setup_info.id
+        );
         //spawn the initial player
         commands.entity(player_entity).insert((
             Player,
@@ -61,10 +48,16 @@ pub fn setup_player(
                 id: setup_info.id,
                 ..Default::default()
             },
-            CreatureStats::new(setup_info.id),
+            CreatureStats {
+                id: setup_info.id,
+                health: 50.0,
+                input_enabled: true,
+                current_locomotion_state: cdda_bevy::client::defs::LocomotionState::Idle,
+                current_weapon_state: "".to_string(),
+            },
             AnimateableEntity,
             NetworkedEntity(player_entity),
-            Transform::default(),
+            Transform::from_xyz(0.0, 1.0, 0.0),
             Visibility::Visible,
         ));
 
@@ -79,7 +72,6 @@ pub fn setup_player(
         commands
             .entity(player_entity)
             .insert(MeshEntityLink(Some(player_mesh)));
-
         //if this is the local player
         if client_id.0 == setup_info.id {
             commands.entity(player_mesh).insert(LocalPlayerMesh);
@@ -102,13 +94,13 @@ pub fn setup_player(
             Transform {
                 translation: Vec3::new(0.0, -PLAYER_COLLIDER_HEIGHT / 1.3, 0.0),
                 rotation,
-                scale: Vec3::splat(0.015),
+                scale: Vec3::splat(0.02),
             },
         );
-
         commands.entity(player_entity).add_child(player_mesh);
+
+        // add physics to player
         commands.entity(player_entity).insert((
-            Transform::from_xyz(0.0, 2.0, 0.0),
             Collider::capsule_y(PLAYER_COLLIDER_HEIGHT / 2.0, 0.3),
             KinematicCharacterController {
                 custom_mass: Some(5.0),
@@ -129,12 +121,19 @@ pub fn setup_player(
                 snap_to_ground: None,
                 ..default()
             },
-            Speed(4.0),
+            Speed(5.0),
         ));
-        println!(
-            "player id and transform: {}{}",
-            setup_info.id, setup_info.player_transform.translation
-        );
+        commands.trigger(RequestAnimation {
+            skeleton_id: setup_info.id,
+            animation_config: AnimationConfig {
+                name: "idle".to_string(),
+                repeat: RepeatAnim::Never,
+                priority: 0,
+                mask: BlendMask::all(),
+            },
+            networked: true,
+        });
+
         commands.entity(player_entity).remove::<NeedsSetup>();
     }
 }
@@ -143,10 +142,7 @@ pub fn setup(
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut gizmo_config_store: ResMut<GizmoConfigStore>, //mesh_query: Query<Entity, With<LocalPlayerMesh>>,
 ) {
-    let (config, _) = gizmo_config_store.config_mut::<DefaultGizmoConfigGroup>();
-    config.enabled = true;
     spawn_nif_unattached(commands.reborrow(), &asset_server);
 
     commands.spawn((
@@ -398,11 +394,6 @@ pub fn setup(
         },
         HudText,
     ));
-}
-#[derive(Resource, Default)]
-enum DefaultRenderMode {
-    #[default]
-    Deferred,
 }
 
 pub fn insert_nif_animator_links(
@@ -706,13 +697,24 @@ pub fn add_nif_animation_events(
 
     for (entity, nif_animator, graph_handle) in animator_q {
         for (player_entity, nif_animator_link) in player_query {
-            println!("nif: {} player: {}", entity, nif_animator_link.0);
+            info!(
+                "adding knockdown event to nif entity: {} with animator link: {}",
+                entity, nif_animator_link.0
+            );
             if nif_animator_link.0 != entity {
                 continue;
             }
-            let anim_graph = anim_graphs.get(graph_handle).unwrap();
-            let knockdown_anim = nif_animator.animations.get("knockdown").unwrap();
-            let knockdown_clip = get_clip(*knockdown_anim, anim_graph, &mut clips);
+            let Some(anim_graph) = anim_graphs.get(graph_handle) else {
+                warn!("missing animation graph for nif animator!");
+                commands.entity(entity).insert(KnockdownEventAdded);
+                return;
+            };
+            let Some(knockdown_anim) = nif_animator.animation_definitions.get("knockdown") else {
+                warn!("missing knockdown anim for nif animator!");
+                commands.entity(entity).insert(KnockdownEventAdded);
+                return;
+            };
+            let knockdown_clip = get_clip(knockdown_anim.node_index, anim_graph, &mut clips);
             let knockdown_clip_duration = knockdown_clip.duration();
             knockdown_clip.add_event(knockdown_clip_duration, KnockdownFinished(player_entity));
             commands.entity(entity).insert(KnockdownEventAdded);

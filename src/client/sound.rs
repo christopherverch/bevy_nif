@@ -10,6 +10,7 @@ pub fn generate_sound(
 ) {
     let generated_sound = audio
         .play(asset_server.load(trigger.sound_path.clone()))
+        .with_volume(0.1)
         .handle();
     let sound_entity: Option<Entity>;
     if let Some(sound_anchor_entity) = trigger.sound_anchor_entity {

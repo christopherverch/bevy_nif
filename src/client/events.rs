@@ -1,11 +1,11 @@
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::RequestedAnimation;
-#[derive(Event, Clone)]
+use crate::AnimationConfig;
+#[derive(Event, Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct RequestAnimation {
-    pub entity_id: u64,
-    pub requested_animation: RequestedAnimation,
+    pub skeleton_id: u64,
+    pub animation_config: AnimationConfig,
     pub networked: bool,
 }
 #[derive(Event, Clone)]
@@ -42,4 +42,13 @@ pub struct SoundEvent {
     pub translation: Option<Vec3>,
     pub sound_path: String,
     pub is_attached_to_local_player: bool,
+}
+
+#[derive(Event, Debug, Serialize, Deserialize, Clone)]
+pub struct SetAnimSpeedSeekEvent {
+    pub animation: String,
+    pub skeleton_id: u64,
+    pub speed: f32,
+    pub seek_to: Option<f32>,
+    pub networked: bool,
 }

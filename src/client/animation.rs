@@ -1,9 +1,17 @@
-#![allow(dead_code)]
+use bevy_ecs::{entity::Entity, system::Res};
 
-use crate::client::defs::PlayerState;
-use crate::client::events::RequestAnimation;
-use crate::{AnimationState, RequestedAnimation};
-use bevy::prelude::*;
+use super::defs::IdToEntityMap;
+
+pub fn get_anim_components_from_skel_id<'a>(
+    skeleton_id: u64,
+    id_to_entity_map: &'a Res<IdToEntityMap>,
+) -> Option<&'a Entity> {
+    let Some(entity_to_animate) = id_to_entity_map.0.get(&skeleton_id) else {
+        return None;
+    };
+    Some(entity_to_animate)
+}
+
 /*
 pub fn observe_swing_finished(
     trigger: Trigger<OnSwingFinished>,
@@ -275,20 +283,3 @@ fn run_swinging_playback(
         _ => {}
     }
 }*/
-pub fn trigger_request_animation(
-    mut commands: Commands,
-    requested_animation: RequestedAnimation,
-    player_state: &mut PlayerState,
-    networked: bool,
-) {
-    if AnimationState::from(requested_animation.clone()).is_primary() {
-        player_state.requested_primary_animation = Some(requested_animation.clone());
-    } else {
-        player_state.requested_secondary_animation = Some(requested_animation.clone());
-    }
-    commands.trigger(RequestAnimation {
-        entity_id: player_state.id,
-        requested_animation,
-        networked,
-    });
-}

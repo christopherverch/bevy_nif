@@ -1,24 +1,28 @@
 use bevy::prelude::*;
+use bevy_nif::nif::animation::BlendMask;
 use client::{
-    defs::{AnimationEvent, Direction},
-    events::{SoundEvent, TriggerHit},
+    defs::{Direction, NetworkAnimEvent},
+    events::{SetAnimSpeedSeekEvent, SoundEvent, TriggerHit},
 };
 use serde::{Deserialize, Serialize};
 pub mod client;
 pub mod networking;
 pub mod serializer;
-#[derive(Copy, Component, Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub enum AnimationState {
-    Idle,
-    Running { direction: Direction },
-    Swinging,
-    Jumping,
-    FirstPersonMoving,
-    SneakIdle,
-    Knockdown,
-    Death,
-    Undefined,
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub enum RepeatAnim {
+    Never,
+    Forever,
+    Count(u32),
 }
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct AnimationConfig {
+    pub name: String,
+    pub repeat: RepeatAnim,
+    pub priority: u8,
+    pub mask: BlendMask,
+}
+
+/*
 #[derive(Component, Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum RequestedAnimation {
     Common(AnimationState),
@@ -28,7 +32,7 @@ pub enum RequestedAnimation {
     SwingReleasing,
     SwingReturning,
     LoopMovement { animation: String },
-    FreezeAnimation,
+    FreezeAnimEvent,
     ResumeAnimation,
 }
 
@@ -42,7 +46,7 @@ impl From<RequestedAnimation> for AnimationState {
             | RequestedAnimation::SwingReleasing
             | RequestedAnimation::SwingReturning => AnimationState::Swinging,
             RequestedAnimation::LoopMovement { .. } => AnimationState::Undefined,
-            RequestedAnimation::FreezeAnimation => AnimationState::Undefined,
+            RequestedAnimation::FreezeAnimEvent { .. } => AnimationState::Undefined,
             RequestedAnimation::ResumeAnimation => AnimationState::Undefined,
         }
     }
@@ -53,21 +57,7 @@ impl From<AnimationState> for RequestedAnimation {
         RequestedAnimation::Common(state)
     }
 }
-impl AnimationState {
-    pub fn is_primary(self) -> bool {
-        matches!(
-            self,
-            AnimationState::Idle
-                | AnimationState::Running { .. }
-                | AnimationState::Jumping
-                | AnimationState::FirstPersonMoving
-        )
-    }
-
-    pub fn is_secondary(self) -> bool {
-        !self.is_primary()
-    }
-}
+*/
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct NetworkEventWithId {
     pub action_id: u64,
@@ -76,15 +66,22 @@ pub struct NetworkEventWithId {
 #[derive(Event, Debug, Serialize, Deserialize, Clone)]
 pub enum NetworkEvent {
     TestingString(String),
-    Animation(AnimationEvent),
+    Animation(NetworkAnimEvent),
+    SetAnimSpeedSeek(SetAnimSpeedSeekEvent),
     Hit(TriggerHit),
     Sound(SoundEvent),
 }
 impl NetworkEventWithId {
-    pub fn animation(action_id: u64, animation_event: AnimationEvent) -> Self {
+    pub fn animation(action_id: u64, animation_event: NetworkAnimEvent) -> Self {
         Self {
             action_id,
             payload: NetworkEvent::Animation(animation_event),
+        }
+    }
+    pub fn freeze_animation(action_id: u64, animation_speed_event: SetAnimSpeedSeekEvent) -> Self {
+        Self {
+            action_id,
+            payload: NetworkEvent::SetAnimSpeedSeek(animation_speed_event),
         }
     }
     pub fn hit(action_id: u64, trigger_hit: TriggerHit) -> Self {

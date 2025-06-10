@@ -1,14 +1,27 @@
 use bevy_ecs::system::Commands;
-use cdda_bevy::client::defs::{AllLandTextures, AllLandscapes, EsmReaderResource};
+use cdda_bevy::client::defs::{AllLandscapes, EsmReaderResource, LandTextureDefinitions};
 use esm_parser_lib::{
-    EsmReader, Header, LandTexture, Landscape, TextDecoder, esm_reader::Windows1252Decoder,
+    EsmReader, Header, LandTexture, Landscape, RefId, TextDecoder, esm_reader::Windows1252Decoder,
 };
 use std::{collections::HashMap, path::Path, time::Instant};
 
 pub fn populate_esm_resources(mut commands: Commands) {
+    if let Ok((reader, landscapes, land_textures)) = run_initial_parse() {
+        commands.insert_resource(EsmReaderResource(reader));
+        commands.insert_resource(AllLandscapes(landscapes));
+        commands.insert_resource(LandTextureDefinitions(land_textures));
+    }
+}
+pub fn run_initial_parse() -> Result<
+    (
+        EsmReader<'static>,
+        HashMap<(i32, i32), Landscape>,
+        HashMap<u32, LandTexture>,
+    ),
+    String,
+> {
     let mut land_textures = HashMap::new();
-    let mut landscape = None;
-    let file_path_str = "Morrowind.esm"; // <--- CHANGE THIS
+    let file_path_str = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/Morrowind.esm");
     let file_path = Path::new(file_path_str);
     let mut landscapes = HashMap::new();
     if !file_path.exists() {
@@ -16,7 +29,11 @@ pub fn populate_esm_resources(mut commands: Commands) {
             "Error: File not found at '{}'. Please update the path in main.rs.",
             file_path.display()
         );
-        return;
+        return Err(format!(
+            "
+            Error: File not found at '{}'. Please update the path in main.rs.",
+            file_path.display(),
+        ));
     }
 
     let mut reader = EsmReader::new();
@@ -89,7 +106,6 @@ pub fn populate_esm_resources(mut commands: Commands) {
                                         &mut reader,
                                         &record_name_bytes, // Pass the raw bytes for matching
                                         &mut land_textures,
-                                        &mut landscape,
                                         &mut landscapes,
                                     )
                                 } else {
@@ -133,12 +149,16 @@ pub fn populate_esm_resources(mut commands: Commands) {
             eprintln!("\nError after {:?}: {}", duration, e);
         }
     }
-
-    commands.insert_resource(EsmReaderResource(reader));
-    commands.insert_resource(AllLandscapes(landscapes));
-    commands.insert_resource(AllLandTextures(land_textures));
+    // we have to insert this because it's always available as the "default texture"
+    let default_texture = LandTexture {
+        texture_file: "_land_default.tga".to_string(),
+        // no idea what to put for id
+        id: RefId::new(),
+        index: u16::MAX as u32,
+    };
+    land_textures.insert(default_texture.index, default_texture);
+    Ok((reader, landscapes, land_textures))
 }
-
 pub fn print_header_information(header: &Header) {
     println!("\n--- Header Information ---");
     println!("  File Version (float): {}", header.esm_version_f());
@@ -166,7 +186,6 @@ pub fn try_parse_and_print_record(
     reader: &mut EsmReader,
     rec_name_bytes: &[u8; 4], // Pass the raw bytes for direct comparison
     textures: &mut HashMap<u32, LandTexture>,
-    landscape_in: &mut Option<Landscape>,
     landscapes: &mut HashMap<(i32, i32), Landscape>,
 ) {
     if *rec_name_bytes == *b"LTEX" {
@@ -177,12 +196,6 @@ pub fn try_parse_and_print_record(
 
     if *rec_name_bytes == *b"LAND" {
         let mut landscape = Landscape::load(reader).unwrap();
-        match landscape.load_detailed_data(reader) {
-            Ok(_) => {}
-            Err(e) => {
-                println!("err {}", e);
-            }
-        }
         if let Some(indices) = landscape.texture_indices.as_mut() {
             for index in indices.iter_mut() {
                 // we want to wrap around so 0 values become u16::max, so we know which would have
@@ -193,7 +206,6 @@ pub fn try_parse_and_print_record(
         landscapes.insert((landscape.grid_x, landscape.grid_y), landscape.clone());
         if landscape.grid_x == -2 && landscape.grid_y == -9 {
             println!("found land");
-            *landscape_in = Some(landscape);
         }
     }
 }

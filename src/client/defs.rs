@@ -1,5 +1,5 @@
 use crate::serializer::PlayerStateNetwork;
-use crate::{AnimationState, NetworkEvent, RequestedAnimation};
+use crate::{AnimationConfig, NetworkEvent};
 use bevy::prelude::*;
 use bevy_ecs::component::HookContext;
 use bevy_ecs::world::DeferredWorld;
@@ -9,20 +9,15 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-#[derive(Resource, Component)]
+#[derive(Resource, Component, Debug)]
 pub struct PlayerState {
     pub id: u64,
     pub transform: Transform,
     pub last_packet_time: Instant,
     pub started_attacking: Instant,
     pub is_attacking: bool,
-    pub is_moving: bool,
     pub is_ready_weapon: bool,
     pub attack_state: AttackState,
-    pub current_animation: AnimationState,
-    pub secondary_animation: AnimationState,
-    pub requested_primary_animation: Option<RequestedAnimation>,
-    pub requested_secondary_animation: Option<RequestedAnimation>,
 }
 impl Default for PlayerState {
     fn default() -> Self {
@@ -32,13 +27,8 @@ impl Default for PlayerState {
             last_packet_time: Instant::now(),
             started_attacking: Instant::now(),
             is_attacking: false,
-            is_moving: false,
             is_ready_weapon: false,
             attack_state: AttackState::Inactive,
-            current_animation: AnimationState::Idle,
-            secondary_animation: AnimationState::Idle,
-            requested_primary_animation: None,
-            requested_secondary_animation: None,
         }
     }
 }
@@ -48,20 +38,26 @@ impl PlayerState {
         self.attack_state = net.attack_state;
     }
 }
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)] // Add Hash if used as a HashMap key
+pub enum LocomotionState {
+    Idle,
+    Moving(Direction), // e.g., Moving(Direction::Forward) for runforward
+    Jumping,
+    Falling,
+    Landing,
+    FinishedLanding,
+    Knockdown,
+}
+
 //we want this to be its own component so we can add it to actors, creatures, etc
 #[derive(Component, Clone, Debug, Serialize, Deserialize, Resource)]
 #[component(on_add = add_creature_to_id_map)]
 pub struct CreatureStats {
     pub id: u64,
     pub health: f32,
-}
-impl CreatureStats {
-    pub fn new(id: u64) -> Self {
-        CreatureStats {
-            id,
-            health: 50.0, // auto-set
-        }
-    }
+    pub input_enabled: bool,
+    pub current_locomotion_state: LocomotionState,
+    pub current_weapon_state: String,
 }
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 pub enum AttackState {
@@ -73,73 +69,28 @@ pub enum AttackState {
     Returning,
     FrozenBack,
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq, States, Default, Hash)]
-pub enum SpawnSceneState {
-    #[default]
-    Spawning,
-    Spawned,
-}
 #[derive(Component, Debug)]
 pub struct FirstPersonMeshEntityLinks(pub Vec<Entity>);
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub enum AnimationEvent {
-    NifAnimationEvent {
+pub enum NetworkAnimEvent {
+    NifAnimEvent {
         event_type: NifEventType,
+        skeleton_id: u64,
     },
-    RequestedAnimationEvent {
-        requested_animation: RequestedAnimation,
-        target_id: u64,
+    BevyAnimEvent {
+        animation_config: AnimationConfig,
+        skeleton_id: u64,
     },
 }
 
-/*impl From<NifEventType> for AnimationEvent {
-    fn from(event: NifEventType) -> Self {
-        match event {
-            NifEventType::PlaySound { sound_name } => AnimationEvent::SoundGen { sound_name },
-            NifEventType::ResumeIdle { animation_name } => {
-                AnimationEvent::ResumeIdle { animation_name }
-            }
-            NifEventType::FreezeAnimation { animation_name } => {
-                AnimationEvent::FreezeAnimation { animation_name }
-            }
-            NifEventType::LoopAnimation { animation_name } => {
-                AnimationEvent::LoopAnimation { animation_name }
-            }
-        }
-    }
-}*/
-#[derive(Default, Resource)]
-pub struct Animations {
-    pub animations: Vec<AnimationNodeIndex>,
-    pub graph: Handle<AnimationGraph>,
-}
-#[derive(Component)]
+#[derive(Component, Debug)]
 pub struct NifAnimatorLink(pub Entity);
 #[derive(Component)]
 pub struct Animator {
     pub graph: Handle<AnimationGraph>,
     pub animations: Vec<AnimationNodeIndex>,
 }
-#[derive(PartialEq)]
-pub enum MaskGroup {
-    ARMS,
-    TORSO,
-    // Add more as needed
-}
-pub enum AnimationNodeConfig {
-    Standard {
-        clip: Handle<AnimationClip>,
-        speed: f32,
-    },
-    Masked {
-        clip: Handle<AnimationClip>,
-        mask: u64,
-        speed: f32,
-    },
-}
 
-#[derive(Default, Resource, Debug)]
-pub struct SceneEntitiesByName(pub HashMap<(String, u64), Entity>);
 #[derive(Resource)]
 pub struct Pause(pub bool);
 #[derive(Clone, Copy, Debug, Eq, PartialEq, States, Default, Hash)]
@@ -157,7 +108,7 @@ pub struct PlayerEntityLink(pub Option<Entity>);
 #[derive(Component)]
 pub struct NetworkedEntity(pub Entity);
 #[derive(Resource, Default, Debug)]
-pub struct NetworkEventWithIdIdCounter(pub u64);
+pub struct NetworkEventWithIdCounter(pub u64);
 #[derive(Debug)]
 pub struct SentActionInfo {
     pub action_payload: NetworkEvent, // Store for potential retry
@@ -196,18 +147,19 @@ pub struct MeshEntityLink(pub Option<Entity>);
 pub struct LocalPlayerMesh;
 #[derive(Resource)]
 pub struct ServerIP(pub String);
-#[derive(Resource, Default)]
+#[derive(Resource, Default, Debug)]
 pub struct PlayerInput {
     pub move_direction: Vec2,
     pub jump: bool,
     // Add other input states as needed
 }
-#[derive(Copy, Component, Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Copy, Component, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum Direction {
     Forward,
     Left,
     Right,
     Backward,
+    None,
 }
 
 #[derive(Component)]
@@ -226,7 +178,7 @@ pub struct EsmReaderResource(pub EsmReader<'static>);
 #[derive(Resource)]
 pub struct AllLandscapes(pub HashMap<(i32, i32), Landscape>);
 #[derive(Resource)]
-pub struct AllLandTextures(pub HashMap<u32, LandTexture>);
+pub struct LandTextureDefinitions(pub HashMap<u32, LandTexture>);
 #[derive(Component)]
 pub struct LandscapeAwaitingImages {
     pub image_handles: Vec<Handle<Image>>,
@@ -237,11 +189,26 @@ pub struct LandscapeLoader {
     pub cell_x: i32,
     pub cell_y: i32,
 }
-
-pub const MORROWIND_CELL_SIZE: f32 = 40.96;
-pub const MORROWIND_HEIGHT_SCALE: f32 = 0.04;
+#[derive(Resource, Debug, Copy, Clone)]
+pub struct LandscapeManagementSettings {
+    pub load_radius_cells: u32, // e.g., 2 means a 5x5 grid (current + 2 in each direction)
+    pub unload_radius_cells: u32, // e.g., 3 (larger than load_radius to prevent rapid load/unload)
+}
+#[derive(Resource, Default, Debug)]
+pub struct LoadedLandscapeEntities {
+    // Maps cell (x, y) coordinates to the Bevy Entity ID that represents that landscape cell's mesh.
+    pub cell_to_entity: HashMap<(i32, i32), Entity>,
+}
+#[derive(Component, Debug, Copy, Clone)]
+pub struct LandscapeCell {
+    pub x: i32,
+    pub y: i32,
+}
+pub const MORROWIND_CELL_SIZE: f32 = 102.0;
+pub const MORROWIND_HEIGHT_SCALE: f32 = 0.1;
 pub const COLLIDER_HEIGHT: f32 = 1.2;
 pub const MESH_HEIGHT_OFFSET: f32 = 0.9;
+pub const FIRST_PERSON_CAMERA_HEIGHT_OFFSET: f32 = 0.64;
 #[derive(Resource, Default)]
 pub struct IdToEntityMap(pub HashMap<u64, Entity>);
 fn add_creature_to_id_map(

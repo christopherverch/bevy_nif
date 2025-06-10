@@ -13,7 +13,6 @@ use bevy_rapier3d::prelude::RapierPhysicsPlugin;
 use bevy_rapier3d::prelude::*;
 use bevy_renet::RenetClientPlugin;
 use cdda_bevy::client::defs::*;
-use cdda_bevy::client::modular_characters::*;
 use cdda_bevy::client::third_person_camera::*;
 use cdda_bevy::client::ui::*;
 use cdda_bevy::networking::PlayerCommand;
@@ -25,20 +24,23 @@ use terrain_material::TerrainBlendMaterial;
 mod actor_funcs;
 mod handle_nif_events;
 mod initial_esm_parse;
-mod landscape_loader;
+mod landscape;
+use landscape::{
+    landscape_loader::{load_landscape, setup_landscape_images},
+    landscape_spawning_despawning::spawn_despawn_landscapes,
+};
 mod player_input;
 mod send_data;
 mod setup_funcs;
 mod terrain_material;
 mod test_esm2;
 use initial_esm_parse::*;
-use landscape_loader::*;
 use player_input::*;
 use send_data::*;
 use setup_funcs::*;
 mod actor_animation;
 mod sound;
-use actor_animation::{handle_animation_request, test_animations};
+use actor_animation::{handle_animation_request, handle_set_anim_speed_seek};
 #[derive(Debug)]
 struct ClientServerEntity {
     client_entity: Entity,
@@ -101,14 +103,16 @@ fn main() {
         .insert_resource(PlayerInput::default())
         .insert_resource(PlayerState::default())
         .insert_resource(LocalPlayer::default())
-        .insert_resource(Animations::default())
         .insert_resource(IdToEntityMap::default())
-        .insert_resource(SceneEntitiesByName::default())
+        .insert_resource(LandscapeManagementSettings {
+            load_radius_cells: 2,
+            unload_radius_cells: 3,
+        })
+        .insert_resource(LoadedLandscapeEntities::default())
         /*   .init_asset::<MorrowindDecodedWav>()
         .init_asset_loader::<MorrowindWavLoader>()
         .add_audio_source::<MorrowindDecodedWav>()*/
         .init_state::<GameState>()
-        .init_state::<SpawnSceneState>()
         .add_systems(Startup, setup)
         .add_systems(Startup, populate_esm_resources)
         .add_systems(Update, setup_player)
@@ -116,22 +120,22 @@ fn main() {
         .add_event::<SceneInstanceReady>()
         .add_systems(Update, keyboard_input)
         .add_observer(generate_sound)
-        .add_observer(assemble_parts)
         .add_observer(handle_animation_request)
         .add_observer(handle_nif_trigger)
+        .add_observer(handle_set_anim_speed_seek)
         .add_observer(trigger_attack)
         .add_observer(apply_hit)
         .add_observer(knockdown_finished)
         .add_observer(insert_nif_animator_links)
-        .add_systems(Update, test_animations)
-        .add_systems(Update, load_landscape)
-        .add_systems(Update, setup_landscape_images)
         .add_systems(OnEnter(GameState::MainMenu), setup_main_menu)
         .add_systems(OnEnter(GameState::Connecting), despawn_main_menu_ui)
         .add_systems(OnEnter(GameState::Connecting), connect_to_server)
         .add_systems(OnEnter(GameState::Offline), spawn_player_offline)
         .add_systems(FixedUpdate, player_movement)
         .add_systems(Update, (switch_mode, animate_light_direction))
+        //.add_systems(Update, spawn_despawn_landscapes)
+        .add_systems(Update, load_landscape)
+        .add_systems(Update, setup_landscape_images)
         .run();
 }
 fn spawn_player_offline(mut commands: Commands) {

@@ -1,5 +1,7 @@
 use std::f32::consts::PI;
 
+use crate::client::defs::PlayerInput;
+
 use super::ThirdPersonCamera;
 use bevy::{
     input::mouse::{MouseMotion, MouseWheel},
@@ -28,12 +30,14 @@ fn orbit_condition(cam_q: Query<&ThirdPersonCamera>) -> bool {
 pub fn orbit_mouse(
     window_q: Query<&Window, With<PrimaryWindow>>,
     mut cam_q: Query<(&ThirdPersonCamera, &mut Transform), With<ThirdPersonCamera>>,
+    mut player_input: ResMut<PlayerInput>,
     mouse: Res<ButtonInput<MouseButton>>,
     mut mouse_evr: EventReader<MouseMotion>,
 ) {
     let mut rotation = Vec2::ZERO;
     for ev in mouse_evr.read() {
         rotation = ev.delta;
+        player_input.rotation_z += rotation.x;
     }
 
     let Ok((cam, mut cam_transform)) = cam_q.single_mut() else {

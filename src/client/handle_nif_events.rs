@@ -1,9 +1,8 @@
 use bevy::prelude::*;
-use bevy_nif::nif::animation::{BlendMask, NifAnimator, NifEvent, NifEventType};
+use bevy_nif::nif_animation::{BlendMask, NifAnimator, NifEvent, NifEventType};
 use cdda_bevy::{
     AnimationConfig, RepeatAnim,
     client::{
-        animation::get_anim_components_from_skel_id,
         defs::{CreatureStats, IdToEntityMap, LocalPlayer, LocomotionState, NifAnimatorLink},
         events::{RequestAnimation, SetAnimSpeedSeekEvent, SoundEvent},
     },
@@ -17,9 +16,7 @@ pub fn handle_nif_trigger(
     mut player_query: Query<(Entity, &NifAnimatorLink, &mut CreatureStats)>,
     id_to_entity_map: Res<IdToEntityMap>,
 ) {
-    let Some(entity_to_animate) =
-        get_anim_components_from_skel_id(trigger.skeleton_id, &id_to_entity_map)
-    else {
+    let Some(entity_to_animate) = id_to_entity_map.0.get(&trigger.skeleton_id) else {
         return;
     };
     let Ok((player_entity, nif_animator_link, mut creature_stats)) =
@@ -79,7 +76,6 @@ pub fn handle_nif_trigger(
             });
         }
         NifEventType::ResumeIdle { animation_name } => {
-            creature_stats.current_locomotion_state = LocomotionState::FinishedLanding;
             commands.trigger(RequestAnimation {
                 skeleton_id: creature_stats.id,
                 animation_config: AnimationConfig {

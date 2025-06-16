@@ -1,15 +1,46 @@
-use bevy_ecs::{entity::Entity, system::Res};
+use bevy::{
+    animation::{
+        AnimationPlayer,
+        graph::{AnimationGraph, AnimationGraphHandle},
+    },
+    asset::Assets,
+};
+use bevy_ecs::{
+    entity::Entity,
+    system::{Query, Res},
+    world::Mut,
+};
+use bevy_nif::nif_animation::NifAnimator;
 
-use super::defs::IdToEntityMap;
+use super::defs::{CreatureStats, IdToEntityMap};
 
-pub fn get_anim_components_from_skel_id<'a>(
-    skeleton_id: u64,
-    id_to_entity_map: &'a Res<IdToEntityMap>,
-) -> Option<&'a Entity> {
-    let Some(entity_to_animate) = id_to_entity_map.0.get(&skeleton_id) else {
+pub fn get_anim_components_for_creature<'a>(
+    creature_stats: &'a CreatureStats,
+    id_to_entity_map: &'a IdToEntityMap,
+    animator_q: &'a mut Query<(
+        &mut AnimationPlayer,
+        &mut NifAnimator,
+        &AnimationGraphHandle,
+    )>,
+) -> Option<(
+    &'a Entity,
+    Mut<'a, AnimationPlayer>,
+    Mut<'a, NifAnimator>,
+    &'a AnimationGraphHandle,
+)> {
+    let skeleton_id = creature_stats.id;
+    let entity_to_animate = id_to_entity_map.0.get(&skeleton_id)?;
+    let nif_animator_link = creature_stats.nif_animator_link?;
+    let Ok((animation_player, nif_animator, graph_handle)) = animator_q.get_mut(nif_animator_link)
+    else {
         return None;
     };
-    Some(entity_to_animate)
+    Some((
+        entity_to_animate,
+        animation_player,
+        nif_animator,
+        graph_handle,
+    ))
 }
 
 /*

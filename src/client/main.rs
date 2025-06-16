@@ -1,5 +1,6 @@
 //! This example compares Forward, Forward + Prepass, and Deferred rendering.
-use actor_funcs::apply_hit;
+use actor_animator::animate_actors_using_state;
+use actor_funcs::{apply_hit, apply_root_motion_system};
 use bevy::{
     pbr::{DefaultOpaqueRendererMethod, DirectionalLightShadowMap},
     prelude::*,
@@ -16,7 +17,9 @@ use cdda_bevy::client::defs::*;
 use cdda_bevy::client::third_person_camera::*;
 use cdda_bevy::client::ui::*;
 use cdda_bevy::networking::PlayerCommand;
+use combat::trigger_attack;
 use handle_nif_events::handle_nif_trigger;
+use movement::player_movement;
 use sound::generate_sound;
 use std::f32::consts::*;
 use std::time::Instant;
@@ -29,12 +32,17 @@ use landscape::{
     landscape_loader::{load_landscape, setup_landscape_images},
     landscape_spawning_despawning::spawn_despawn_landscapes,
 };
+mod combat;
+mod movement;
 mod player_input;
 mod send_data;
 mod setup_funcs;
 mod terrain_material;
 mod test_esm2;
+mod utils;
 use initial_esm_parse::*;
+mod actor_animator;
+mod actor_defs;
 use player_input::*;
 use send_data::*;
 use setup_funcs::*;
@@ -49,13 +57,6 @@ struct ClientServerEntity {
 
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct Connected;
-//
-/*#[derive(Component)]
-struct HasWeapon {
-    weapon_entity: Option<Entity>,
-}*/
-//we separate player and playerroot so we can have
-//separate entities as children and modify them independently
 
 fn main() {
     /*let bsa = bsa::BSAFile::new("Morrowind.bsa").unwrap();
@@ -109,9 +110,6 @@ fn main() {
             unload_radius_cells: 3,
         })
         .insert_resource(LoadedLandscapeEntities::default())
-        /*   .init_asset::<MorrowindDecodedWav>()
-        .init_asset_loader::<MorrowindWavLoader>()
-        .add_audio_source::<MorrowindDecodedWav>()*/
         .init_state::<GameState>()
         .add_systems(Startup, setup)
         .add_systems(Startup, populate_esm_resources)
@@ -125,7 +123,11 @@ fn main() {
         .add_observer(handle_set_anim_speed_seek)
         .add_observer(trigger_attack)
         .add_observer(apply_hit)
-        .add_observer(knockdown_finished)
+        .add_systems(
+            PostUpdate,
+            // Add the new system. It must run after animations are applied.
+            apply_root_motion_system,
+        )
         .add_observer(insert_nif_animator_links)
         .add_systems(OnEnter(GameState::MainMenu), setup_main_menu)
         .add_systems(OnEnter(GameState::Connecting), despawn_main_menu_ui)
@@ -133,6 +135,7 @@ fn main() {
         .add_systems(OnEnter(GameState::Offline), spawn_player_offline)
         .add_systems(FixedUpdate, player_movement)
         .add_systems(Update, (switch_mode, animate_light_direction))
+        .add_systems(Update, animate_actors_using_state)
         //.add_systems(Update, spawn_despawn_landscapes)
         .add_systems(Update, load_landscape)
         .add_systems(Update, setup_landscape_images)

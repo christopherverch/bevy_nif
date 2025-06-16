@@ -4,7 +4,7 @@ use super::GameState;
 use super::{ClientServerEntity, Connected};
 use bevy::prelude::*;
 use bevy::time::common_conditions::on_timer;
-use bevy_nif::nif::animation::NifEvent;
+use bevy_nif::nif_animation::NifEvent;
 use bevy_renet::netcode::{ClientAuthentication, NetcodeClientPlugin, NetcodeClientTransport};
 use bevy_renet::{
     client_connected,

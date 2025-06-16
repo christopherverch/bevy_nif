@@ -152,7 +152,7 @@ impl Offset {
 pub struct ThirdPersonCameraTarget;
 fn sync_camera_and_player(
     mut player_q: Query<
-        &Transform,
+        &mut Transform,
         (
             With<ThirdPersonCameraTarget>,
             Without<LocalPlayerMesh>,
@@ -171,7 +171,7 @@ fn sync_camera_and_player(
     is_third_person: Res<IsThirdPerson>,
     mut mesh_query: Query<&mut Transform, (With<LocalPlayerMesh>, Without<TestingComponent>)>,
 ) {
-    let Ok(player) = player_q.single_mut() else {
+    let Ok(mut player) = player_q.single_mut() else {
         return;
     };
     let Ok((cam, mut cam_transform)) = cam_q.single_mut() else {
@@ -195,54 +195,23 @@ fn sync_camera_and_player(
         rotation_matrix.mul_vec3(Vec3::new(0.0, 0.0, cam_zoom_radius)) + offset;
     const Y_OFFSET: f32 = 1.0;
 
-    if let Ok(mut player_mesh_transform) = mesh_query.single_mut() {
-        // Define the local offset from the mesh's origin (bottom) to its center
-        let Ok(_testing_transform) = testing_query.single() else {
-            return;
-        };
-        let local_center = Vec3::new(0.0, -1.4, 0.0);
+    // Define the local offset from the mesh's origin (bottom) to its center
+    let Ok(_testing_transform) = testing_query.single() else {
+        return;
+    };
+    let target_forward =
+        Vec3::new(-cam_transform.forward().x, 0.0, -cam_transform.forward().z).normalize_or_zero();
+    player.rotation = Quat::from_rotation_arc(Vec3::NEG_Z, target_forward);
 
-        if is_third_person.0 {
-            cam_transform.translation = player.translation + desired_translation;
-            *player_mesh_transform = player.clone();
-            player_mesh_transform.translation.y -= MESH_HEIGHT_OFFSET;
-        } else {
-            //const XZ_OFFSET: f32 = 0.07;
-            let camera_forward = cam_transform.forward().normalize();
+    if is_third_person.0 {
+        cam_transform.translation = player.translation + desired_translation;
+    } else {
+        //const XZ_OFFSET: f32 = 0.07;
 
-            let target_forward =
-                Vec3::new(-camera_forward.x, 0.0, -camera_forward.z).normalize_or_zero();
-            let target_rotation_yaw = Quat::from_rotation_arc(Vec3::NEG_Z, target_forward);
-
-            let pitch = camera_forward
-                .y
-                .asin()
-                .clamp(-std::f32::consts::FRAC_PI_2, std::f32::consts::FRAC_PI_2);
-            let final_rotation = target_rotation_yaw * Quat::from_rotation_x(-pitch);
-
-            let camera_offset = Vec3::new(0.0, Y_OFFSET, 0.0);
-            cam_transform.translation = player.translation
-                + camera_offset
-                + Vec3::new(0.0, FIRST_PERSON_CAMERA_HEIGHT_OFFSET, 0.0);
-
-            // **Rotation around the center - Relative Offset Approach**
-            // 1. Calculate the offset from the player's center to the mesh's center
-            let center_to_center_offset = local_center;
-
-            // 2. Rotate this offset
-            let rotated_center_to_center_offset = final_rotation.mul_vec3(center_to_center_offset);
-
-            // 3. Calculate the world position of the mesh's center
-            let world_center = player.translation + rotated_center_to_center_offset;
-
-            // 4. Calculate the world position of the mesh's bottom
-            let final_mesh_translation = world_center - local_center;
-
-            // 5. Set the mesh's transform
-            player_mesh_transform.translation = final_mesh_translation - Vec3::new(0.0, 0.45, 0.0);
-            //player_mesh_transform.translation += cam_transform.forward().normalize() * testing_transform.translation.x;
-            player_mesh_transform.rotation = final_rotation;
-        }
+        let camera_offset = Vec3::new(0.0, Y_OFFSET, 0.0);
+        cam_transform.translation = player.translation
+            + camera_offset
+            + Vec3::new(0.0, FIRST_PERSON_CAMERA_HEIGHT_OFFSET, 0.0);
     }
 }
 

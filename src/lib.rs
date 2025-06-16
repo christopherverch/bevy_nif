@@ -1,7 +1,7 @@
 use bevy::prelude::*;
-use bevy_nif::nif::animation::BlendMask;
+use bevy_nif::nif_animation::BlendMask;
 use client::{
-    defs::{Direction, NetworkAnimEvent},
+    defs::NetworkAnimEvent,
     events::{SetAnimSpeedSeekEvent, SoundEvent, TriggerHit},
 };
 use serde::{Deserialize, Serialize};

@@ -1,3 +1,4 @@
+use bevy_nif::nif_animation::{BlendMask, NifAnimator, bevy_types::ActiveAnimation};
 use once_cell::sync::Lazy;
 use std::collections::HashSet;
 
@@ -9,15 +10,14 @@ use bevy::{
     prelude::*,
 };
 
-use bevy_nif::nif::animation::{ActiveAnimNif, NifAnimator};
 use cdda_bevy::{
     AnimationConfig, NetworkEvent, RepeatAnim,
     client::{
-        animation::get_anim_components_from_skel_id,
         defs::{IdToEntityMap, NetworkAnimEvent, NifAnimatorLink, PlayerState},
         events::{RequestAnimation, SetAnimSpeedSeekEvent},
     },
 };
+/*
 pub fn play_animation(
     nif_animator: &mut NifAnimator,
     anim_graphs: &mut ResMut<Assets<AnimationGraph>>,
@@ -26,6 +26,7 @@ pub fn play_animation(
     player_state: &mut PlayerState,
     skeleton_id: u64,
     new_anim_config: &AnimationConfig,
+    clip_handles: &Res<Assets<AnimationClip>>,
 ) {
     let new_animation_index = nif_animator
         .animation_definitions
@@ -38,40 +39,26 @@ pub fn play_animation(
     nif_animator
         .active_animations
         .retain(|_name, active_animation| {
-            let animation_in_player =
-                match animation_player.animation(active_animation.animation_node_index) {
-                    Some(anim) => anim, // If it exists, use it.
-                    None => {
-                        // If it's not in the animation_player (e.g., node index is stale),
-                        // then this active_animation entry is invalid. Remove it.
-                        return false;
-                    }
-                };
+            let animation_in_player = match animation_player.animation(active_animation.node_index)
+            {
+                Some(anim) => anim, // If it exists, use it.
+                None => {
+                    // If it's not in the animation_player (e.g., node index is stale),
+                    // then this active_animation entry is invalid. Remove it.
+                    return false;
+                }
+            };
 
             // Check if the animation (from the player) is finished.
             if animation_in_player.is_finished() {
                 return false; // Remove if finished.
             }
 
-            if active_animation.animation_node_index == new_animation_index {
+            if active_animation.node_index == new_animation_index {
                 animation_was_already_playing = true;
             }
             // past this point we know all animations are valid
 
-            // handle conflicting masks
-            if active_animation.mask.intersects(new_anim_config.mask) {
-                if new_anim_config.priority > active_animation.priority {
-                    // this animation's priority is higher, unmask it and mask the current animation
-                    // for the overlapping portions
-                    if let Some(anim_graph) = anim_graphs.get_mut(graph_handle) {
-                        if let Some(animation_graph_node) = anim_graph.get_mut(new_animation_index)
-                        {
-                            dbg!("setting anim mask");
-                            animation_graph_node.mask = u64::MAX;
-                        }
-                    }
-                }
-            }
             true
         });
     if animation_was_already_playing {
@@ -89,15 +76,18 @@ pub fn play_animation(
         .set_repeat(repeat_behavior);
     nif_animator.active_animations.insert(
         new_anim_config.name.clone(),
-        ActiveAnimNif {
-            animation_node_index: new_animation_index,
-            name: new_anim_config.name.clone(),
-            priority: new_anim_config.priority,
-            mask: new_anim_config.mask,
+        ActiveAnimation {
+            node_index: new_animation_index,
+            loop_count: u32::MAX,
+            blend_mask: BlendMask::all().bits(),
+            next_clip_name: None,
+            priority: 0,
+            clip_handle: ,
+            priorities: todo!(),
         },
     );
     info!("playing animation {}", new_anim_config.name);
-}
+}*/
 /*
 pub fn play_animation_old(
     nif_animator: &mut NifAnimator,
@@ -199,9 +189,7 @@ pub fn handle_animation_request(
     mut player_query: Query<(&NifAnimatorLink, &mut PlayerState)>,
     mut commands: Commands,
 ) {
-    let Some(entity_to_animate) =
-        get_anim_components_from_skel_id(trigger.skeleton_id, &id_to_entity_map)
-    else {
+    let Some(entity_to_animate) = id_to_entity_map.0.get(&trigger.skeleton_id) else {
         return;
     };
 
@@ -224,15 +212,15 @@ pub fn handle_animation_request(
         stop_all_movement_animations(&mut nif_animator, &mut animation_player);
     }
     info!("trying to play anim {}", trigger.animation_config.name);
-    play_animation(
-        &mut nif_animator,
-        &mut anim_graphs,
-        &mut animation_player,
-        graph_handle,
-        &mut player_state,
-        trigger.skeleton_id,
-        &trigger.animation_config,
-    );
+    // play_animation(
+    //     &mut nif_animator,
+    //     &mut anim_graphs,
+    //     &mut animation_player,
+    //     graph_handle,
+    //     &mut player_state,
+    //     trigger.skeleton_id,
+    //     &trigger.animation_config,
+    // );
 
     send_if_networked(
         trigger.networked,
@@ -248,9 +236,7 @@ pub fn handle_set_anim_speed_seek(
     mut player_query: Query<&NifAnimatorLink>,
     mut commands: Commands,
 ) {
-    let Some(entity_to_animate) =
-        get_anim_components_from_skel_id(trigger.skeleton_id, &id_to_entity_map)
-    else {
+    let Some(entity_to_animate) = id_to_entity_map.0.get(&trigger.skeleton_id) else {
         return;
     };
     let Ok(nif_animator_link) = player_query.get_mut(*entity_to_animate) else {
@@ -346,7 +332,7 @@ fn stop_all_movement_animations(
                 .get(animation_name.as_str())
                 .is_some()
             {
-                animation_player.stop(active_animation.animation_node_index);
+                animation_player.stop(active_animation.node_index);
                 return false;
             }
             true

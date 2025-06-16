@@ -10,21 +10,26 @@ use bevy::{
 };
 use bevy_kira_audio::SpatialAudioReceiver;
 use bevy_nif;
-use bevy_nif::nif::animation::{BlendMask, NifAnimator, NifAnimatorAdded};
 use bevy_nif::nif::attach_parts::AttachmentType;
 use bevy_nif::nif::spawner::NifScene;
+use bevy_nif::nif_animation::{BlendMask, NifAnimator, NifAnimatorAdded};
 use bevy_rapier3d::prelude::*;
 use cdda_bevy::client::defs::{
-    AnimateableEntity, CreatureStats, CurrentClientId, Direction, KnockdownEventAdded, LocalPlayer,
+    AnimateableEntity, CreatureStats, CurrentClientId, KnockdownEventAdded, LocalPlayer,
     LocalPlayerMesh, MeshEntityLink, NeedsSetup, NetworkedEntity, NifAnimatorLink, Pause, Player,
-    PlayerCamera, PlayerEntityLink, PlayerState, Speed, TestingComponent,
+    PlayerCamera, PlayerState, RootEntityLink, TestingComponent,
 };
 use cdda_bevy::client::events::{KnockdownFinished, RequestAnimation};
 use cdda_bevy::client::third_person_camera::{ThirdPersonCamera, ThirdPersonCameraTarget};
 use cdda_bevy::{AnimationConfig, RepeatAnim};
 use std::f32::consts::*;
 
-const PLAYER_COLLIDER_HEIGHT: f32 = 1.2;
+use crate::actor_defs::{
+    ActorState, CharacterMovement, CharacterState, CombatState, JumpingState, MovementState,
+    RootMotionState, VitalsState,
+};
+
+const PLAYER_COLLIDER_HEIGHT: f32 = 2.5;
 #[derive(Component)]
 pub struct HudText;
 
@@ -51,10 +56,21 @@ pub fn setup_player(
             CreatureStats {
                 id: setup_info.id,
                 health: 50.0,
-                input_enabled: true,
-                current_locomotion_state: cdda_bevy::client::defs::LocomotionState::Idle,
-                current_weapon_state: "".to_string(),
+                nif_animator_link: None,
             },
+            ActorState {
+                movement: MovementState::default(),
+                combat: CombatState::default(),
+                jumping: JumpingState::default(),
+                vitals: VitalsState::default(),
+                idle_state: CharacterState::default(),
+                current_idle_animation: "idle1".to_string(),
+                skip_anim: false,
+                is_running: true,
+                is_sneaking: false,
+                is_in_water: false,
+            },
+            CharacterMovement::default(),
             AnimateableEntity,
             NetworkedEntity(player_entity),
             Transform::from_xyz(0.0, 1.0, 0.0),
@@ -64,7 +80,6 @@ pub fn setup_player(
         //spawn the player's mesh
         let player_mesh = commands
             .spawn((
-                PlayerEntityLink(Some(player_entity)),
                 Visibility::Visible,
                 Transform::from_xyz(0.0, -PLAYER_COLLIDER_HEIGHT / 1.3, 0.0),
             ))
@@ -73,6 +88,17 @@ pub fn setup_player(
             .entity(player_entity)
             .insert(MeshEntityLink(Some(player_mesh)));
         //if this is the local player
+        let player_mesh = spawn_nif_attached(
+            commands.reborrow(),
+            &asset_server,
+            setup_info.id,
+            Transform {
+                translation: Vec3::new(0.0, 0.0, 0.0),
+                rotation: Quat::default(),
+                scale: Vec3::splat(0.02),
+            },
+        );
+
         if client_id.0 == setup_info.id {
             commands.entity(player_mesh).insert(LocalPlayerMesh);
             commands.entity(player_entity).insert((
@@ -85,18 +111,11 @@ pub fn setup_player(
             local_player_res.id = setup_info.id;
         }
         //rotate because of nif to bevy rotation weirdness
-        let mut rotation = Quat::from_rotation_x(-FRAC_PI_2);
-        rotation = rotation * Quat::from_rotation_z(PI);
-        let player_mesh = spawn_nif_attached(
-            commands.reborrow(),
-            &asset_server,
-            setup_info.id,
-            Transform {
-                translation: Vec3::new(0.0, -PLAYER_COLLIDER_HEIGHT / 1.3, 0.0),
-                rotation,
-                scale: Vec3::splat(0.02),
-            },
-        );
+        commands.entity(player_mesh).insert((
+            RootMotionState::default(),
+            RootEntityLink(Some(player_entity)),
+            Name::new("player mesh"),
+        ));
         commands.entity(player_entity).add_child(player_mesh);
 
         // add physics to player
@@ -121,7 +140,6 @@ pub fn setup_player(
                 snap_to_ground: None,
                 ..default()
             },
-            Speed(5.0),
         ));
         commands.trigger(RequestAnimation {
             skeleton_id: setup_info.id,
@@ -398,18 +416,15 @@ pub fn setup(
 
 pub fn insert_nif_animator_links(
     trigger: Trigger<NifAnimatorAdded>,
-    nif_animator_q: Query<(Entity, &NifAnimator)>,
-    creature_q: Query<(Entity, &CreatureStats)>,
-    mut commands: Commands,
+    nif_animator_q: Query<(Entity, &mut NifAnimator)>,
+    mut creature_q: Query<&mut CreatureStats>,
 ) {
     let Ok((nif_animator_entity, nif_animator)) = nif_animator_q.get(trigger.0) else {
         return;
     };
-    for (creature_entity, creature_stats) in creature_q {
+    for mut creature_stats in creature_q.iter_mut() {
         if nif_animator.skeleton_id == creature_stats.id {
-            commands
-                .entity(creature_entity)
-                .insert(NifAnimatorLink(nif_animator_entity));
+            creature_stats.nif_animator_link = Some(nif_animator_entity);
         }
     }
 }

@@ -3,10 +3,11 @@ use crate::{AnimationConfig, NetworkEvent};
 use bevy::prelude::*;
 use bevy_ecs::component::HookContext;
 use bevy_ecs::world::DeferredWorld;
-use bevy_nif::nif::animation::NifEventType;
+use bevy_nif::nif_animation::NifEventType;
 use esm_parser_lib::{EsmReader, LandTexture, Landscape};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::f32::consts::{FRAC_PI_2, PI};
 use std::time::{Duration, Instant};
 
 #[derive(Resource, Component, Debug)]
@@ -55,9 +56,7 @@ pub enum LocomotionState {
 pub struct CreatureStats {
     pub id: u64,
     pub health: f32,
-    pub input_enabled: bool,
-    pub current_locomotion_state: LocomotionState,
-    pub current_weapon_state: String,
+    pub nif_animator_link: Option<Entity>,
 }
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 pub enum AttackState {
@@ -104,7 +103,7 @@ pub enum GameState {
 #[derive(Component)]
 pub struct TestingComponent;
 #[derive(Component)]
-pub struct PlayerEntityLink(pub Option<Entity>);
+pub struct RootEntityLink(pub Option<Entity>);
 #[derive(Component)]
 pub struct NetworkedEntity(pub Entity);
 #[derive(Resource, Default, Debug)]
@@ -124,9 +123,7 @@ pub struct Player;
 #[derive(Debug, Resource)]
 pub struct CurrentClientId(pub u64);
 
-#[derive(Component)]
-pub struct Speed(pub f32);
-#[derive(Resource, Default)]
+#[derive(Component, Resource, Default)]
 pub struct IsThirdPerson(pub bool);
 #[derive(Component)]
 pub struct NeedsSetup {
@@ -150,8 +147,10 @@ pub struct ServerIP(pub String);
 #[derive(Resource, Default, Debug)]
 pub struct PlayerInput {
     pub move_direction: Vec2,
+    pub rotation_z: f32, // Rotation around the Z axis this frame
     pub jump: bool,
-    // Add other input states as needed
+    pub run: bool,
+    pub sneak: bool,
 }
 #[derive(Copy, Component, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum Direction {
@@ -204,6 +203,7 @@ pub struct LandscapeCell {
     pub x: i32,
     pub y: i32,
 }
+pub const MW_SCALE_REDUCTION: f32 = 45.0;
 pub const MORROWIND_CELL_SIZE: f32 = 102.0;
 pub const MORROWIND_HEIGHT_SCALE: f32 = 0.1;
 pub const COLLIDER_HEIGHT: f32 = 1.2;

@@ -3,7 +3,7 @@ use bevy_nif::nif_animation::{BlendMask, NifAnimator, NifEvent, NifEventType};
 use cdda_bevy::{
     AnimationConfig, RepeatAnim,
     client::{
-        defs::{CreatureStats, IdToEntityMap, LocalPlayer, LocomotionState, NifAnimatorLink},
+        defs::{CreatureStats, IdToEntityMap, LocalPlayer, NifAnimatorLink},
         events::{RequestAnimation, SetAnimSpeedSeekEvent, SoundEvent},
     },
 };
@@ -19,7 +19,7 @@ pub fn handle_nif_trigger(
     let Some(entity_to_animate) = id_to_entity_map.0.get(&trigger.skeleton_id) else {
         return;
     };
-    let Ok((player_entity, nif_animator_link, mut creature_stats)) =
+    let Ok((player_entity, nif_animator_link, creature_stats)) =
         player_query.get_mut(*entity_to_animate)
     else {
         return;

@@ -1,16 +1,13 @@
-use bevy::{color::palettes::basic, prelude::*};
-use bevy_ecs::{
-    entity::Entity,
-    system::{Commands, Res},
-};
+use bevy::color::palettes::basic;
+use bevy::prelude::*;
 use bevy_rapier3d::{plugin::ReadRapierContext, prelude::QueryFilter, render::ColliderDebugColor};
 use cdda_bevy::client::{
-    defs::{AttackState, CreatureStats, MESH_HEIGHT_OFFSET, PlayerState},
+    defs::{AttackState, CreatureStats, PlayerState},
     events::{TriggerHit, TryAttackTrigger},
 };
 use std::time::Instant;
 
-use crate::utils::create_line_mesh;
+use crate::{const_defs::MESH_HEIGHT_OFFSET, utils::create_line_mesh};
 
 pub fn execute_attack(
     attacker_entity: Entity,

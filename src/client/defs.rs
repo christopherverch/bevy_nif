@@ -7,7 +7,6 @@ use bevy_nif::nif_animation::NifEventType;
 use esm_parser_lib::{EsmReader, LandTexture, Landscape};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::f32::consts::{FRAC_PI_2, PI};
 use std::time::{Duration, Instant};
 
 #[derive(Resource, Component, Debug)]
@@ -203,12 +202,6 @@ pub struct LandscapeCell {
     pub x: i32,
     pub y: i32,
 }
-pub const MW_SCALE_REDUCTION: f32 = 45.0;
-pub const MORROWIND_CELL_SIZE: f32 = 102.0;
-pub const MORROWIND_HEIGHT_SCALE: f32 = 0.1;
-pub const COLLIDER_HEIGHT: f32 = 1.2;
-pub const MESH_HEIGHT_OFFSET: f32 = 0.9;
-pub const FIRST_PERSON_CAMERA_HEIGHT_OFFSET: f32 = 0.64;
 #[derive(Resource, Default)]
 pub struct IdToEntityMap(pub HashMap<u64, Entity>);
 fn add_creature_to_id_map(

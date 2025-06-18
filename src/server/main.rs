@@ -8,7 +8,9 @@ use bevy_renet::{
     RenetServerPlugin,
     renet::{ClientId, RenetServer, ServerEvent},
 };
-use cdda_bevy::{NetworkEventWithId, ServerAcknowledgment, serializer::PlayerStateNetwork};
+use cdda_bevy::{
+    ClientMessage, NetworkEventWithId, ServerAcknowledgment, serializer::PlayerStateNetwork,
+};
 use cdda_bevy::{
     ServerRelayMessage,
     networking::{
@@ -244,6 +246,45 @@ fn server_update_system(
             if let Some(player_entity) = lobby.players.get(&client_id) {
                 player_states.0.insert(*player_entity, input);
                 commands.entity(*player_entity).insert(new_transform);
+            }
+        }
+        while let Some(message) = server.receive_message(client_id, ClientChannel::State) {
+            // Deserialize the message into our ClientMessage enum
+            match bincode::deserialize::<ClientMessage>(&message) {
+                Ok(client_message) => {
+                    match client_message {
+                        ClientMessage::StateUpdate(state) => {
+                            // The client has authoritatively told us its new state.
+                            // 1. Update the server's representation of the player.
+                            if let Some(player_entity) = lobby.players.get(&client_id) {
+                                // We insert the received state as a component on the server-side entity.
+                                // This is useful for server-side logic and for the relay system.
+                                commands.entity(*player_entity).insert(state.clone());
+                            }
+
+                            // 2. Create the relay message to send to other clients.
+                            let relay_message = ServerMessages::StateUpdate {
+                                player_id: client_id,
+                                state,
+                            };
+                            let serialized_relay_message =
+                                bincode::serialize(&relay_message).unwrap();
+
+                            // 3. Broadcast the message to all clients *except* the one who sent it.
+                            server.broadcast_message_except(
+                                client_id,
+                                ServerChannel::StateUpdates,
+                                serialized_relay_message,
+                            );
+                        }
+                    }
+                }
+                Err(e) => {
+                    println!(
+                        "ERROR: Failed to deserialize ClientMessage from {}: {}",
+                        client_id, e
+                    );
+                }
             }
         }
     }

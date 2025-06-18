@@ -10,14 +10,12 @@ use bevy_nif::nif_animation::{
     bevy_types::{ActiveAnimation, Priority},
 };
 use cdda_bevy::client::{
+    actor_defs::{ActorState, CharacterState, JumpingStateKind},
     animation::get_anim_components_for_creature,
-    defs::{CreatureStats, IdToEntityMap, MW_SCALE_REDUCTION, Player},
+    defs::{CreatureStats, IdToEntityMap, Player},
 };
 
-use crate::{
-    actor_defs::{ActorState, CharacterState, JumpingStateKind},
-    actor_funcs::get_current_speed,
-};
+use crate::{actor_funcs::get_current_speed, const_defs::MW_SCALE_REDUCTION};
 /// Checks for finished non-looping animations and processes their transitions or removals.
 ///
 /// This function is responsible for two primary state changes:
@@ -84,15 +82,8 @@ fn handle_animation_transitions(
                 transitioning_anim.node_index = definition.node_index;
                 transitioning_anim.next_clip_name = None; // The new animation is a loop.
                 transitioning_anim.loop_count = u32::MAX; // Mark as a looping animation.
-
-                let speed_multiplier = calculate_anim_speed_multiplier(
-                    actor_state.movement.state,
-                    definition,
-                    get_current_speed(actor_state),
-                    actor_state.is_running,
-                    actor_state.is_sneaking,
-                );
-
+                let speed_multiplier = transitioning_anim.animation_speed;
+                // use the old animation's speed
                 play_animation(
                     animation_player,
                     animator,
@@ -129,7 +120,6 @@ pub fn animate_actors_using_state(
         else {
             continue;
         };
-        dbg!(&actor_state.movement.state);
         // First, process any ongoing transitions from the previous frame.
         handle_animation_transitions(
             &mut animation_player,
@@ -162,7 +152,6 @@ fn handle_actor_jumping(
     animator: &mut NifAnimator,
     actor_state: &mut ActorState,
 ) -> bool {
-    dbg!(&actor_state.jumping.state);
     // --- 1. Handle a new jump event ---
     if !actor_state.jumping.handled_jump_animation {
         // The physics system has signaled a new jump. We must handle it now.
@@ -279,6 +268,7 @@ fn play_jump_animation(
                 Priority::Jump
             }; NUM_DISCRETE_REGIONS],
             blend_mask: BlendMask::ALL.bits(),
+            animation_speed: 1.0,
         };
 
         play_animation(player, animator, actor_state, anim_name, new_animation, 1.0);
@@ -351,6 +341,16 @@ fn handle_actor_ground_movement(
 
     if !new_name.is_empty() {
         if let Some(definition) = animator.animation_definitions.get(&new_name) {
+            let speed_multiplier = calculate_anim_speed_multiplier(
+                effective_move_state,
+                actor_state.is_running,
+                actor_state.is_sneaking,
+                definition,
+                &animator,
+                weapon_type,
+                get_current_speed(&actor_state),
+            );
+
             let new_animation = ActiveAnimation {
                 clip_handle: definition.clip_handle.clone(),
                 node_index: definition.node_index,
@@ -362,15 +362,8 @@ fn handle_actor_ground_movement(
                 },
                 priorities: [Priority::Movement; NUM_DISCRETE_REGIONS],
                 blend_mask: BlendMask::ALL.bits(),
+                animation_speed: speed_multiplier,
             };
-
-            let speed_multiplier = calculate_anim_speed_multiplier(
-                effective_move_state,
-                definition,
-                get_current_speed(actor_state),
-                actor_state.is_running,
-                actor_state.is_sneaking,
-            );
 
             play_animation(
                 player,
@@ -830,65 +823,7 @@ fn get_weapon_suffixes(weapon_type: i32) -> (Option<&'static str>, Option<&'stat
         _ => (None, None), // No weapon or unknown
     }
 }
-// Calculates the correct animation speed multiplier based on the character's state.
-/// This is the central logic that handles all movement types correctly.
-fn calculate_anim_speed_multiplier(
-    state: CharacterState,
-    definition: &AnimationDefinition,
-    character_speed: f32,
-    is_running: bool,
-    is_sneaking: bool,
-) -> f32 {
-    dbg!(state);
-    match state {
-        // --- ARM 1: Handle specific non-linear states by name ---
-        // This arm matches all turning and idle states and immediately returns 1.0.
-        CharacterState::TurnLeft
-        | CharacterState::TurnRight
-        | CharacterState::SwimTurnLeft
-        | CharacterState::SwimTurnRight
-        | CharacterState::Idle
-        | CharacterState::IdleSneak
-        | CharacterState::IdleSwim
-        | CharacterState::SpecialIdle => 1.0,
-
-        // --- ARM 2: Handle all other non-linear states by their enum value ---
-        // This separate arm with its own guard handles death, hit, and block states.
-        // The `s` temporarily binds the state to a variable so we can use it in the guard.
-        s if s as u32 >= CharacterState::Death1 as u32 => 1.0,
-
-        // --- ARM 3: The Default Case for Linear Movement ---
-        // Because the arms above handle all other cases, this catch-all `_` is now
-        // guaranteed to only run for linear movement (walk, run, sneak).
-        _ => {
-            let mut anim_base_speed = definition.base_velocity.length();
-
-            // --- THIS IS THE OPENMW FALLBACK LOGIC ---
-            // If the calculated speed from the animation data is too low to be reliable...
-            if anim_base_speed <= 1.0 {
-                // ...substitute it with a hardcoded default value based on the current posture.
-                anim_base_speed = if is_sneaking {
-                    33.5452
-                } else if is_running {
-                    222.857
-                } else {
-                    154.064
-                };
-            }
-
-            // Now, perform the final calculation with a reliable anim_base_speed.
-            // Note: We re-introduce the scaling factor, as it's necessary to align the NIF units
-            // with your world's physics speed units.
-            let final_anim_speed = anim_base_speed / MW_SCALE_REDUCTION;
-
-            if final_anim_speed > 1e-4 {
-                character_speed / final_anim_speed
-            } else {
-                1.0
-            }
-        }
-    }
-}
+/// Converts a running state to its walking equivalent, mirroring OpenMW's logic.
 fn run_state_to_walk_state(state: CharacterState) -> CharacterState {
     match state {
         CharacterState::RunForward => CharacterState::WalkForward,
@@ -904,3 +839,65 @@ fn run_state_to_walk_state(state: CharacterState) -> CharacterState {
     }
 }
 
+/// Calculates the correct animation speed multiplier, encapsulating all of OpenMW's nuanced rules.
+fn calculate_anim_speed_multiplier(
+    state: CharacterState,
+    is_running: bool,
+    is_sneaking: bool,
+    definition: &AnimationDefinition,
+    animator: &NifAnimator,
+    weapon_type: i32,
+    character_speed: f32,
+) -> f32 {
+    // For non-linear movement states, the speed is always 1.0.
+    if matches!(
+        state,
+        CharacterState::Idle | CharacterState::TurnLeft | CharacterState::TurnRight
+    ) {
+        return 1.0;
+    }
+
+    let mut anim_base_speed;
+
+    // --- The "Use Walk Speed for Running" Rule ---
+    // For running states, OpenMW uses the 'walk' animation's speed as the baseline for calculation.
+    if is_running {
+        let walk_state = run_state_to_walk_state(state);
+        // We must resolve the full animation name for the walk state (e.g., "walkforwardhh")
+        if let Some(walk_anim_name) = resolve_movement_anim_name(walk_state, weapon_type, animator)
+        {
+            if let Some(walk_def) = animator.animation_definitions.get(&walk_anim_name) {
+                anim_base_speed = walk_def.base_velocity.length();
+            } else {
+                // Fallback if the specific walk animation doesn't exist for some reason
+                anim_base_speed = definition.base_velocity.length();
+            }
+        } else {
+            anim_base_speed = definition.base_velocity.length();
+        }
+    } else {
+        // If not running, just use the current animation's base velocity.
+        anim_base_speed = definition.base_velocity.length();
+    }
+
+    // --- The "Hardcoded Fallback" Rule ---
+    // If the calculated speed from the animation data is too low to be reliable...
+    if anim_base_speed <= 1.0 {
+        // ...substitute it with a hardcoded default value based on the current posture.
+        anim_base_speed = if is_sneaking {
+            33.5452
+        } else if is_running {
+            222.857
+        } else {
+            154.064
+        };
+    }
+
+    // --- Final Calculation ---
+    let final_anim_speed = anim_base_speed / MW_SCALE_REDUCTION;
+    if final_anim_speed > 1e-4 {
+        character_speed / final_anim_speed
+    } else {
+        1.0
+    }
+}

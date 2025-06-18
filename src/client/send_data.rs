@@ -1,5 +1,7 @@
 //use cdda_bevy::client::animation::play_animation_local;
 
+use crate::network_systems::send_local_player_state_system;
+
 use super::GameState;
 use super::{ClientServerEntity, Connected};
 use bevy::prelude::*;
@@ -10,19 +12,21 @@ use bevy_renet::{
     client_connected,
     renet::{ClientId, RenetClient},
 };
+use cdda_bevy::client::actor_defs::{ActorState, UpperBodyState};
 use cdda_bevy::client::defs::{
     CreatureStats, CurrentClientId, IdToEntityMap, LocalPlayer, MeshEntityLink, NeedsSetup,
-    NetworkAnimEvent, NetworkEventWithIdCounter, NetworkedEntity, PendingServerAcks, PlayerState,
-    SentActionInfo, ServerIP,
+    NetworkEventWithIdCounter, NetworkedEntity, PendingServerAcks, PlayerState, SentActionInfo,
+    ServerIP,
 };
-use cdda_bevy::client::events::RequestAnimation;
 use cdda_bevy::networking::renet::PROTOCOL_ID;
 use cdda_bevy::networking::{
     ClientChannel, NetworkedEntities, PlayerCommand, ServerChannel, ServerMessages,
     connection_config,
 };
 use cdda_bevy::serializer::{PlayerStateNetwork, SerializableTransform};
-use cdda_bevy::{NetworkEvent, NetworkEventWithId, ServerAcknowledgment, ServerRelayMessage};
+use cdda_bevy::{
+    AnimationEvent, NetworkEvent, NetworkEventWithId, ServerAcknowledgment, ServerRelayMessage,
+};
 use std::collections::HashMap;
 use std::time::Duration;
 use std::time::Instant;
@@ -53,6 +57,8 @@ pub fn add_netcode_network(app: &mut App) {
         (
             client_send_networked_actions,
             serialize_player_system.run_if(on_timer(Duration::from_secs(30))),
+            send_local_player_state_system,
+            client_apply_animation_state_system,
         )
             .in_set(Connected),
     )
@@ -119,17 +125,20 @@ pub fn connect_to_server(
 }
 pub fn client_send_networked_actions(
     local_player_state_query: Query<
-        (&PlayerState, &CreatureStats),
+        (&PlayerState, &CreatureStats, &Transform),
         (With<LocalPlayer>, Changed<PlayerState>),
     >,
     mut client: ResMut<RenetClient>,
 ) {
-    if let Ok((local_player_state, local_creature_stats)) = local_player_state_query.single() {
-        let player_state_network = PlayerStateNetwork {
+    if let Ok((local_player_state, local_creature_stats, creature_transform)) =
+        local_player_state_query.single()
+    {
+        let mut player_state_network = PlayerStateNetwork {
             transform: SerializableTransform::from(&local_player_state.transform),
             attack_state: local_player_state.attack_state,
             creature_stats: local_creature_stats.clone(),
         };
+        player_state_network.transform = creature_transform.into();
         let input_message = bincode::serialize(&player_state_network).unwrap();
         client.send_message(ClientChannel::PlayerStateNetwork, input_message);
     }
@@ -171,15 +180,11 @@ pub fn serialize_player_system(
 }
 
 pub fn interpolate_players(
-    mut state_query: Query<
-        (Entity, &MeshEntityLink, &mut PlayerState, &mut Transform),
-        Without<super::LocalPlayer>,
-    >,
-    mut commands: Commands,
+    mut state_query: Query<(Entity, &mut PlayerState, &mut Transform), Without<super::LocalPlayer>>,
     time: Res<Time>,
     interpolation_speeds: ResMut<InterpolationSpeeds>,
 ) {
-    for (entity, mesh_entity, player_state, mut transform) in state_query.iter_mut() {
+    for (entity, player_state, mut transform) in state_query.iter_mut() {
         if let Some(interpolation_speed) = interpolation_speeds.0.get(&entity) {
             /*println!(
                             "nudging with {}, {}, {}",
@@ -198,11 +203,6 @@ pub fn interpolate_players(
                 *interpolation_speed,
                 time.delta_secs(),
             );
-            if let Some(mesh_entity) = mesh_entity.0 {
-                let mut mesh_transform = *transform;
-                mesh_transform.translation.y -= 1.0;
-                commands.entity(mesh_entity).insert(mesh_transform);
-            }
         }
     }
 }
@@ -217,6 +217,7 @@ pub fn client_sync_players(
     mut player_state_query: Query<(Entity, &NetworkedEntity, &mut PlayerState)>,
     mut interpolation_speeds: ResMut<InterpolationSpeeds>,
     id_to_entity_map: ResMut<IdToEntityMap>,
+    mut actor_state_query: Query<&mut ActorState, Without<LocalPlayer>>,
 ) {
     let client_id = client_id.0;
 
@@ -229,6 +230,7 @@ pub fn client_sync_players(
         &mut meshes,
         &mut materials,
         id_to_entity_map,
+        &mut actor_state_query,
     );
 
     // Process networked entities and update player state
@@ -250,6 +252,7 @@ fn process_server_messages(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     mut id_to_entity_map: ResMut<IdToEntityMap>,
+    actor_state_query: &mut Query<&mut ActorState, Without<LocalPlayer>>,
 ) {
     while let Some(message) = client.receive_message(ServerChannel::ServerMessages) {
         let server_message = bincode::deserialize(&message).unwrap();
@@ -287,6 +290,24 @@ fn process_server_messages(
             }
             ServerMessages::DespawnProjectile { entity } => {
                 despawn_projectile(entity, network_mapping, commands);
+            }
+            ServerMessages::StateUpdate { player_id, state } => {
+                // Use your ClientLobby to find the client-side entity for this player ID
+                if let Some(client_server_entity) = lobby.players.get(&player_id) {
+                    let client_entity = client_server_entity.client_entity;
+
+                    // Get the ActorState component for that entity from our new query parameter
+                    if let Ok(mut actor_state) = actor_state_query.get_mut(client_entity) {
+                        // Apply the received animation state
+                        actor_state.is_running = state.is_running;
+                        actor_state.is_sneaking = state.is_sneaking;
+                        actor_state.is_in_water = state.is_in_water;
+                        actor_state.movement.state = state.character_state;
+                        actor_state.combat.upper_body_state = state.upper_body_state;
+                        actor_state.combat.weapon_type = state.weapon_type;
+                        actor_state.jumping.state = state.jumping_state;
+                    }
+                }
             }
         }
     }
@@ -572,6 +593,8 @@ pub fn client_handle_server_acks_system(
 pub fn client_handle_relayed_actions_system(
     mut client: ResMut<RenetClient>,
     mut commands: Commands,
+    lobby: Res<ClientLobby>,
+    mut remote_player_query: Query<&mut ActorState, Without<LocalPlayer>>,
 ) {
     while let Some(message_bytes) = client.receive_message(ServerChannel::CriticalRelay) {
         match bincode::deserialize::<ServerRelayMessage>(&message_bytes) {
@@ -579,35 +602,48 @@ pub fn client_handle_relayed_actions_system(
                 performing_client_id,
                 action,
             }) => {
-                // This client is NOT `performing_client_id` (unless server relays own actions, unusual)
+                // This client is NOT `performing_client_id`
 
                 info!(
                     "Received relayed action from client {}: {:?}",
                     performing_client_id, action,
                 );
-                let payload = action.payload;
-                match payload {
-                    NetworkEvent::Animation(animation_event) => match animation_event {
-                        NetworkAnimEvent::NifAnimEvent {
-                            event_type,
-                            skeleton_id,
-                        } => {
-                            commands.trigger(NifEvent {
-                                skeleton_id,
-                                event_type: event_type.clone(),
-                            });
+                match action.payload {
+                    NetworkEvent::Animation(animation_event) => {
+                        // Find the entity that this event belongs to
+                        if let Some(target_entity) = lobby
+                            .players
+                            .get(&performing_client_id)
+                            .map(|e| e.client_entity)
+                        {
+                            // Get its ActorState component
+                            if let Ok(mut actor_state) = remote_player_query.get_mut(target_entity)
+                            {
+                                // Apply the event
+                                match animation_event {
+                                    AnimationEvent::JumpStarted => {
+                                        // This tells the animation system into playing the jump intro
+                                        actor_state.jumping.handled_jump_animation = false;
+                                    }
+                                    AnimationEvent::Landed => {
+                                        // This tells the animation system into playing the land animation
+                                        actor_state.jumping.handled_landing_animation = false;
+                                    }
+                                    AnimationEvent::AttackStarted { attack_type } => {
+                                        // This kicks off the attack state machine on the remote client
+                                        actor_state.combat.upper_body_state =
+                                            UpperBodyState::AttackWindUp;
+                                        actor_state.combat.attack_type = attack_type;
+                                        actor_state.combat.ready_to_hit = true; // Ensure hit logic can run
+                                    }
+                                }
+                            }
                         }
-                        NetworkAnimEvent::BevyAnimEvent {
-                            animation_config,
-                            skeleton_id,
-                        } => {
-                            commands.trigger(RequestAnimation {
-                                skeleton_id,
-                                animation_config,
-                                networked: false,
-                            });
-                        }
-                    },
+                    }
+                    NetworkEvent::Nif(event_type) => commands.trigger(NifEvent {
+                        skeleton_id: performing_client_id,
+                        event_type: event_type.clone(),
+                    }),
                     NetworkEvent::Hit(mut triggered_hit) => {
                         triggered_hit.networked = false;
                         commands.trigger(triggered_hit);
@@ -625,6 +661,39 @@ pub fn client_handle_relayed_actions_system(
                 // E.g., if action is PlayerAttack, find the target, apply damage, play effects.
             }
             Err(e) => error!("Failed to deserialize ServerRelayMessage: {}", e),
+        }
+    }
+}
+pub fn client_apply_animation_state_system(
+    mut client: ResMut<RenetClient>,
+    lobby: Res<ClientLobby>, // Use your existing ClientLobby
+    // We query for the full ActorState on entities that are NOT the LocalPlayer
+    mut player_query: Query<&mut ActorState, Without<LocalPlayer>>,
+) {
+    while let Some(message) = client.receive_message(ServerChannel::StateUpdates) {
+        // We attempt to deserialize into a ServerMessage. If it's something else, we ignore it here.
+        if let Ok(server_message) = bincode::deserialize::<ServerMessages>(&message) {
+            match server_message {
+                // The server is telling us about another player's animation state
+                ServerMessages::StateUpdate { player_id, state } => {
+                    if let Some(client_server_entity) = lobby.players.get(&player_id) {
+                        let client_entity = client_server_entity.client_entity;
+
+                        // Get the ActorState component for that entity from our query
+                        if let Ok(mut actor_state) = player_query.get_mut(client_entity) {
+                            actor_state.is_running = state.is_running;
+                            actor_state.is_sneaking = state.is_sneaking;
+                            actor_state.is_in_water = state.is_in_water;
+                            actor_state.movement.state = state.character_state;
+                            actor_state.combat.upper_body_state = state.upper_body_state;
+                            actor_state.combat.weapon_type = state.weapon_type;
+                            actor_state.jumping.state = state.jumping_state;
+                        }
+                    }
+                }
+
+                _ => {}
+            }
         }
     }
 }

@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use bevy_renet::renet::{ChannelConfig, ClientId, ConnectionConfig, SendType};
 use serde::{Deserialize, Serialize};
 
-use crate::serializer::PlayerStateNetwork;
+use crate::{NetworkedActorState, serializer::PlayerStateNetwork};
 
 pub const PRIVATE_KEY: &[u8; bevy_renet::netcode::NETCODE_KEY_BYTES] =
     b"an example very very secret key."; // 32-bytes
@@ -32,12 +32,14 @@ pub enum ClientChannel {
     Command,
     PlayerStateNetwork,
     CriticalActions,
+    State,
 }
 pub enum ServerChannel {
     CriticalAcknowledgments,
     CriticalRelay,
     ServerMessages,
     NetworkedEntities,
+    StateUpdates,
 }
 
 #[derive(Debug, Default, Component)]
@@ -60,6 +62,13 @@ pub enum ServerMessages {
     DespawnProjectile {
         entity: Entity,
     },
+    /// Relays the animation state of a specific player.
+    StateUpdate {
+        /// The ID of the player whose state this is.
+        player_id: u64,
+        /// The new state of that player.
+        state: NetworkedActorState,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -73,6 +82,7 @@ impl From<ClientChannel> for u8 {
             ClientChannel::Input => 1,
             ClientChannel::PlayerStateNetwork => 2,
             ClientChannel::CriticalActions => 3,
+            ClientChannel::State => 4,
         }
     }
 }
@@ -108,6 +118,13 @@ impl ClientChannel {
                     resend_time: Duration::from_millis(250),
                 },
             },
+            ChannelConfig {
+                channel_id: Self::State.into(),
+                max_memory_usage_bytes: 5 * 1024 * 1024,
+                send_type: SendType::ReliableOrdered {
+                    resend_time: Duration::from_millis(250),
+                },
+            },
         ]
     }
 }
@@ -119,6 +136,7 @@ impl From<ServerChannel> for u8 {
             ServerChannel::ServerMessages => 1,
             ServerChannel::CriticalAcknowledgments => 2,
             ServerChannel::CriticalRelay => 3,
+            ServerChannel::StateUpdates => 4,
         }
     }
 }
@@ -151,6 +169,11 @@ impl ServerChannel {
                 send_type: SendType::ReliableOrdered {
                     resend_time: Duration::from_millis(200),
                 },
+            },
+            ChannelConfig {
+                channel_id: Self::StateUpdates.into(),
+                max_memory_usage_bytes: 10 * 1024 * 1024,
+                send_type: SendType::Unreliable,
             },
         ]
     }

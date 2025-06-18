@@ -4,13 +4,14 @@
 // These components are designed to be used with the Bevy engine's ECS.
 
 use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
 
 // --- Core State Enums ---
 // These enums mirror the state tracking enums in `character.hpp`.
 
 /// Represents the broad category of action the character is performing.
 /// This directly corresponds to the `CharacterState` enum in character.hpp.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum CharacterState {
     None,
     SpecialIdle,
@@ -62,7 +63,7 @@ pub enum CharacterState {
 }
 
 /// Tracks the state of the upper body, primarily for combat and spellcasting.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum UpperBodyState {
     #[default]
     None,
@@ -76,7 +77,7 @@ pub enum UpperBodyState {
 }
 
 /// Tracks the states of jumping and landing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum JumpingStateKind {
     #[default]
     None,

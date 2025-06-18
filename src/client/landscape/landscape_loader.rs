@@ -1,4 +1,7 @@
-use crate::terrain_material::{TerrainBlendMaterial, TerrainMaterialParams};
+use crate::{
+    const_defs::{MORROWIND_CELL_SIZE, MORROWIND_HEIGHT_SCALE},
+    terrain_material::{TerrainBlendMaterial, TerrainMaterialParams},
+};
 use bevy::{
     asset::{AssetServer, Assets, Handle, RenderAssetUsages},
     image::{Image, ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor},
@@ -21,12 +24,11 @@ use bevy_ecs::{
 use bevy_rapier3d::prelude::Collider;
 use cdda_bevy::client::defs::{
     AllLandscapes, EsmReaderResource, LandTextureDefinitions, LandscapeAwaitingImages,
-    LandscapeCell, LandscapeLoader, MORROWIND_CELL_SIZE, MORROWIND_HEIGHT_SCALE,
+    LandscapeCell, LandscapeLoader,
 };
 use esm_parser_lib::{
     EsmReader, LAND_NUM_TEXTURES, LAND_NUM_VERTS, LAND_SIDE_VERTICES,
-    LAND_TEXTURE_SQUARES_PER_SIDE, LandPayloadData, LandTexture, LandVertexColor, LandVertexNormal,
-    Landscape,
+    LAND_TEXTURE_SQUARES_PER_SIDE, LandTexture, LandVertexColor, LandVertexNormal,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -246,7 +248,261 @@ fn finish_landscape_setup(
         Transform::from_xyz(2.0, 2.0, -2.0),
     ));
 }
+pub fn construct_landscape_mesh(
+    cell_grid_x: i32,
+    cell_grid_y: i32,
+    all_landscapes: &mut AllLandscapes, // Mutable to allow loading/mutating neighbor data
+    reader: &mut EsmReader,
+) -> Option<(
+    Vec<[f32; 3]>, // positions_bevy
+    Vec<[f32; 3]>, // normals_bevy
+    Vec<[f32; 2]>, // uvs_bevy
+    Vec<[f32; 4]>, // final_vclr_bevy
+    Vec<u32>,      // indices
+)> {
+    // --- Step 0: Ensure current cell's detailed data is loaded if necessary ---
+    // This is a short mutable operation before the main read phase.
+    let current_cell_key = (cell_grid_x, cell_grid_y);
+    let landscape_entry_for_current_cell = all_landscapes.0.get_mut(&current_cell_key)?; // Get mut to potentially load
+    if landscape_entry_for_current_cell.detailed_data.is_none() {
+        if landscape_entry_for_current_cell
+            .load_detailed_data(reader)
+            .is_err()
+        {
+            // warn!("Failed to load detailed_data for primary cell ({}, {})", cell_grid_x, cell_grid_y);
+            return None; // Or handle error appropriately
+        }
+    }
+    // --- Pass 1: Read-only data extraction from the (now hopefully populated) current cell ---
+    let (
+        morrowind_vertex_z_values, // Owned Vec<f32>
+        initial_esm_normals,       // Owned Vec<LandVertexNormal>
+        initial_esm_colors,        // Owned Vec<LandVertexColor>
+    ) = {
+        // Re-borrow immutably for the read phase
+        let landscape_entry = all_landscapes.0.get(&current_cell_key)?; // Should exist now
+        let landscape_detailed_data = landscape_entry.detailed_data.as_ref()?;
+        let vhgt_data = landscape_detailed_data.vertex_heights.as_ref()?;
 
+        // 1a. Heightmap (already results in an owned Vec)
+        let mut unscaled_heights = vec![0.0f32; LAND_NUM_VERTS];
+        let mut current_z_at_first_col_unscaled = vhgt_data.height_offset;
+        for y_idx in 0..LAND_SIDE_VERTICES {
+            current_z_at_first_col_unscaled +=
+                vhgt_data.height_data[y_idx * LAND_SIDE_VERTICES + 0] as f32;
+            unscaled_heights[y_idx * LAND_SIDE_VERTICES + 0] = current_z_at_first_col_unscaled;
+            let mut current_z_in_row_unscaled = current_z_at_first_col_unscaled;
+            for x_idx in 1..LAND_SIDE_VERTICES {
+                current_z_in_row_unscaled +=
+                    vhgt_data.height_data[y_idx * LAND_SIDE_VERTICES + x_idx] as f32;
+                unscaled_heights[y_idx * LAND_SIDE_VERTICES + x_idx] = current_z_in_row_unscaled;
+            }
+        }
+        let z_values: Vec<f32> = unscaled_heights
+            .into_iter()
+            .map(|h| h * MORROWIND_HEIGHT_SCALE)
+            .collect();
+
+        // 1b. Extract initial per-vertex normals and colors into new owned Vecs
+        let mut temp_normals = Vec::with_capacity(LAND_NUM_VERTS);
+        let mut temp_colors = Vec::with_capacity(LAND_NUM_VERTS);
+
+        let normals_data_source = landscape_detailed_data.vertex_normals.as_ref();
+        let colors_data_source = landscape_detailed_data.vertex_colors.as_ref();
+
+        for i in 0..LAND_NUM_VERTS {
+            temp_normals.push(normals_data_source.map_or_else(
+                || LandVertexNormal { x: 0, y: 0, z: 127 },
+                |data| {
+                    data.get(i)
+                        .copied()
+                        .unwrap_or(LandVertexNormal { x: 0, y: 0, z: 127 })
+                },
+            ));
+            temp_colors.push(colors_data_source.map_or_else(
+                || LandVertexColor {
+                    r: 128,
+                    g: 128,
+                    b: 128,
+                },
+                |data| {
+                    data.get(i).copied().unwrap_or(LandVertexColor {
+                        r: 128,
+                        g: 128,
+                        b: 128,
+                    })
+                },
+            ));
+        }
+        (z_values, temp_normals, temp_colors)
+    }; // Immutable borrow on `all_landscapes.0` (from `landscape_entry`) ends here.
+
+    // --- Pass 2: Calculate final vertex attributes, performing mutations on `all_landscapes` as needed ---
+    let mut positions_bevy: Vec<[f32; 3]> = Vec::with_capacity(LAND_NUM_VERTS);
+    let mut uvs_bevy: Vec<[f32; 2]> = Vec::with_capacity(LAND_NUM_VERTS);
+    let mut final_normals_bevy: Vec<[f32; 3]> = vec![[0.0, 1.0, 0.0]; LAND_NUM_VERTS];
+    let mut final_vclr_bevy: Vec<[f32; 4]> = vec![[1.0, 1.0, 1.0, 1.0]; LAND_NUM_VERTS];
+
+    let cell_mw_origin_x = cell_grid_x as f32 * MORROWIND_CELL_SIZE;
+    let cell_mw_origin_y = cell_grid_y as f32 * MORROWIND_CELL_SIZE;
+    let lx_max_idx = LAND_SIDE_VERTICES - 1;
+
+    for y_idx_mesh in 0..LAND_SIDE_VERTICES {
+        for x_idx_mesh in 0..LAND_SIDE_VERTICES {
+            let vertex_index_flat = y_idx_mesh * LAND_SIDE_VERTICES + x_idx_mesh;
+
+            // Positions and UVs (from Pass 1 data or calculated here)
+            let mw_x_pos =
+                cell_mw_origin_x + (x_idx_mesh as f32 / lx_max_idx as f32 * MORROWIND_CELL_SIZE);
+            let mw_y_pos =
+                cell_mw_origin_y + (y_idx_mesh as f32 / lx_max_idx as f32 * MORROWIND_CELL_SIZE);
+            let mw_z_pos = morrowind_vertex_z_values[vertex_index_flat];
+            positions_bevy.push([-mw_x_pos, mw_z_pos, mw_y_pos]);
+
+            let norm_u_mesh = x_idx_mesh as f32 / lx_max_idx as f32;
+            let norm_v_mesh = y_idx_mesh as f32 / lx_max_idx as f32;
+            uvs_bevy.push([norm_u_mesh, 1.0 - norm_v_mesh]);
+
+            // Use initial normals and colors from Pass 1
+            let mut esm_normal_to_use = initial_esm_normals[vertex_index_flat];
+            let mut esm_color_to_use = initial_esm_colors[vertex_index_flat];
+
+            let is_corner = (x_idx_mesh == 0 || x_idx_mesh == lx_max_idx)
+                && (y_idx_mesh == 0 || y_idx_mesh == lx_max_idx);
+
+            if is_corner {
+                let mut sum_mw_normals_vec3 = Vec3::ZERO;
+                let mut contributing_normals_count = 0;
+                let conceptual_neighbors = [
+                    (x_idx_mesh as i32, y_idx_mesh as i32 - 1),
+                    (x_idx_mesh as i32, y_idx_mesh as i32 + 1),
+                    (x_idx_mesh as i32 - 1, y_idx_mesh as i32),
+                    (x_idx_mesh as i32 + 1, y_idx_mesh as i32),
+                ];
+                for (eff_x, eff_y) in conceptual_neighbors.iter() {
+                    let (actual_cell_x, actual_cell_y, resolved_local_vx, resolved_local_vy) =
+                        resolve_conceptual_vertex_coords(cell_grid_x, cell_grid_y, *eff_x, *eff_y);
+
+                    // Mutable calls are now safe
+                    if let Some(n_esm) = get_raw_normal_from_cell(
+                        all_landscapes,
+                        reader,
+                        actual_cell_x,
+                        actual_cell_y,
+                        resolved_local_vx,
+                        resolved_local_vy,
+                    ) {
+                        sum_mw_normals_vec3 += Vec3::new(
+                            n_esm.x as f32 / 127.0,
+                            n_esm.y as f32 / 127.0,
+                            n_esm.z as f32 / 127.0,
+                        );
+                        contributing_normals_count += 1;
+                    }
+                }
+                if contributing_normals_count > 0 {
+                    let avg_mw_normal = (sum_mw_normals_vec3 / contributing_normals_count as f32)
+                        .normalize_or_zero();
+                    final_normals_bevy[vertex_index_flat] =
+                        transform_mw_normal_to_bevy(avg_mw_normal).to_array();
+                } else {
+                    final_normals_bevy[vertex_index_flat] = transform_mw_normal_to_bevy(
+                        Vec3::new(
+                            esm_normal_to_use.x as f32 / 127.0,
+                            esm_normal_to_use.y as f32 / 127.0,
+                            esm_normal_to_use.z as f32 / 127.0,
+                        )
+                        .normalize_or_zero(),
+                    )
+                    .to_array();
+                }
+            } else {
+                // Non-corner
+                let (actual_cell_x, actual_cell_y, resolved_local_vx, resolved_local_vy) =
+                    resolve_conceptual_vertex_coords(
+                        cell_grid_x,
+                        cell_grid_y,
+                        x_idx_mesh as i32,
+                        y_idx_mesh as i32,
+                    );
+                if let Some(fixed_esm_normal) = get_raw_normal_from_cell(
+                    // Mutable call
+                    all_landscapes,
+                    reader,
+                    actual_cell_x,
+                    actual_cell_y,
+                    resolved_local_vx,
+                    resolved_local_vy,
+                ) {
+                    esm_normal_to_use = fixed_esm_normal; // Update the base normal for final output
+                }
+                final_normals_bevy[vertex_index_flat] = transform_mw_normal_to_bevy(
+                    Vec3::new(
+                        esm_normal_to_use.x as f32 / 127.0,
+                        esm_normal_to_use.y as f32 / 127.0,
+                        esm_normal_to_use.z as f32 / 127.0,
+                    )
+                    .normalize_or_zero(),
+                )
+                .to_array();
+            }
+
+            if x_idx_mesh == lx_max_idx || y_idx_mesh == lx_max_idx {
+                // Color fixing
+                let (actual_cell_x, actual_cell_y, resolved_local_vx, resolved_local_vy) =
+                    resolve_conceptual_vertex_coords(
+                        cell_grid_x,
+                        cell_grid_y,
+                        x_idx_mesh as i32,
+                        y_idx_mesh as i32,
+                    );
+                if let Some(fixed_esm_color) = get_raw_color_from_cell(
+                    // Mutable call
+                    all_landscapes,
+                    reader,
+                    actual_cell_x,
+                    actual_cell_y,
+                    resolved_local_vx,
+                    resolved_local_vy,
+                ) {
+                    esm_color_to_use = fixed_esm_color;
+                }
+            }
+            final_vclr_bevy[vertex_index_flat] = [
+                esm_color_to_use.r as f32 / 255.0,
+                esm_color_to_use.g as f32 / 255.0,
+                esm_color_to_use.b as f32 / 255.0,
+                1.0,
+            ];
+        }
+    }
+
+    // --- Index Buffer Generation ---
+    let mut indices_list = Vec::new();
+    let quads_per_side = LAND_SIDE_VERTICES - 1;
+    let n_verts_per_side_u32 = LAND_SIDE_VERTICES as u32;
+    for qy_idx in 0..quads_per_side {
+        for qx_idx in 0..quads_per_side {
+            let v_a = qy_idx as u32 * n_verts_per_side_u32 + qx_idx as u32;
+            let v_b = qy_idx as u32 * n_verts_per_side_u32 + (qx_idx + 1) as u32;
+            let v_c = (qy_idx + 1) as u32 * n_verts_per_side_u32 + qx_idx as u32;
+            let v_d = (qy_idx + 1) as u32 * n_verts_per_side_u32 + (qx_idx + 1) as u32;
+            if (qy_idx + (qx_idx % 2)) % 2 == 1 {
+                indices_list.extend_from_slice(&[v_b, v_d, v_c, v_a, v_b, v_c]);
+            } else {
+                indices_list.extend_from_slice(&[v_a, v_d, v_c, v_a, v_b, v_d]);
+            }
+        }
+    }
+
+    Some((
+        positions_bevy,
+        final_normals_bevy,
+        uvs_bevy,
+        final_vclr_bevy,
+        indices_list,
+    ))
+}
 fn setup_terrain_2d_array(
     landscape_awaiting_image: &LandscapeAwaitingImages,
     all_images: &ResMut<Assets<Image>>,
@@ -1821,259 +2077,4 @@ mod tests {
             }
         }
     }
-}
-pub fn construct_landscape_mesh(
-    cell_grid_x: i32,
-    cell_grid_y: i32,
-    all_landscapes: &mut AllLandscapes, // Mutable to allow loading/mutating neighbor data
-    reader: &mut EsmReader,
-) -> Option<(
-    Vec<[f32; 3]>, // positions_bevy
-    Vec<[f32; 3]>, // normals_bevy
-    Vec<[f32; 2]>, // uvs_bevy
-    Vec<[f32; 4]>, // final_vclr_bevy
-    Vec<u32>,      // indices
-)> {
-    // --- Step 0: Ensure current cell's detailed data is loaded if necessary ---
-    // This is a short mutable operation before the main read phase.
-    let current_cell_key = (cell_grid_x, cell_grid_y);
-    let landscape_entry_for_current_cell = all_landscapes.0.get_mut(&current_cell_key)?; // Get mut to potentially load
-    if landscape_entry_for_current_cell.detailed_data.is_none() {
-        if landscape_entry_for_current_cell
-            .load_detailed_data(reader)
-            .is_err()
-        {
-            // warn!("Failed to load detailed_data for primary cell ({}, {})", cell_grid_x, cell_grid_y);
-            return None; // Or handle error appropriately
-        }
-    }
-    // --- Pass 1: Read-only data extraction from the (now hopefully populated) current cell ---
-    let (
-        morrowind_vertex_z_values, // Owned Vec<f32>
-        initial_esm_normals,       // Owned Vec<LandVertexNormal>
-        initial_esm_colors,        // Owned Vec<LandVertexColor>
-    ) = {
-        // Re-borrow immutably for the read phase
-        let landscape_entry = all_landscapes.0.get(&current_cell_key)?; // Should exist now
-        let landscape_detailed_data = landscape_entry.detailed_data.as_ref()?;
-        let vhgt_data = landscape_detailed_data.vertex_heights.as_ref()?;
-
-        // 1a. Heightmap (already results in an owned Vec)
-        let mut unscaled_heights = vec![0.0f32; LAND_NUM_VERTS];
-        let mut current_z_at_first_col_unscaled = vhgt_data.height_offset;
-        for y_idx in 0..LAND_SIDE_VERTICES {
-            current_z_at_first_col_unscaled +=
-                vhgt_data.height_data[y_idx * LAND_SIDE_VERTICES + 0] as f32;
-            unscaled_heights[y_idx * LAND_SIDE_VERTICES + 0] = current_z_at_first_col_unscaled;
-            let mut current_z_in_row_unscaled = current_z_at_first_col_unscaled;
-            for x_idx in 1..LAND_SIDE_VERTICES {
-                current_z_in_row_unscaled +=
-                    vhgt_data.height_data[y_idx * LAND_SIDE_VERTICES + x_idx] as f32;
-                unscaled_heights[y_idx * LAND_SIDE_VERTICES + x_idx] = current_z_in_row_unscaled;
-            }
-        }
-        let z_values: Vec<f32> = unscaled_heights
-            .into_iter()
-            .map(|h| h * MORROWIND_HEIGHT_SCALE)
-            .collect();
-
-        // 1b. Extract initial per-vertex normals and colors into new owned Vecs
-        let mut temp_normals = Vec::with_capacity(LAND_NUM_VERTS);
-        let mut temp_colors = Vec::with_capacity(LAND_NUM_VERTS);
-
-        let normals_data_source = landscape_detailed_data.vertex_normals.as_ref();
-        let colors_data_source = landscape_detailed_data.vertex_colors.as_ref();
-
-        for i in 0..LAND_NUM_VERTS {
-            temp_normals.push(normals_data_source.map_or_else(
-                || LandVertexNormal { x: 0, y: 0, z: 127 },
-                |data| {
-                    data.get(i)
-                        .copied()
-                        .unwrap_or(LandVertexNormal { x: 0, y: 0, z: 127 })
-                },
-            ));
-            temp_colors.push(colors_data_source.map_or_else(
-                || LandVertexColor {
-                    r: 128,
-                    g: 128,
-                    b: 128,
-                },
-                |data| {
-                    data.get(i).copied().unwrap_or(LandVertexColor {
-                        r: 128,
-                        g: 128,
-                        b: 128,
-                    })
-                },
-            ));
-        }
-        (z_values, temp_normals, temp_colors)
-    }; // Immutable borrow on `all_landscapes.0` (from `landscape_entry`) ends here.
-
-    // --- Pass 2: Calculate final vertex attributes, performing mutations on `all_landscapes` as needed ---
-    let mut positions_bevy: Vec<[f32; 3]> = Vec::with_capacity(LAND_NUM_VERTS);
-    let mut uvs_bevy: Vec<[f32; 2]> = Vec::with_capacity(LAND_NUM_VERTS);
-    let mut final_normals_bevy: Vec<[f32; 3]> = vec![[0.0, 1.0, 0.0]; LAND_NUM_VERTS];
-    let mut final_vclr_bevy: Vec<[f32; 4]> = vec![[1.0, 1.0, 1.0, 1.0]; LAND_NUM_VERTS];
-
-    let cell_mw_origin_x = cell_grid_x as f32 * MORROWIND_CELL_SIZE;
-    let cell_mw_origin_y = cell_grid_y as f32 * MORROWIND_CELL_SIZE;
-    let lx_max_idx = LAND_SIDE_VERTICES - 1;
-
-    for y_idx_mesh in 0..LAND_SIDE_VERTICES {
-        for x_idx_mesh in 0..LAND_SIDE_VERTICES {
-            let vertex_index_flat = y_idx_mesh * LAND_SIDE_VERTICES + x_idx_mesh;
-
-            // Positions and UVs (from Pass 1 data or calculated here)
-            let mw_x_pos =
-                cell_mw_origin_x + (x_idx_mesh as f32 / lx_max_idx as f32 * MORROWIND_CELL_SIZE);
-            let mw_y_pos =
-                cell_mw_origin_y + (y_idx_mesh as f32 / lx_max_idx as f32 * MORROWIND_CELL_SIZE);
-            let mw_z_pos = morrowind_vertex_z_values[vertex_index_flat];
-            positions_bevy.push([-mw_x_pos, mw_z_pos, mw_y_pos]);
-
-            let norm_u_mesh = x_idx_mesh as f32 / lx_max_idx as f32;
-            let norm_v_mesh = y_idx_mesh as f32 / lx_max_idx as f32;
-            uvs_bevy.push([norm_u_mesh, 1.0 - norm_v_mesh]);
-
-            // Use initial normals and colors from Pass 1
-            let mut esm_normal_to_use = initial_esm_normals[vertex_index_flat];
-            let mut esm_color_to_use = initial_esm_colors[vertex_index_flat];
-
-            let is_corner = (x_idx_mesh == 0 || x_idx_mesh == lx_max_idx)
-                && (y_idx_mesh == 0 || y_idx_mesh == lx_max_idx);
-
-            if is_corner {
-                let mut sum_mw_normals_vec3 = Vec3::ZERO;
-                let mut contributing_normals_count = 0;
-                let conceptual_neighbors = [
-                    (x_idx_mesh as i32, y_idx_mesh as i32 - 1),
-                    (x_idx_mesh as i32, y_idx_mesh as i32 + 1),
-                    (x_idx_mesh as i32 - 1, y_idx_mesh as i32),
-                    (x_idx_mesh as i32 + 1, y_idx_mesh as i32),
-                ];
-                for (eff_x, eff_y) in conceptual_neighbors.iter() {
-                    let (actual_cell_x, actual_cell_y, resolved_local_vx, resolved_local_vy) =
-                        resolve_conceptual_vertex_coords(cell_grid_x, cell_grid_y, *eff_x, *eff_y);
-
-                    // Mutable calls are now safe
-                    if let Some(n_esm) = get_raw_normal_from_cell(
-                        all_landscapes,
-                        reader,
-                        actual_cell_x,
-                        actual_cell_y,
-                        resolved_local_vx,
-                        resolved_local_vy,
-                    ) {
-                        sum_mw_normals_vec3 += Vec3::new(
-                            n_esm.x as f32 / 127.0,
-                            n_esm.y as f32 / 127.0,
-                            n_esm.z as f32 / 127.0,
-                        );
-                        contributing_normals_count += 1;
-                    }
-                }
-                if contributing_normals_count > 0 {
-                    let avg_mw_normal = (sum_mw_normals_vec3 / contributing_normals_count as f32)
-                        .normalize_or_zero();
-                    final_normals_bevy[vertex_index_flat] =
-                        transform_mw_normal_to_bevy(avg_mw_normal).to_array();
-                } else {
-                    final_normals_bevy[vertex_index_flat] = transform_mw_normal_to_bevy(
-                        Vec3::new(
-                            esm_normal_to_use.x as f32 / 127.0,
-                            esm_normal_to_use.y as f32 / 127.0,
-                            esm_normal_to_use.z as f32 / 127.0,
-                        )
-                        .normalize_or_zero(),
-                    )
-                    .to_array();
-                }
-            } else {
-                // Non-corner
-                let (actual_cell_x, actual_cell_y, resolved_local_vx, resolved_local_vy) =
-                    resolve_conceptual_vertex_coords(
-                        cell_grid_x,
-                        cell_grid_y,
-                        x_idx_mesh as i32,
-                        y_idx_mesh as i32,
-                    );
-                if let Some(fixed_esm_normal) = get_raw_normal_from_cell(
-                    // Mutable call
-                    all_landscapes,
-                    reader,
-                    actual_cell_x,
-                    actual_cell_y,
-                    resolved_local_vx,
-                    resolved_local_vy,
-                ) {
-                    esm_normal_to_use = fixed_esm_normal; // Update the base normal for final output
-                }
-                final_normals_bevy[vertex_index_flat] = transform_mw_normal_to_bevy(
-                    Vec3::new(
-                        esm_normal_to_use.x as f32 / 127.0,
-                        esm_normal_to_use.y as f32 / 127.0,
-                        esm_normal_to_use.z as f32 / 127.0,
-                    )
-                    .normalize_or_zero(),
-                )
-                .to_array();
-            }
-
-            if x_idx_mesh == lx_max_idx || y_idx_mesh == lx_max_idx {
-                // Color fixing
-                let (actual_cell_x, actual_cell_y, resolved_local_vx, resolved_local_vy) =
-                    resolve_conceptual_vertex_coords(
-                        cell_grid_x,
-                        cell_grid_y,
-                        x_idx_mesh as i32,
-                        y_idx_mesh as i32,
-                    );
-                if let Some(fixed_esm_color) = get_raw_color_from_cell(
-                    // Mutable call
-                    all_landscapes,
-                    reader,
-                    actual_cell_x,
-                    actual_cell_y,
-                    resolved_local_vx,
-                    resolved_local_vy,
-                ) {
-                    esm_color_to_use = fixed_esm_color;
-                }
-            }
-            final_vclr_bevy[vertex_index_flat] = [
-                esm_color_to_use.r as f32 / 255.0,
-                esm_color_to_use.g as f32 / 255.0,
-                esm_color_to_use.b as f32 / 255.0,
-                1.0,
-            ];
-        }
-    }
-
-    // --- Index Buffer Generation ---
-    let mut indices_list = Vec::new();
-    let quads_per_side = LAND_SIDE_VERTICES - 1;
-    let n_verts_per_side_u32 = LAND_SIDE_VERTICES as u32;
-    for qy_idx in 0..quads_per_side {
-        for qx_idx in 0..quads_per_side {
-            let v_a = qy_idx as u32 * n_verts_per_side_u32 + qx_idx as u32;
-            let v_b = qy_idx as u32 * n_verts_per_side_u32 + (qx_idx + 1) as u32;
-            let v_c = (qy_idx + 1) as u32 * n_verts_per_side_u32 + qx_idx as u32;
-            let v_d = (qy_idx + 1) as u32 * n_verts_per_side_u32 + (qx_idx + 1) as u32;
-            if (qy_idx + (qx_idx % 2)) % 2 == 1 {
-                indices_list.extend_from_slice(&[v_b, v_d, v_c, v_a, v_b, v_c]);
-            } else {
-                indices_list.extend_from_slice(&[v_a, v_d, v_c, v_a, v_b, v_d]);
-            }
-        }
-    }
-
-    Some((
-        positions_bevy,
-        final_normals_bevy,
-        uvs_bevy,
-        final_vclr_bevy,
-        indices_list,
-    ))
 }

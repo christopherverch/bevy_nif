@@ -3,44 +3,41 @@ use bevy::{
     core_pipeline::{
         fxaa::Fxaa,
         prepass::{DeferredPrepass, DepthPrepass, MotionVectorPrepass},
-        //prepass::NormalPrepass
     },
     pbr::{CascadeShadowConfigBuilder, NotShadowCaster, NotShadowReceiver, OpaqueRendererMethod},
     prelude::*,
 };
 use bevy_kira_audio::SpatialAudioReceiver;
-use bevy_nif;
 use bevy_nif::nif::attach_parts::AttachmentType;
 use bevy_nif::nif::spawner::NifScene;
-use bevy_nif::nif_animation::{BlendMask, NifAnimator, NifAnimatorAdded};
+use bevy_nif::nif_animation::{NifAnimator, NifAnimatorAdded};
 use bevy_rapier3d::prelude::*;
 use cdda_bevy::client::defs::{
     AnimateableEntity, CreatureStats, CurrentClientId, KnockdownEventAdded, LocalPlayer,
-    LocalPlayerMesh, MeshEntityLink, NeedsSetup, NetworkedEntity, NifAnimatorLink, Pause, Player,
-    PlayerCamera, PlayerState, RootEntityLink, TestingComponent,
+    LocalPlayerMesh, NeedsSetup, NetworkedEntity, NifAnimatorLink, Player, PlayerCamera,
+    PlayerState, RootEntityLink, TestingComponent,
 };
-use cdda_bevy::client::events::{KnockdownFinished, RequestAnimation};
-use cdda_bevy::client::third_person_camera::{ThirdPersonCamera, ThirdPersonCameraTarget};
-use cdda_bevy::{AnimationConfig, RepeatAnim};
+use cdda_bevy::client::events::KnockdownFinished;
 use std::f32::consts::*;
 
-use crate::actor_defs::{
+use crate::camera::{MWCamera, MWCameraTarget};
+use crate::const_defs::PLAYER_COLLIDER_HEIGHT;
+use cdda_bevy::client::actor_defs::{
     ActorState, CharacterMovement, CharacterState, CombatState, JumpingState, MovementState,
     RootMotionState, VitalsState,
 };
 
-const PLAYER_COLLIDER_HEIGHT: f32 = 2.5;
 #[derive(Component)]
 pub struct HudText;
 
 pub fn setup_player(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    mut query: Query<(Entity, &NeedsSetup), Added<NeedsSetup>>,
+    mut needs_setup_query: Query<(Entity, &NeedsSetup), Added<NeedsSetup>>,
     client_id: Res<CurrentClientId>,
     mut local_player_res: ResMut<LocalPlayer>,
 ) {
-    for (player_entity, setup_info) in &mut query {
+    for (player_entity, setup_info) in &mut needs_setup_query {
         info!(
             "setting up player with client id: {} {}",
             client_id.0, setup_info.id
@@ -73,21 +70,11 @@ pub fn setup_player(
             CharacterMovement::default(),
             AnimateableEntity,
             NetworkedEntity(player_entity),
-            Transform::from_xyz(0.0, 1.0, 0.0),
+            Transform::from_xyz(0.0, 2.0, 0.0),
             Visibility::Visible,
         ));
 
         //spawn the player's mesh
-        let player_mesh = commands
-            .spawn((
-                Visibility::Visible,
-                Transform::from_xyz(0.0, -PLAYER_COLLIDER_HEIGHT / 1.3, 0.0),
-            ))
-            .id();
-        commands
-            .entity(player_entity)
-            .insert(MeshEntityLink(Some(player_mesh)));
-        //if this is the local player
         let player_mesh = spawn_nif_attached(
             commands.reborrow(),
             &asset_server,
@@ -98,11 +85,18 @@ pub fn setup_player(
                 scale: Vec3::splat(0.02),
             },
         );
+        commands.entity(player_mesh).insert((
+            // for tracking animation times with the animation system
+            RootMotionState::default(),
+            RootEntityLink(Some(player_entity)),
+            Name::new("player mesh"),
+        ));
 
+        //if this is the local player
         if client_id.0 == setup_info.id {
             commands.entity(player_mesh).insert(LocalPlayerMesh);
             commands.entity(player_entity).insert((
-                ThirdPersonCameraTarget,
+                MWCameraTarget,
                 LocalPlayer { id: setup_info.id },
                 SpatialAudioReceiver,
                 //default to first person, so hide the player
@@ -110,12 +104,6 @@ pub fn setup_player(
             ));
             local_player_res.id = setup_info.id;
         }
-        //rotate because of nif to bevy rotation weirdness
-        commands.entity(player_mesh).insert((
-            RootMotionState::default(),
-            RootEntityLink(Some(player_entity)),
-            Name::new("player mesh"),
-        ));
         commands.entity(player_entity).add_child(player_mesh);
 
         // add physics to player
@@ -141,21 +129,11 @@ pub fn setup_player(
                 ..default()
             },
         ));
-        commands.trigger(RequestAnimation {
-            skeleton_id: setup_info.id,
-            animation_config: AnimationConfig {
-                name: "idle".to_string(),
-                repeat: RepeatAnim::Never,
-                priority: 0,
-                mask: BlendMask::all(),
-            },
-            networked: true,
-        });
 
         commands.entity(player_entity).remove::<NeedsSetup>();
     }
 }
-pub fn setup(
+pub fn setup_scene(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -177,7 +155,7 @@ pub fn setup(
             far: 1000.0,
         }),
         PlayerCamera,
-        ThirdPersonCamera::default(),
+        MWCamera::default(),
         Transform::from_xyz(0.7, 0.7, 1.0).looking_at(Vec3::new(0.0, 0.3, 0.0), Vec3::Y),
         // MSAA needs to be off for Deferred rendering
         Msaa::Off,
@@ -413,7 +391,16 @@ pub fn setup(
         HudText,
     ));
 }
+pub fn spawn_player_offline(mut commands: Commands) {
+    info!("spawning player offline");
+    commands.spawn(NeedsSetup {
+        id: 0,
+        player_transform: Transform::from_xyz(0.0, 0.0, 0.0),
+    });
 
+    //let player_transform_server =
+    //  Transform::from_xyz(translation[0], translation[1], translation[2]);
+}
 pub fn insert_nif_animator_links(
     trigger: Trigger<NifAnimatorAdded>,
     nif_animator_q: Query<(Entity, &mut NifAnimator)>,
@@ -429,106 +416,6 @@ pub fn insert_nif_animator_links(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-pub fn switch_mode(
-    mut query: Query<&mut Text, With<HudText>>, // Changed to a regular Query with a filter
-    keys: Res<ButtonInput<KeyCode>>,
-    mut pause: ResMut<Pause>,
-) {
-    let mut text = match query.single_mut() {
-        Ok(t) => t,
-        Err(e) => {
-            match e {
-                bevy::ecs::query::QuerySingleError::NoEntities(_) => {
-                    eprintln!("Warning: No UI text entity found with the HudText component.");
-                }
-                bevy::ecs::query::QuerySingleError::MultipleEntities(_) => {
-                    eprintln!(
-                        "Warning: Multiple UI text entities found with the HudText component. Expected only one."
-                    );
-                }
-            }
-            return; // Return early if there's an error
-        }
-    };
-    text.clear();
-
-    if keys.just_pressed(KeyCode::Space) {
-        pause.0 = !pause.0;
-    }
-    /*
-    if keys.just_pressed(KeyCode::Digit1) {
-        *mode = DefaultRenderMode::Deferred;
-        default_opaque_renderer_method.set_to_deferred();
-        println!("DefaultOpaqueRendererMethod: Deferred");
-        for _ in materials.iter_mut() {}
-        for camera in &cameras {
-            commands.entity(camera).remove::<NormalPrepass>();
-            commands.entity(camera).insert(DepthPrepass);
-            commands.entity(camera).insert(MotionVectorPrepass);
-            commands.entity(camera).insert(DeferredPrepass);
-        }
-    }
-    if keys.just_pressed(KeyCode::Digit2) {
-        *mode = DefaultRenderMode::Forward;
-        default_opaque_renderer_method.set_to_forward();
-        println!("DefaultOpaqueRendererMethod: Forward");
-        for _ in materials.iter_mut() {}
-        for camera in &cameras {
-            commands.entity(camera).remove::<NormalPrepass>();
-            commands.entity(camera).remove::<DepthPrepass>();
-            commands.entity(camera).remove::<MotionVectorPrepass>();
-            commands.entity(camera).remove::<DeferredPrepass>();
-        }
-    }
-    if keys.just_pressed(KeyCode::Digit3) {
-        *mode = DefaultRenderMode::ForwardPrepass;
-        default_opaque_renderer_method.set_to_forward();
-        println!("DefaultOpaqueRendererMethod: Forward + Prepass");
-        for _ in materials.iter_mut() {}
-        for camera in &cameras {
-            commands.entity(camera).insert(NormalPrepass);
-            commands.entity(camera).insert(DepthPrepass);
-            commands.entity(camera).insert(MotionVectorPrepass);
-            commands.entity(camera).remove::<DeferredPrepass>();
-        }
-    }
-
-    if keys.just_pressed(KeyCode::KeyH) {
-        *hide_ui = !*hide_ui;
-    }
-
-    if !*hide_ui {
-        text.push_str("(H) Hide UI\n");
-        text.push_str("(Space) Play/Pause\n\n");
-        text.push_str("Rendering Method:\n");
-
-        text.push_str(&format!(
-            "(1) {} Deferred\n",
-            if let DefaultRenderMode::Deferred = *mode {
-                ">"
-            } else {
-                ""
-            }
-        ));
-        text.push_str(&format!(
-            "(2) {} Forward\n",
-            if let DefaultRenderMode::Forward = *mode {
-                ">"
-            } else {
-                ""
-            }
-        ));
-        text.push_str(&format!(
-            "(3) {} Forward + Prepass\n",
-            if let DefaultRenderMode::ForwardPrepass = *mode {
-                ">"
-            } else {
-                ""
-            }
-        ));
-    }*/
-}
 fn spawn_nif_unattached(mut commands: Commands, asset_server: &Res<AssetServer>) {
     let head_handle = asset_server.load("data/A_Glass_Helmet.nif");
     commands.spawn((

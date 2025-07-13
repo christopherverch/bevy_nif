@@ -1,18 +1,8 @@
-use bevy::{
-    animation::{
-        AnimationPlayer,
-        graph::{AnimationGraph, AnimationGraphHandle},
-    },
-    asset::Assets,
-};
-use bevy_ecs::{
-    entity::Entity,
-    system::{Query, Res},
-    world::Mut,
-};
+use bevy::animation::{AnimationPlayer, graph::AnimationGraphHandle};
+use bevy_ecs::{entity::Entity, system::Query, world::Mut};
 use bevy_nif::nif_animation::NifAnimator;
 
-use super::defs::{CreatureStats, IdToEntityMap};
+use crate::client::defs::{CreatureStats, IdToEntityMap};
 
 pub fn get_anim_components_for_creature<'a>(
     creature_stats: &'a CreatureStats,
@@ -28,7 +18,7 @@ pub fn get_anim_components_for_creature<'a>(
     Mut<'a, NifAnimator>,
     &'a AnimationGraphHandle,
 )> {
-    let skeleton_id = creature_stats.id;
+    let skeleton_id = creature_stats.entity_id;
     let entity_to_animate = id_to_entity_map.0.get(&skeleton_id)?;
     let nif_animator_link = creature_stats.nif_animator_link?;
     let Ok((animation_player, nif_animator, graph_handle)) = animator_q.get_mut(nif_animator_link)
@@ -43,91 +33,6 @@ pub fn get_anim_components_for_creature<'a>(
     ))
 }
 
-/*
-pub fn observe_swing_finished(
-    trigger: Trigger<OnSwingFinished>,
-    mut player_query: Query<(&MeshEntityLink, &mut PlayerState)>,
-    mut mesh_query: Query<(&AnimationEntityLink, &Animator)>,
-    mut commands: Commands,
-) {
-    if let Some((mut player_state, _, _)) =
-        find_player_and_mesh(trigger.entity, &mut player_query, &mut mesh_query)
-    {
-        //get the playerstate and mesh entitylink corresponding to the triggering entity
-        if player_state.attack_state == AttackState::Releasing {
-            println!("swing finished");
-            player_state.attack_state = AttackState::Ready;
-            commands.trigger(RequestAnimation {
-                entity: trigger.entity,
-                requested_animation: RequestedAnimation::SwingReady,
-            });
-        }
-    }
-}
-pub fn handle_animation_request(
-    trigger: Trigger<RequestAnimation>,
-    mut animation_query: Query<(Entity, &mut AnimationPlayer)>,
-    mut player_query: Query<(&MeshEntityLink, &mut PlayerState)>,
-    mut mesh_query: Query<(&AnimationEntityLink, &Animator)>,
-    mut graphs: ResMut<Assets<AnimationGraph>>,
-    is_third_person: Res<IsThirdPerson>,
-    player_entity: Res<LocalPlayer>,
-) {
-    /*
-    if AnimationState::from(trigger.requested_animation) == AnimationState::Undefined {
-        return;
-    }
-    if let Some((mut player_state, animation_entity_link, animator)) =
-        find_player_and_mesh(trigger.entity, &mut player_query, &mut mesh_query)
-    {
-        let requested_animation = trigger.requested_animation;
-        //ready animation is the same as the swinging animation, but this makes it easier to read
-        //when we call for an animation to play
-        //don't override our main animation for secondary animations
-        if PRIMARY_ANIMATIONS.contains(&requested_animation) {
-            player_state.current_animation = requested_animation.into();
-        }
-        let Some(animation_entity) = animation_entity_link.0.get("models/main_skeleton.glb") else {
-            return;
-        };
-        let Ok((_, mut animation_player)) = animation_query.get_mut(*animation_entity) else {
-            return;
-        };
-        //TODO:: add a transition between animations
-        let graph = match graphs.get_mut(&animator.graph) {
-            Some(g) => g,
-            None => return,
-        };
-        for &index in animator.animations.iter() {
-            if let Some(animation_graph_node) = graph.get_mut(index) {
-                if AnimationState::from(requested_animation).is_primary() {
-                    let requested_animation_state =
-                        if player_state.id != player_entity.id || is_third_person.0 {
-                            requested_animation.into()
-                        } else {
-                            //if this is the local player and we're in first person
-                            AnimationState::FirstPersonMoving
-                        };
-                    play_animation_primary(
-                        animator,
-                        index,
-                        &mut animation_player,
-                        requested_animation_state,
-                        &player_state,
-                    );
-                } else {
-                    play_animation_secondary(
-                        animator,
-                        animation_graph_node,
-                        index,
-                        &mut animation_player,
-                        requested_animation,
-                    );
-                }
-            }
-        }
-    }*/
-}
 /*
 fn play_animation_primary(
     animator: &Animator,
@@ -270,7 +175,7 @@ pub fn set_third_person_animation_weights(
             requested_animation: requested.into(),
         });
     }
-}*/
+}
 fn find_player_and_mesh<'a>(
     entity: Entity,
     player_query: &'a mut Query<(&MeshEntityLink, &mut PlayerState)>,
@@ -313,4 +218,5 @@ fn run_swinging_playback(
         }
         _ => {}
     }
-}*/
+}
+*/

@@ -9,13 +9,14 @@ use bevy_renet::{
     renet::{ClientId, RenetServer, ServerEvent},
 };
 use cdda_bevy::{
-    ClientMessage, NetworkEventWithId, ServerAcknowledgment, serializer::PlayerStateNetwork,
+    ClientMessage, EntityId, EntityIdToEntityMap, NetworkEventWithId, ServerAcknowledgment,
+    client::defs::Player, networking::NetworkedEntityData, serializer::SerializableTransform,
 };
 use cdda_bevy::{
     ServerRelayMessage,
     networking::{
-        ClientChannel, NetworkedEntities, Player, PlayerCommand, PlayerInput2, Projectile,
-        ServerChannel, ServerMessages, Velocity, setup_level, spawn_fireball,
+        ClientChannel, NetworkedEntityDataSnapshot, Projectile, ServerChannel, ServerMessages,
+        Velocity, setup_level,
     },
 };
 use std::{
@@ -24,32 +25,26 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[derive(Debug, Default, Resource)]
-pub struct ServerLobby {
-    pub players: HashMap<ClientId, Entity>,
-}
-
 // How long to remember a processed action ID to prevent duplicates
 const PROCESSED_ACTION_TTL: Duration = Duration::from_secs(30);
 
 #[derive(Resource, Default, Debug)]
 pub struct ProcessedActionCache(
-    // Outer HashMap: Key is ClientId (u64 from Renet)
     // Inner HashMap: Key is action_id (u64), Value is the Instant it was processed
-    pub HashMap<u64, HashMap<u64, Instant>>,
+    pub HashMap<ClientId, HashMap<u64, Instant>>,
 );
-const PLAYER_MOVE_SPEED: f32 = 5.0;
 
 #[derive(Debug, Component)]
 struct Bot {
     auto_cast: Timer,
 }
 
-#[derive(Debug, Resource)]
-struct BotId(u64);
+#[derive(Resource)]
+struct PlayerTransforms(HashMap<EntityId, Transform>);
 
 #[derive(Resource)]
-struct PlayerStateNetworkHashMap(HashMap<Entity, PlayerStateNetwork>);
+struct ClientIdToEntityId(HashMap<ClientId, EntityId>);
+
 fn add_netcode_network(app: &mut App) {
     use bevy_renet::netcode::{
         NetcodeServerPlugin, NetcodeServerTransport, ServerAuthentication, ServerConfig,
@@ -60,7 +55,6 @@ fn add_netcode_network(app: &mut App) {
     app.add_plugins(NetcodeServerPlugin);
 
     let server = RenetServer::new(connection_config());
-
     let public_addr = "0.0.0.0:5000".parse().unwrap();
     let socket = UdpSocket::bind(public_addr).unwrap();
     let current_time: std::time::Duration = SystemTime::now()
@@ -82,31 +76,30 @@ fn add_netcode_network(app: &mut App) {
 fn main() {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins);
-
-    app.add_plugins(RenetServerPlugin);
-    app.add_plugins(FrameTimeDiagnosticsPlugin {
-        max_history_length: 20,
-        smoothing_factor: 1.0,
-    });
-    app.add_plugins(LogDiagnosticsPlugin::default());
-    app.add_plugins(EguiPlugin {
-        enable_multipass_for_primary_context: true,
-    });
+    app.add_plugins((
+        RenetServerPlugin,
+        FrameTimeDiagnosticsPlugin {
+            max_history_length: 20,
+            smoothing_factor: 1.0,
+        },
+        LogDiagnosticsPlugin::default(),
+        EguiPlugin {
+            enable_multipass_for_primary_context: true,
+        },
+    ));
     app.insert_resource(ProcessedActionCache::default());
-    app.insert_resource(ServerLobby::default());
-    app.insert_resource(BotId(0));
-    app.insert_resource(PlayerStateNetworkHashMap(HashMap::new()));
+    app.insert_resource(EntityIdToEntityMap::default());
+    app.insert_resource(PlayerTransforms(HashMap::new()));
+    app.insert_resource(ClientIdToEntityId(HashMap::new()));
 
     add_netcode_network(&mut app);
+    app.add_systems(Startup, (setup_level, setup_simple_camera));
     app.add_systems(
         FixedUpdate,
         (
             server_update_system,
-            server_network_sync,
-            move_players_system,
+            server_broadcast_entity_data,
             update_projectiles_system,
-            spawn_bot,
-            bot_autocast,
             server_handle_client_critical_actions_system,
         ),
     );
@@ -114,10 +107,6 @@ fn main() {
         Update,
         server_prune_action_cache_system.run_if(on_timer(Duration::from_secs(10))),
     );
-
-    app.add_systems(FixedUpdate, apply_velocity_system);
-    app.add_systems(PostUpdate, projectile_on_removal_system);
-    app.add_systems(Startup, (setup_level, setup_simple_camera));
     app.run();
 }
 
@@ -127,29 +116,40 @@ fn server_update_system(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut lobby: ResMut<ServerLobby>,
+    mut lobby: ResMut<EntityIdToEntityMap>,
     mut server: ResMut<RenetServer>,
-    mut player_states: ResMut<PlayerStateNetworkHashMap>,
-    players: Query<(Entity, &Player, &Transform)>,
+    mut player_transforms: ResMut<PlayerTransforms>,
+    mut client_id_to_entity_id: ResMut<ClientIdToEntityId>,
 ) {
     for event in server_events.read() {
         match event {
             ServerEvent::ClientConnected { client_id } => {
-                println!("Player {} connected.", client_id);
+                let new_player_entity_id = generate_id();
+
+                // Tell the client its new id
+                // Note this is just the one we use internally, renet is still using client_id
+                let message = bincode::serialize(&ServerMessages::Welcome {
+                    entity_id: new_player_entity_id,
+                })
+                .unwrap();
+                client_id_to_entity_id
+                    .0
+                    .insert(*client_id, new_player_entity_id);
+                server.send_message(*client_id, ServerChannel::ServerMessages, message);
 
                 // Initialize other players for this new client
-                for (entity, player, transform) in players.iter() {
+                for (entity_id, transform) in player_transforms.0.iter() {
                     let translation: [f32; 3] = transform.translation.into();
                     let message = bincode::serialize(&ServerMessages::PlayerCreate {
-                        id: player.id,
-                        entity,
+                        entity_id: *entity_id,
                         translation,
                     })
                     .unwrap();
                     server.send_message(*client_id, ServerChannel::ServerMessages, message);
                 }
+                println!("Player {} connected.", client_id);
 
-                // Spawn new player
+                // Spawn new player for visualization on the server
                 let transform = Transform::from_xyz(
                     (fastrand::f32() - 0.5) * 40.,
                     0.51,
@@ -161,91 +161,54 @@ fn server_update_system(
                         MeshMaterial3d(materials.add(Color::srgb(0.8, 0.7, 0.6))),
                         transform,
                     ))
-                    .insert(PlayerInput2::default())
                     .insert(Velocity::default())
-                    .insert(Player { id: *client_id })
+                    .insert(Player)
                     .id();
 
-                lobby.players.insert(*client_id, player_entity);
+                // Add the player to the entity id -> entity map
+                lobby.players.insert(new_player_entity_id, player_entity);
 
+                // Tell other players this player joined
                 let translation: [f32; 3] = transform.translation.into();
                 let message = bincode::serialize(&ServerMessages::PlayerCreate {
-                    id: *client_id,
-                    entity: player_entity,
+                    entity_id: new_player_entity_id,
                     translation,
                 })
                 .unwrap();
                 server.broadcast_message(ServerChannel::ServerMessages, message);
             }
             ServerEvent::ClientDisconnected { client_id, reason } => {
-                println!("Player {} disconnected: {}", client_id, reason);
-                if let Some(player_entity) = lobby.players.remove(client_id) {
-                    commands.entity(player_entity).despawn();
-                }
+                if let Some(entity_id) = client_id_to_entity_id.0.get(client_id) {
+                    println!("Player {} disconnected: {}", entity_id, reason);
+                    if let Some(player_entity) = lobby.players.remove(entity_id) {
+                        commands.entity(player_entity).despawn();
+                    }
 
-                let message =
-                    bincode::serialize(&ServerMessages::PlayerRemove { id: *client_id }).unwrap();
-                server.broadcast_message(ServerChannel::ServerMessages, message);
+                    let message = bincode::serialize(&ServerMessages::PlayerRemove {
+                        entity_id: *entity_id,
+                    })
+                    .unwrap();
+                    player_transforms.0.remove(entity_id);
+                    server.broadcast_message(ServerChannel::ServerMessages, message);
+                }
             }
         }
     }
 
     for client_id in server.clients_id() {
-        while let Some(message) = server.receive_message(client_id, ClientChannel::Command) {
-            let command: PlayerCommand = bincode::deserialize(&message).unwrap();
-            match command {
-                PlayerCommand::BasicAttack { mut cast_at } => {
-                    println!(
-                        "Received basic attack from client {}: {:?}",
-                        client_id, cast_at
-                    );
-
-                    if let Some(player_entity) = lobby.players.get(&client_id) {
-                        if let Ok((_, _, player_transform)) = players.get(*player_entity) {
-                            cast_at[1] = player_transform.translation[1];
-
-                            let direction =
-                                (cast_at - player_transform.translation).normalize_or_zero();
-                            let mut translation = player_transform.translation + (direction * 0.7);
-                            translation[1] = 1.0;
-
-                            let fireball_entity = spawn_fireball(
-                                &mut commands,
-                                &mut meshes,
-                                &mut materials,
-                                translation,
-                                direction,
-                            );
-                            let message = ServerMessages::SpawnProjectile {
-                                entity: fireball_entity,
-                                translation: translation.into(),
-                            };
-                            let message = bincode::serialize(&message).unwrap();
-                            server.broadcast_message(ServerChannel::ServerMessages, message);
-                        }
-                    }
-                }
-            }
-        }
-        while let Some(message) = server.receive_message(client_id, ClientChannel::Input) {
-            let input: PlayerInput2 = bincode::deserialize(&message).unwrap();
-            if let Some(player_entity) = lobby.players.get(&client_id) {
-                commands.entity(*player_entity).insert(input);
-            }
-        }
-        while let Some(message) =
-            server.receive_message(client_id, ClientChannel::PlayerStateNetwork)
+        while let Some(message) = server.receive_message(client_id, ClientChannel::EntityTransforms)
         {
-            let input: PlayerStateNetwork = bincode::deserialize(&message).unwrap();
+            let input: SerializableTransform = bincode::deserialize(&message).unwrap();
             let new_transform = Transform {
-                translation: input.transform.translation,
-                rotation: input.transform.rotation,
-                scale: input.transform.scale,
+                translation: input.translation,
+                rotation: input.rotation,
+                scale: input.scale,
             };
-
-            if let Some(player_entity) = lobby.players.get(&client_id) {
-                player_states.0.insert(*player_entity, input);
-                commands.entity(*player_entity).insert(new_transform);
+            if let Some(entity_id) = client_id_to_entity_id.0.get(&client_id) {
+                if let Some(player_entity) = lobby.players.get(&entity_id) {
+                    player_transforms.0.insert(*entity_id, new_transform);
+                    commands.entity(*player_entity).insert(new_transform);
+                }
             }
         }
         while let Some(message) = server.receive_message(client_id, ClientChannel::State) {
@@ -253,29 +216,31 @@ fn server_update_system(
             match bincode::deserialize::<ClientMessage>(&message) {
                 Ok(client_message) => {
                     match client_message {
-                        ClientMessage::StateUpdate(state) => {
+                        ClientMessage::ActorStateUpdate(state) => {
                             // The client has authoritatively told us its new state.
-                            // 1. Update the server's representation of the player.
-                            if let Some(player_entity) = lobby.players.get(&client_id) {
-                                // We insert the received state as a component on the server-side entity.
-                                // This is useful for server-side logic and for the relay system.
-                                commands.entity(*player_entity).insert(state.clone());
+                            dbg!("got actor state {}", &state);
+                            if let Some(entity_id) = client_id_to_entity_id.0.get(&client_id) {
+                                // 1. Update the server's representation of the player.
+                                if let Some(player_entity) = lobby.players.get(&entity_id) {
+                                    // We insert the received state as a component on the server-side entity.
+                                    // This is useful for server-side logic and for the relay system.
+                                    commands.entity(*player_entity).insert(state.clone());
+                                }
+
+                                // 2. Create the relay message to send to other clients.
+                                let relay_message = ServerMessages::StateUpdate {
+                                    entity_id: *entity_id,
+                                    state,
+                                };
+                                let serialized_relay_message =
+                                    bincode::serialize(&relay_message).unwrap();
+                                // 3. Broadcast the message to all clients *except* the one who sent it.
+                                server.broadcast_message_except(
+                                    *entity_id,
+                                    ServerChannel::StateUpdates,
+                                    serialized_relay_message,
+                                );
                             }
-
-                            // 2. Create the relay message to send to other clients.
-                            let relay_message = ServerMessages::StateUpdate {
-                                player_id: client_id,
-                                state,
-                            };
-                            let serialized_relay_message =
-                                bincode::serialize(&relay_message).unwrap();
-
-                            // 3. Broadcast the message to all clients *except* the one who sent it.
-                            server.broadcast_message_except(
-                                client_id,
-                                ServerChannel::StateUpdates,
-                                serialized_relay_message,
-                            );
                         }
                     }
                 }
@@ -303,39 +268,22 @@ fn update_projectiles_system(
     }
 }
 
-#[allow(clippy::type_complexity)]
-fn server_network_sync(
+fn server_broadcast_entity_data(
     mut server: ResMut<RenetServer>,
-    query: Query<Entity, Or<(With<Player>, With<Projectile>)>>,
-    player_states: Res<PlayerStateNetworkHashMap>,
+    player_transforms: Res<PlayerTransforms>,
 ) {
-    let mut networked_entities = NetworkedEntities::default();
-    for entity in query.iter() {
-        if let Some(player_state) = player_states.0.get(&entity) {
-            networked_entities
-                .entities_and_states
-                .push((entity, player_state.clone()));
-        }
+    let mut networked_entities = NetworkedEntityDataSnapshot::default();
+    for (entity_id, player_transform) in player_transforms.0.iter() {
+        networked_entities.entity_data_map.insert(
+            *entity_id,
+            NetworkedEntityData {
+                transform: (&player_transform.clone()).into(),
+            },
+        );
     }
 
     let sync_message = bincode::serialize(&networked_entities).unwrap();
     server.broadcast_message(ServerChannel::NetworkedEntities, sync_message);
-}
-
-fn move_players_system(mut query: Query<(&mut Velocity, &PlayerInput2)>) {
-    for (mut velocity, input) in query.iter_mut() {
-        let x = (input.right as i8 - input.left as i8) as f32;
-        let y = (input.down as i8 - input.up as i8) as f32;
-        let direction = Vec2::new(x, y).normalize_or_zero();
-        velocity.0.x = direction.x * PLAYER_MOVE_SPEED;
-        velocity.0.z = direction.y * PLAYER_MOVE_SPEED;
-    }
-}
-
-fn apply_velocity_system(mut query: Query<(&Velocity, &mut Transform)>, time: Res<Time>) {
-    for (velocity, mut transform) in query.iter_mut() {
-        transform.translation += velocity.0 * time.delta_secs();
-    }
 }
 
 pub fn setup_simple_camera(mut commands: Commands) {
@@ -344,97 +292,6 @@ pub fn setup_simple_camera(mut commands: Commands) {
         Camera3d::default(),
         Transform::from_xyz(-20.5, 30.0, 20.5).looking_at(Vec3::ZERO, Vec3::Y),
     ));
-}
-
-fn projectile_on_removal_system(
-    mut server: ResMut<RenetServer>,
-    mut removed_projectiles: RemovedComponents<Projectile>,
-) {
-    for entity in removed_projectiles.read() {
-        let message = ServerMessages::DespawnProjectile { entity };
-        let message = bincode::serialize(&message).unwrap();
-
-        server.broadcast_message(ServerChannel::ServerMessages, message);
-    }
-}
-
-fn spawn_bot(
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut lobby: ResMut<ServerLobby>,
-    mut server: ResMut<RenetServer>,
-    mut bot_id: ResMut<BotId>,
-    mut commands: Commands,
-) {
-    if keyboard_input.just_pressed(KeyCode::Space) {
-        let client_id: ClientId = bot_id.0;
-        bot_id.0 += 1;
-        // Spawn new player
-        let transform = Transform::from_xyz(
-            (fastrand::f32() - 0.5) * 40.,
-            0.51,
-            (fastrand::f32() - 0.5) * 40.,
-        );
-        let player_entity = commands
-            .spawn((
-                Mesh3d(meshes.add(Mesh::from(Capsule3d::default()))),
-                MeshMaterial3d(materials.add(Color::srgb(0.8, 0.7, 0.6))),
-                transform,
-            ))
-            .insert(Player { id: client_id })
-            .insert(Bot {
-                auto_cast: Timer::from_seconds(3.0, TimerMode::Repeating),
-            })
-            .id();
-
-        lobby.players.insert(client_id, player_entity);
-
-        let translation: [f32; 3] = transform.translation.into();
-        let message = bincode::serialize(&ServerMessages::PlayerCreate {
-            id: client_id,
-            entity: player_entity,
-            translation,
-        })
-        .unwrap();
-        server.broadcast_message(ServerChannel::ServerMessages, message);
-    }
-}
-
-fn bot_autocast(
-    time: Res<Time>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut server: ResMut<RenetServer>,
-    mut bots: Query<(&Transform, &mut Bot), With<Player>>,
-    mut commands: Commands,
-) {
-    for (transform, mut bot) in &mut bots {
-        bot.auto_cast.tick(time.delta());
-        if !bot.auto_cast.just_finished() {
-            continue;
-        }
-
-        for i in 0..8 {
-            let direction = Vec2::from_angle(PI / 4. * i as f32);
-            let direction = Vec3::new(direction.x, 0., direction.y).normalize();
-            let translation: Vec3 = transform.translation + direction;
-
-            let fireball_entity = spawn_fireball(
-                &mut commands,
-                &mut meshes,
-                &mut materials,
-                translation,
-                direction,
-            );
-            let message = ServerMessages::SpawnProjectile {
-                entity: fireball_entity,
-                translation: translation.into(),
-            };
-            let message = bincode::serialize(&message).unwrap();
-            server.broadcast_message(ServerChannel::ServerMessages, message);
-        }
-    }
 }
 
 pub fn server_handle_client_critical_actions_system(
@@ -560,4 +417,11 @@ pub fn server_prune_action_cache_system(mut cache: ResMut<ProcessedActionCache>)
             client_id_to_remove
         );
     }
+}
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static NEXT_ID: AtomicU64 = AtomicU64::new(1);
+
+fn generate_id() -> EntityId {
+    NEXT_ID.fetch_add(1, Ordering::Relaxed)
 }

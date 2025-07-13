@@ -1,9 +1,8 @@
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, PrimaryWindow, Window};
-use bevy_rapier3d::plugin::PhysicsSet;
 use cdda_bevy::client::defs::{IsThirdPerson, LocalPlayerMesh, TestingComponent};
 
-use crate::const_defs::FIRST_PERSON_CAMERA_HEIGHT_OFFSET;
+use cdda_bevy::client::const_defs::FIRST_PERSON_CAMERA_HEIGHT_OFFSET;
 pub struct MWCameraPlugin;
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CameraSyncSet;
@@ -14,7 +13,7 @@ impl Plugin for MWCameraPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(IsThirdPerson::default())
             .add_event::<ToggleCameraMode>()
-            .configure_sets(PostUpdate, CameraSyncSet.after(PhysicsSet::StepSimulation)) // DO THIS!
+            .configure_sets(PostUpdate, CameraSyncSet) // DO THIS!
             .add_systems(Update, (toggle_cursor.run_if(toggle_cursor_condition),))
             .add_systems(
                 PostUpdate,

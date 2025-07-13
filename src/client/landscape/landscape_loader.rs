@@ -1,7 +1,3 @@
-use crate::{
-    const_defs::{MORROWIND_CELL_SIZE, MORROWIND_HEIGHT_SCALE},
-    terrain_material::{TerrainBlendMaterial, TerrainMaterialParams},
-};
 use bevy::{
     asset::{AssetServer, Assets, Handle, RenderAssetUsages},
     image::{Image, ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor},
@@ -21,16 +17,20 @@ use bevy_ecs::{
     query::Added,
     system::{Commands, Query, Res, ResMut},
 };
-use bevy_rapier3d::prelude::Collider;
-use cdda_bevy::client::defs::{
-    AllLandscapes, EsmReaderResource, LandTextureDefinitions, LandscapeAwaitingImages,
-    LandscapeCell, LandscapeLoader,
+use cdda_bevy::client::{
+    const_defs::MORROWIND_CELL_SIZE,
+    defs::{
+        AllLandscapes, EsmReaderResource, LandTextureDefinitions, LandscapeAwaitingImages,
+        LandscapeCell, LandscapeLoader,
+    },
 };
 use esm_parser_lib::{
     EsmReader, LAND_NUM_TEXTURES, LAND_NUM_VERTS, LAND_SIDE_VERTICES,
     LAND_TEXTURE_SQUARES_PER_SIDE, LandTexture, LandVertexColor, LandVertexNormal,
 };
 use std::collections::{HashMap, HashSet};
+
+use super::terrain_material::{TerrainBlendMaterial, TerrainMaterialParams};
 
 pub fn load_landscape(
     landscape_loader_q: Query<(Entity, &LandscapeLoader), Added<LandscapeLoader>>,
@@ -244,7 +244,7 @@ fn finish_landscape_setup(
         },
         Mesh3d(mesh_h),
         MeshMaterial3d(material_handle),
-        Collider::trimesh(positions_vec3_for_collider, indices_vec3_for_collider).unwrap(),
+        //Collider::trimesh(positions_vec3_for_collider, indices_vec3_for_collider).unwrap(),
         Transform::from_xyz(2.0, 2.0, -2.0),
     ));
 }
@@ -279,29 +279,11 @@ pub fn construct_landscape_mesh(
         initial_esm_normals,       // Owned Vec<LandVertexNormal>
         initial_esm_colors,        // Owned Vec<LandVertexColor>
     ) = {
-        // Re-borrow immutably for the read phase
-        let landscape_entry = all_landscapes.0.get(&current_cell_key)?; // Should exist now
+        let landscape_entry = all_landscapes.0.get(&current_cell_key)?;
         let landscape_detailed_data = landscape_entry.detailed_data.as_ref()?;
         let vhgt_data = landscape_detailed_data.vertex_heights.as_ref()?;
 
-        // 1a. Heightmap (already results in an owned Vec)
-        let mut unscaled_heights = vec![0.0f32; LAND_NUM_VERTS];
-        let mut current_z_at_first_col_unscaled = vhgt_data.height_offset;
-        for y_idx in 0..LAND_SIDE_VERTICES {
-            current_z_at_first_col_unscaled +=
-                vhgt_data.height_data[y_idx * LAND_SIDE_VERTICES + 0] as f32;
-            unscaled_heights[y_idx * LAND_SIDE_VERTICES + 0] = current_z_at_first_col_unscaled;
-            let mut current_z_in_row_unscaled = current_z_at_first_col_unscaled;
-            for x_idx in 1..LAND_SIDE_VERTICES {
-                current_z_in_row_unscaled +=
-                    vhgt_data.height_data[y_idx * LAND_SIDE_VERTICES + x_idx] as f32;
-                unscaled_heights[y_idx * LAND_SIDE_VERTICES + x_idx] = current_z_in_row_unscaled;
-            }
-        }
-        let z_values: Vec<f32> = unscaled_heights
-            .into_iter()
-            .map(|h| h * MORROWIND_HEIGHT_SCALE)
-            .collect();
+        let z_values = vhgt_data.heights.clone();
 
         // 1b. Extract initial per-vertex normals and colors into new owned Vecs
         let mut temp_normals = Vec::with_capacity(LAND_NUM_VERTS);
@@ -615,8 +597,8 @@ fn cancel_entity_landscape_load(commands: &mut Commands, entity: Entity, err: &s
     commands.entity(entity).remove::<LandscapeLoader>();
     warn!("landscape loading failed! {}", err);
 }
-fn transform_mw_normal_to_bevy(mw_normal: Vec3) -> glam::Vec3 {
-    glam::Vec3::new(-mw_normal.x, mw_normal.z, mw_normal.y).normalize_or_zero()
+fn transform_mw_normal_to_bevy(mw_normal: Vec3) -> Vec3 {
+    Vec3::new(-mw_normal.x, mw_normal.z, mw_normal.y).normalize_or_zero()
 }
 
 fn get_raw_normal_from_cell(

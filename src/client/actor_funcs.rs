@@ -1,19 +1,21 @@
+use crate::{
+    AnimationConfig, NetworkEvent, RepeatAnim,
+    client::events::{RequestAnimation, SoundEvent, SoundSource},
+};
 use bevy::prelude::*;
 use bevy_nif::nif_animation::BlendMask;
-use cdda_bevy::{
-    AnimationConfig, NetworkEvent, RepeatAnim,
-    client::{
-        actor_defs::ActorState,
-        defs::{CreatureStats, IdToEntityMap, IsThirdPerson, LocalPlayer, PlayerState},
-        events::{RequestAnimation, SoundEvent, TriggerHit},
-    },
+
+use super::{
+    actor_defs::ActorState,
+    defs::{CreatureStats, IdToEntityMap, IsThirdPerson, LocalPlayer},
+    events::TriggerHit,
 };
 
 pub fn apply_hit(
     trigger: Trigger<TriggerHit>,
     mut creature_state_q: Query<(&mut CreatureStats, &mut Transform)>,
     mut commands: Commands,
-    local_player_q: Query<(Entity, &mut PlayerState), With<LocalPlayer>>,
+    local_player_q: Query<Entity, With<LocalPlayer>>,
     id_to_entity_map: Res<IdToEntityMap>,
     mut is_third_person: ResMut<IsThirdPerson>,
 ) {
@@ -31,7 +33,7 @@ pub fn apply_hit(
     else {
         return;
     };
-    let (local_player_entity, _) = local_player_q.single().unwrap();
+    let local_player_entity = local_player_q.single().unwrap();
     let local_player_was_hit = local_player_entity == *receiver_entity;
 
     receiver_creature_stats.health -= trigger.damage;
@@ -58,11 +60,14 @@ pub fn apply_hit(
     }
 
     println!("player health: {}", receiver_creature_stats.health);
+    let sound_source = if local_player_was_hit {
+        SoundSource::LocalPlayer
+    } else {
+        SoundSource::Attached(*receiver_entity)
+    };
     commands.trigger(SoundEvent {
-        sound_anchor_entity: Some(*receiver_entity),
-        translation: None,
+        sound_source,
         sound_path: "sounds/body hit.wav".to_string(),
-        is_attached_to_local_player: local_player_was_hit,
     });
     if trigger.damage > 12.0 {
         println!("requesting knockdown for {}", receiver_entity);

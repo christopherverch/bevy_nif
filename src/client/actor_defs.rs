@@ -123,6 +123,11 @@ pub struct CombatState {
     /// A flag indicating if a spell can be successfully cast.
     pub can_cast_spell: bool,
 }
+// Speed determined by how far the movement animation moved in this frame
+// ex: runforward moved 0.1 meter forward since last frame, this would be 0.1
+// used for the physics movement system to determine how far we should move in 3rd person
+#[derive(Component, Default)]
+pub struct AnimationDisplacement(pub Vec3);
 
 /// A component holding all state related to jumping and falling.
 #[derive(Component, Debug, Default)]
@@ -149,12 +154,6 @@ pub struct VitalsState {
     pub current_death_animation: String,
 }
 
-#[derive(Component, Default)]
-pub struct CharacterMovement {
-    pub velocity: Vec3,
-    pub rotation_z: f32, // Rotation around the Z axis this frame
-}
-
 /// The primary state component for any character (player or NPC) that has animations.
 /// This struct holds all the sub-state components.
 #[derive(Component, Debug, Default)]
@@ -163,6 +162,7 @@ pub struct ActorState {
     // These are set by input/AI systems.
     pub is_running: bool,
     pub is_sneaking: bool,
+    pub is_flying: bool,
     pub is_in_water: bool,
 
     // --- Sub-structs for organization ---
@@ -177,6 +177,11 @@ pub struct ActorState {
 
     /// A queue for scripted animations that take priority over normal state-driven animations.
     //   pub animation_queue: VecDeque<AnimationQueueEntry>,
+
+    /// Tracks how many consecutive frames the actor has been stuck.
+    pub stuck_frames: u32,
+    /// Used to reset the stuck_frames counter if the actor moves far enough.
+    pub last_stuck_position: Vec3,
 
     /// A transient flag to skip animation updates for one frame.
     pub skip_anim: bool,

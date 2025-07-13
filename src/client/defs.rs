@@ -1,88 +1,38 @@
-use crate::serializer::PlayerStateNetwork;
-use crate::{AnimationConfig, NetworkEvent};
+use crate::serializer::SerializableTransform;
+use crate::{AnimationConfig, EntityId, NetworkEvent};
 use bevy::prelude::*;
 use bevy_ecs::component::HookContext;
 use bevy_ecs::world::DeferredWorld;
 use bevy_nif::nif_animation::NifEventType;
-use esm_parser_lib::{EsmReader, LandTexture, Landscape};
+use esm_parser_lib::loadweap::Weapon;
+use esm_parser_lib::{EsmReader, LandTexture, Landscape, RefId};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-#[derive(Resource, Component, Debug)]
-pub struct PlayerState {
-    pub id: u64,
-    pub transform: Transform,
-    pub last_packet_time: Instant,
-    pub started_attacking: Instant,
-    pub is_attacking: bool,
-    pub is_ready_weapon: bool,
-    pub attack_state: AttackState,
-}
-impl Default for PlayerState {
-    fn default() -> Self {
-        PlayerState {
-            id: 0,
-            transform: Transform::default(),
-            last_packet_time: Instant::now(),
-            started_attacking: Instant::now(),
-            is_attacking: false,
-            is_ready_weapon: false,
-            attack_state: AttackState::Inactive,
-        }
-    }
-}
-impl PlayerState {
-    pub fn update_from_network(&mut self, net: PlayerStateNetwork) {
-        self.transform = net.transform.into();
-        self.attack_state = net.attack_state;
-    }
-}
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)] // Add Hash if used as a HashMap key
-pub enum LocomotionState {
-    Idle,
-    Moving(Direction), // e.g., Moving(Direction::Forward) for runforward
-    Jumping,
-    Falling,
-    Landing,
-    FinishedLanding,
-    Knockdown,
-}
-
-//we want this to be its own component so we can add it to actors, creatures, etc
+// We want this to be its own component so we can add it to actors, creatures, etc
 #[derive(Component, Clone, Debug, Serialize, Deserialize, Resource)]
 #[component(on_add = add_creature_to_id_map)]
 pub struct CreatureStats {
-    pub id: u64,
+    pub entity_id: EntityId,
     pub health: f32,
     pub nif_animator_link: Option<Entity>,
 }
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
-pub enum AttackState {
-    Inactive,
-    Ready,
-    Charging,
-    ChargeImmediateRelease,
-    Releasing,
-    Returning,
-    FrozenBack,
-}
 #[derive(Component, Debug)]
 pub struct FirstPersonMeshEntityLinks(pub Vec<Entity>);
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum NetworkAnimEvent {
     NifAnimEvent {
         event_type: NifEventType,
-        skeleton_id: u64,
+        skeleton_id: EntityId,
     },
     BevyAnimEvent {
         animation_config: AnimationConfig,
-        skeleton_id: u64,
+        skeleton_id: EntityId,
     },
 }
 
-#[derive(Component, Debug)]
-pub struct NifAnimatorLink(pub Entity);
 #[derive(Component)]
 pub struct Animator {
     pub graph: Handle<AnimationGraph>,
@@ -104,7 +54,12 @@ pub struct TestingComponent;
 #[derive(Component)]
 pub struct RootEntityLink(pub Option<Entity>);
 #[derive(Component)]
-pub struct NetworkedEntity(pub Entity);
+pub struct NetworkedEntity {
+    pub entity_id: EntityId,
+    pub entity: Entity,
+    pub serializable_transform: SerializableTransform,
+    pub last_packet_time: Instant,
+}
 #[derive(Resource, Default, Debug)]
 pub struct NetworkEventWithIdCounter(pub u64);
 #[derive(Debug)]
@@ -117,25 +72,22 @@ pub struct SentActionInfo {
 #[derive(Resource, Default, Debug)]
 pub struct PendingServerAcks(pub HashMap<u64, SentActionInfo>);
 #[derive(Component)]
-#[require(PlayerState)]
 pub struct Player;
 #[derive(Debug, Resource)]
-pub struct CurrentClientId(pub u64);
+pub struct ClientEntityId(pub u64);
 
 #[derive(Component, Resource, Default)]
 pub struct IsThirdPerson(pub bool);
 #[derive(Component)]
 pub struct NeedsSetup {
-    pub id: u64,
+    pub entity_id: EntityId,
     pub player_transform: Transform,
 }
 #[derive(Component)]
 pub struct PlayerCamera;
-#[derive(Component)]
-pub struct Weapon;
-#[derive(Component, Default, Resource)]
+#[derive(Component, Default)]
 pub struct LocalPlayer {
-    pub id: u64,
+    pub entity_id: EntityId,
 }
 #[derive(Component, Default)]
 pub struct MeshEntityLink(pub Option<Entity>);
@@ -161,15 +113,7 @@ pub enum Direction {
 }
 
 #[derive(Component)]
-pub struct SceneName {
-    pub scene_name: String,
-    pub id: u64,
-    pub parent: Entity,
-}
-#[derive(Component)]
 pub struct AnimateableEntity;
-#[derive(Component)]
-pub struct KnockdownEventAdded;
 #[derive(Resource)]
 pub struct EsmReaderResource(pub EsmReader<'static>);
 
@@ -204,6 +148,8 @@ pub struct LandscapeCell {
 }
 #[derive(Resource, Default)]
 pub struct IdToEntityMap(pub HashMap<u64, Entity>);
+
+// add this creature's id to the id->Entity hashmap, so we can get the entity by its id
 fn add_creature_to_id_map(
     mut world: DeferredWorld,
     HookContext {
@@ -211,11 +157,11 @@ fn add_creature_to_id_map(
         ..
     }: HookContext,
 ) {
-    let id_to_insert_option = world
+    let entity_id_opt = world
         .get::<CreatureStats>(creature_entity)
-        .map(|stats| stats.id);
+        .map(|stats| stats.entity_id);
 
-    if let Some(actual_id) = id_to_insert_option {
+    if let Some(actual_id) = entity_id_opt {
         world
             .resource_mut::<IdToEntityMap>()
             .0
@@ -227,3 +173,5 @@ fn add_creature_to_id_map(
         );
     }
 }
+#[derive(Resource)]
+pub struct WeaponDefinitions(pub HashMap<RefId, Weapon>);

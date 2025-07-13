@@ -1,4 +1,3 @@
-use crate::client::defs::{AttackState, CreatureStats};
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -25,10 +24,4 @@ impl From<SerializableTransform> for Transform {
             scale: s.scale,
         }
     }
-}
-#[derive(Clone, Debug, Serialize, Deserialize, Resource)]
-pub struct PlayerStateNetwork {
-    pub transform: SerializableTransform,
-    pub attack_state: AttackState,
-    pub creature_stats: CreatureStats,
 }

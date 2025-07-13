@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+/*use bevy::prelude::*;
 use bevy_nif::nif_animation::{NifAnimator, REGION_ROOT_LOWER_BODY, SkeletonMap};
 use bevy_rapier3d::prelude::KinematicCharacterController;
 use bevy_rapier3d::prelude::*;
@@ -10,8 +10,7 @@ use cdda_bevy::{
         },
         animation::get_anim_components_for_creature,
         defs::{
-            CreatureStats, IdToEntityMap, IsThirdPerson, LocalPlayer, Player, PlayerInput,
-            RootEntityLink,
+            CreatureStats, IdToEntityMap, IsThirdPerson, LocalPlayer, PlayerInput, RootEntityLink,
         },
         events::SoundEvent,
     },
@@ -55,8 +54,7 @@ pub fn player_movement(
         // Update the central ActorState component so the animation system knows what to do.
         actor_state.movement.state = desired_movement_state;
 
-        // The rest of the function now ONLY deals with vertical movement (gravity/jump)
-        // because horizontal movement is entirely handled by the root motion system.
+        // horizontal movement is entirely handled by animation unless first person or jumping
         let delta_time = time.delta_secs();
         *vertical_movement += GRAVITY * delta_time * controller.custom_mass.unwrap_or(1.0);
         let mut final_horizontal_movement = Vec3::ZERO;
@@ -98,15 +96,20 @@ pub fn player_movement(
         // 1. Set the most basic physical state first.
         let is_on_ground = output.map(|o| o.grounded).unwrap_or(true);
         if is_on_ground {
-            // We are on the ground, so we can't be InAir.
+            // We are on the ground.
             // We might be Landing or just idly on the ground (None).
             if *was_airborne {
-                // We just landed.
+                // --- THIS IS A CHANGE ---
+                // We just landed. Set the state, but DON'T immediately clear it on the next frame.
+                // The animation system will be responsible for clearing this state.
                 actor_state.jumping.state = JumpingStateKind::Landing;
                 actor_state.jumping.handled_landing_animation = false;
                 commands.trigger(NetworkEvent::Animation(AnimationEvent::Landed));
-            } else {
-                // We are solidly on the ground.
+            } else if actor_state.jumping.state != JumpingStateKind::Landing {
+                // --- THIS IS NEW ---
+                // If we are on the ground but NOT in the middle of a landing animation,
+                // then we can safely be considered in the "None" state.
+                // This prevents the state from being wiped out on the frame after landing.
                 actor_state.jumping.state = JumpingStateKind::None;
             }
         } else {
@@ -224,7 +227,6 @@ pub fn apply_root_motion_system(
                     // Check if this animation has a root motion curve to sample.
                     if let Some(curve) = &definition.root_translation_curve {
                         if let Some(anim_state) = player.animation(definition.node_index) {
-                            // --- THE FIX: Use the modulo operator to get the time within the current loop ---
                             let current_time = anim_state.elapsed() % definition.duration;
 
                             // If the animation group has changed, OR if a loop occurred (detected by
@@ -449,4 +451,4 @@ fn determine_movement_state(
     }
 
     CharacterState::Idle
-}
+}*/

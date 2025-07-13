@@ -1,36 +1,43 @@
 use std::f32::consts::PI;
-use std::time::Instant;
 
 use bevy::input::mouse::{MouseMotion, MouseWheel};
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use cdda_bevy::client::actor_defs::ActorState;
-use cdda_bevy::client::defs::{AttackState, IsThirdPerson, LocalPlayer, PlayerInput, PlayerState};
-use cdda_bevy::client::events::ToggledThirdPerson;
+use cdda_bevy::client::defs::{IsThirdPerson, LocalPlayer, PlayerInput};
+use cdda_bevy::client::events::{PlayerReadyWeapon, ToggledThirdPerson};
 
 use crate::camera::MWCamera;
-use crate::combat::execute_attack;
 pub struct MWInputPlugin;
 
+// A constant array of weapon types to cycle through for testing.
+const WEAPON_TYPES: [i32; 8] = [
+    0,  // Hand-to-hand
+    1,  // 1h (Shortblade)
+    5,  // 2h (Longblade)
+    8,  // Spear
+    9,  // Bow
+    10, // Crossbow
+    11, // Throwing
+    12, // Spell
+];
 impl Plugin for MWInputPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(PreUpdate, orbit_mouse.run_if(orbit_condition))
             .add_systems(Update, zoom_mouse)
-            .insert_resource(IsThirdPerson::default());
+            .insert_resource(IsThirdPerson::default())
+            .add_systems(Update, keyboard_input);
     }
 }
 pub fn keyboard_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    buttons: Res<ButtonInput<MouseButton>>,
     mut player_input: ResMut<PlayerInput>,
     mut is_third_person: ResMut<IsThirdPerson>,
     mut commands: Commands,
-    mut player_state_query: Query<(Entity, &mut PlayerState, &mut ActorState), With<LocalPlayer>>,
-    cameras: Query<(&Camera, &Transform)>,
+    mut player_state_query: Query<(Entity, &mut ActorState), With<LocalPlayer>>,
+    mut current_weapon_index: Local<usize>,
 ) {
-    let Some((player_entity, mut player_state, mut actor_state)) =
-        player_state_query.iter_mut().next()
-    else {
+    let Some((player_entity, mut actor_state)) = player_state_query.iter_mut().next() else {
         return; // Exit early if no player is found
     };
 
@@ -59,12 +66,16 @@ pub fn keyboard_input(
         player_input.sneak = !player_input.sneak;
         actor_state.is_sneaking = player_input.sneak;
     }
+    if keyboard_input.just_pressed(KeyCode::KeyQ) {
+        // Increment the index, wrapping around if it goes past the end of the array.
+        *current_weapon_index = (*current_weapon_index + 1) % WEAPON_TYPES.len();
+
+        let new_weapon_type = WEAPON_TYPES[*current_weapon_index];
+        actor_state.combat.weapon_type = new_weapon_type;
+        info!("Switched to weapon type: {}", new_weapon_type);
+    }
     if keyboard_input.just_pressed(KeyCode::KeyF) {
-        if player_state.attack_state == AttackState::Ready {
-            player_state.attack_state = AttackState::Inactive;
-        } else {
-            player_state.attack_state = AttackState::Ready;
-        }
+        commands.trigger(PlayerReadyWeapon { player_entity });
     }
     if keyboard_input.just_pressed(KeyCode::Tab) {
         is_third_person.0 = !is_third_person.0;
@@ -75,8 +86,6 @@ pub fn keyboard_input(
         hide_player_conditionally(
             &first_person_entities,
             is_third_person.0,
-            //&player_state,
-            //&mesh_query,
             commands.reborrow(),
         );
     }
@@ -84,19 +93,10 @@ pub fn keyboard_input(
     if !player_input.jump {
         player_input.jump = keyboard_input.just_pressed(KeyCode::Space);
     }
-    handle_player_attack_system(
-        buttons,
-        &player_entity,
-        &mut player_state,
-        cameras,
-        commands,
-    );
 }
 fn hide_player_conditionally(
     first_person_entities: &Vec<Entity>,
     is_third_person: bool,
-    //player_state: &PlayerState,
-    //  mesh_query: &Query<Entity, With<LocalPlayerMesh>>,
     mut commands: Commands,
 ) {
     //TEMPORARY
@@ -108,65 +108,7 @@ fn hide_player_conditionally(
         }
     }
 }
-pub fn handle_player_attack_system(
-    buttons: Res<ButtonInput<MouseButton>>,
-    player_entity: &Entity,
-    player_state: &mut PlayerState,
-    camera_query: Query<(&Camera, &Transform)>, // For raycasting
-    mut commands: Commands,
-) {
-    if buttons.just_pressed(MouseButton::Left) {
-        if player_state.attack_state == AttackState::Ready {
-            player_state.started_attacking = Instant::now();
-            player_state.attack_state = AttackState::Charging;
-            // Consider triggering an "AttackChargeStart" animation/sound event here
-        }
-    }
 
-    // Logic for cooldown after releasing an attack
-    if player_state.attack_state == AttackState::Releasing
-        && player_state.started_attacking.elapsed().as_millis() >= 300
-    {
-        player_state.attack_state = AttackState::Ready;
-    }
-
-    // Logic for ChargeImmediateRelease
-    if player_state.attack_state == AttackState::ChargeImmediateRelease {
-        // Min charge time
-        if player_state.started_attacking.elapsed().as_millis() >= 300 {
-            for (_camera, camera_transform) in &camera_query {
-                execute_attack(
-                    *player_entity,
-                    player_state,
-                    camera_transform,
-                    &mut commands,
-                );
-            }
-        }
-    } else {
-        // This 'else' ensures this block doesn't run if we just transitioned ChargeImmediateRelease -> Charging
-        if buttons.just_released(MouseButton::Left) {
-            if player_state.attack_state == AttackState::Charging {
-                if player_state.started_attacking.elapsed().as_millis() < 300 {
-                    // Quick tap resulted in release
-                    player_state.attack_state = AttackState::ChargeImmediateRelease;
-                } else {
-                    // Normal release after proper charge
-                    if let Ok((_camera, camera_transform)) = camera_query.single() {
-                        execute_attack(
-                            *player_entity,
-                            player_state,
-                            camera_transform,
-                            &mut commands,
-                        );
-                        player_state.started_attacking = Instant::now(); // Reset for cooldown timing 
-                        // Consider triggering an "AttackRelease" animation/sound event here
-                    }
-                }
-            }
-        }
-    }
-}
 // only run the orbit system if the cursor lock is disabled
 fn orbit_condition(cam_q: Query<&MWCamera>) -> bool {
     let Ok(cam) = cam_q.single() else {
@@ -185,6 +127,7 @@ pub fn orbit_mouse(
     let mut rotation = Vec2::ZERO;
     for ev in mouse_evr.read() {
         rotation = ev.delta;
+        // Track how much the player rotated so we can play the turn animation
         player_input.rotation_z += rotation.x;
     }
 
@@ -211,7 +154,6 @@ pub fn orbit_mouse(
             let current_up = cam_transform.rotation * Vec3::Y;
             let target_up = Vec3::new(current_up.x, 0.2, current_up.z).normalize(); //clamp y to 0.2
 
-            // Use from_rotation_arc instead of from_two_vectors
             let rotation_to_target = Quat::from_rotation_arc(current_up, target_up);
 
             // Apply only the necessary pitch to reach the target

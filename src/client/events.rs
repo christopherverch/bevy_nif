@@ -25,6 +25,10 @@ pub struct TryAttackTrigger {
     pub direction: Vec3,
     pub damage: f32,
 }
+#[derive(Event)]
+pub struct PlayerReadyWeapon {
+    pub player_entity: Entity,
+}
 #[derive(Event, Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct TriggerHit {
     pub attacker_id: u64,
@@ -36,12 +40,16 @@ pub struct TriggerHit {
 #[derive(Event, Reflect, Clone)]
 pub struct KnockdownFinished(pub Entity);
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum SoundSource {
+    Attached(Entity),
+    Located(Vec3),
+    LocalPlayer,
+}
 #[derive(Event, Debug, Serialize, Deserialize, Clone)]
 pub struct SoundEvent {
-    pub sound_anchor_entity: Option<Entity>,
-    pub translation: Option<Vec3>,
+    pub sound_source: SoundSource,
     pub sound_path: String,
-    pub is_attached_to_local_player: bool,
 }
 
 #[derive(Event, Debug, Serialize, Deserialize, Clone)]

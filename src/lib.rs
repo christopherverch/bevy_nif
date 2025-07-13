@@ -1,13 +1,25 @@
-use bevy::prelude::*;
-use bevy_nif::nif_animation::{BlendMask, NifEventType};
-use client::{
+use std::collections::HashMap;
+
+use crate::client::{
     actor_defs::{ActorState, CharacterState, JumpingStateKind, UpperBodyState},
     events::{SetAnimSpeedSeekEvent, SoundEvent, TriggerHit},
 };
+use bevy::prelude::*;
+use bevy_nif::nif_animation::{BlendMask, NifEventType};
 use serde::{Deserialize, Serialize};
-pub mod client;
+pub mod client {
+    pub mod actor_defs;
+    pub mod actor_funcs;
+    pub mod animation;
+    pub mod const_defs;
+    pub mod defs;
+    pub mod events;
+}
 pub mod networking;
 pub mod serializer;
+
+pub type EntityId = u64;
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum RepeatAnim {
     Never,
@@ -21,6 +33,7 @@ pub struct AnimationConfig {
     pub priority: u8,
     pub mask: BlendMask,
 }
+
 /// A component containing only the state essential for animation replication.
 /// This is what gets sent over the network.
 #[derive(Debug, Clone, Serialize, Deserialize, Component)]
@@ -52,13 +65,13 @@ impl From<&ActorState> for NetworkedActorState {
 #[derive(Debug, Serialize, Deserialize, Component)]
 pub enum ClientMessage {
     // We can add more later, like Jump or Attack events.
-    StateUpdate(NetworkedActorState),
+    ActorStateUpdate(NetworkedActorState),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct NetworkEventWithId {
     pub action_id: u64,
-    pub payload: NetworkEvent, // The specific type of action
+    pub payload: NetworkEvent,
 }
 #[derive(Event, Debug, Serialize, Deserialize, Clone)]
 pub enum NetworkEvent {
@@ -125,4 +138,8 @@ pub enum ServerRelayMessage {
         performing_client_id: u64,  // The client who was authoritative
         action: NetworkEventWithId, // The original action (or a version of it)
     },
+}
+#[derive(Debug, Default, Resource)]
+pub struct EntityIdToEntityMap {
+    pub players: HashMap<EntityId, Entity>,
 }

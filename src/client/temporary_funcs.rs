@@ -3,7 +3,8 @@ use std::{f32::consts::PI, time::Instant};
 use bevy::prelude::*;
 use cdda_bevy::client::defs::Pause;
 
-use crate::setup_funcs::HudText;
+use crate::setup_scene::HudText;
+
 // pauses and unpauses the light rotating when we press space
 pub fn switch_mode(
     mut query: Query<&mut Text, With<HudText>>,

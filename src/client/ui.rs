@@ -1,8 +1,8 @@
-use crate::client::defs::{CurrentClientId, GameState, ServerIP};
 use bevy::color::palettes::basic::*;
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
 use bevy::ui::FocusPolicy;
+use cdda_bevy::client::defs::{GameState, ServerIP};
 #[derive(Resource, Default)]
 struct FocusedIpInput {
     entity: Option<Entity>, // Use Option<Entity>
@@ -19,7 +19,6 @@ pub struct UiPlugin;
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(FocusedIpInput::default())
-            .insert_resource(CurrentClientId(0)) //todo:: MOVE THIS, shouldn't be in ui
             .add_systems(OnEnter(GameState::MainMenu), set_initial_focus)
             .add_systems(Update, button_system.run_if(in_state(GameState::MainMenu)))
             .add_systems(

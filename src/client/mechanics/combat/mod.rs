@@ -1,14 +1,13 @@
+pub mod combat_visuals;
 use bevy::color::palettes::basic;
 use bevy::prelude::*;
-use bevy_rapier3d::{plugin::ReadRapierContext, prelude::QueryFilter, render::ColliderDebugColor};
 use cdda_bevy::client::{
-    defs::{AttackState, CreatureStats, PlayerState},
+    defs::CreatureStats,
     events::{TriggerHit, TryAttackTrigger},
 };
-use std::time::Instant;
 
-use crate::{const_defs::MESH_HEIGHT_OFFSET, utils::create_line_mesh};
-
+use crate::utils::create_line_mesh;
+/*
 pub fn execute_attack(
     attacker_entity: Entity,
     player_state: &mut PlayerState,
@@ -21,7 +20,6 @@ pub fn execute_attack(
     let ray_origin =
         player_state.transform.translation + Vec3::new(0.0, MESH_HEIGHT_OFFSET + 0.3, 0.0);
 
-    player_state.attack_state = AttackState::Releasing;
     let charge_duration_ms = player_state.started_attacking.elapsed().as_millis();
     // Calculate damage based on the charge duration
     let damage = 5.0 + 10.0 * (charge_duration_ms as f32 / 1200.0).min(1.0);
@@ -37,6 +35,7 @@ pub fn execute_attack(
     // Reset the attack timer AFTER using its elapsed value for damage calculation
     player_state.started_attacking = Instant::now();
 }
+
 pub fn trigger_attack(
     trigger: Trigger<TryAttackTrigger>,
     mut commands: Commands,
@@ -88,3 +87,4 @@ pub fn trigger_attack(
         commands.entity(entity).insert(ColliderDebugColor(color));
     }
 }
+*/

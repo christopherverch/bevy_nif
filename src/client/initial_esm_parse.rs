@@ -1,15 +1,19 @@
 use bevy_ecs::system::Commands;
-use cdda_bevy::client::defs::{AllLandscapes, EsmReaderResource, LandTextureDefinitions};
+use cdda_bevy::client::defs::{
+    AllLandscapes, EsmReaderResource, LandTextureDefinitions, WeaponDefinitions,
+};
 use esm_parser_lib::{
     EsmReader, Header, LandTexture, Landscape, RefId, TextDecoder, esm_reader::Windows1252Decoder,
+    loadweap::Weapon,
 };
 use std::{collections::HashMap, path::Path, time::Instant};
 
 pub fn populate_esm_resources(mut commands: Commands) {
-    if let Ok((reader, landscapes, land_textures)) = run_initial_parse() {
+    if let Ok((reader, landscapes, land_textures, weapons)) = run_initial_parse() {
         commands.insert_resource(EsmReaderResource(reader));
         commands.insert_resource(AllLandscapes(landscapes));
         commands.insert_resource(LandTextureDefinitions(land_textures));
+        commands.insert_resource(WeaponDefinitions(weapons));
     }
 }
 pub fn run_initial_parse() -> Result<
@@ -17,6 +21,7 @@ pub fn run_initial_parse() -> Result<
         EsmReader<'static>,
         HashMap<(i32, i32), Landscape>,
         HashMap<u32, LandTexture>,
+        HashMap<RefId, Weapon>,
     ),
     String,
 > {
@@ -24,6 +29,7 @@ pub fn run_initial_parse() -> Result<
     let file_path_str = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/Morrowind.esm");
     let file_path = Path::new(file_path_str);
     let mut landscapes = HashMap::new();
+    let mut weapons = HashMap::new();
     if !file_path.exists() {
         eprintln!(
             "Error: File not found at '{}'. Please update the path in main.rs.",
@@ -66,7 +72,7 @@ pub fn run_initial_parse() -> Result<
                 //"INGR", "CLOT", "APPA", "ALCH", "LEVI", "STAT", "DOOR", "LEVC", "ENCH", "ACTI",
                 //"BODY", "REPA", "PGRD", "CELL", "NPC_", "SNDG", "AMMO", "LVLN", "SCPT", "DIAL",
                 //"INFO", "LTEX", "WAYP", "LAND", "KEYM",
-                "LAND", "LTEX",
+                "LAND", "LTEX", "WEAP",
             ];
             'record_loop: while reader.has_more_recs() {
                 let mut all_targets_done = true;
@@ -107,6 +113,7 @@ pub fn run_initial_parse() -> Result<
                                         &record_name_bytes, // Pass the raw bytes for matching
                                         &mut land_textures,
                                         &mut landscapes,
+                                        &mut weapons,
                                     )
                                 } else {
                                     if let Err(e) = reader.skip_record() {
@@ -157,7 +164,7 @@ pub fn run_initial_parse() -> Result<
         index: u16::MAX as u32,
     };
     land_textures.insert(default_texture.index, default_texture);
-    Ok((reader, landscapes, land_textures))
+    Ok((reader, landscapes, land_textures, weapons))
 }
 pub fn print_header_information(header: &Header) {
     println!("\n--- Header Information ---");
@@ -187,25 +194,63 @@ pub fn try_parse_and_print_record(
     rec_name_bytes: &[u8; 4], // Pass the raw bytes for direct comparison
     textures: &mut HashMap<u32, LandTexture>,
     landscapes: &mut HashMap<(i32, i32), Landscape>,
+    weapons: &mut HashMap<RefId, Weapon>,
 ) {
     if *rec_name_bytes == *b"LTEX" {
-        let tex = LandTexture::load(reader).unwrap().0;
-        println!("tex: {:?}", tex);
-        textures.insert(tex.index, tex);
+        match LandTexture::load(reader) {
+            Ok((tex, is_deleted)) => {
+                if is_deleted {
+                    // Remove if a mod deleted it.
+                    textures.remove(&tex.index);
+                } else {
+                    // Add or overwrite.
+                    textures.insert(tex.index, tex);
+                }
+            }
+            Err(e) => eprintln!("Failed to parse LTEX record: {}", e),
+        }
     }
 
     if *rec_name_bytes == *b"LAND" {
-        let mut landscape = Landscape::load(reader).unwrap();
-        if let Some(indices) = landscape.texture_indices.as_mut() {
-            for index in indices.iter_mut() {
-                // we want to wrap around so 0 values become u16::max, so we know which would have
-                // been 0 but still get to use a 0 index array.
-                *index = index.wrapping_sub(1);
+        match Landscape::load(reader) {
+            Ok((mut landscape, is_deleted)) => {
+                let key = (landscape.grid_x, landscape.grid_y);
+                if is_deleted {
+                    // Remove if a mod deleted it.
+                    landscapes.remove(&key);
+                } else {
+                    // Your existing logic for texture indices
+                    if let Some(indices) = landscape.texture_indices.as_mut() {
+                        for index in indices.iter_mut() {
+                            *index = index.wrapping_sub(1);
+                        }
+                    }
+                    // Add or overwrite.
+                    landscapes.insert(key, landscape);
+                }
             }
+            Err(e) => eprintln!("Failed to parse LAND record: {}", e),
         }
-        landscapes.insert((landscape.grid_x, landscape.grid_y), landscape.clone());
-        if landscape.grid_x == -2 && landscape.grid_y == -9 {
-            println!("found land");
+    }
+    if *rec_name_bytes == *b"WEAP" {
+        match Weapon::load(reader) {
+            Ok((weapon, is_deleted)) => {
+                // <-- now we use the variable
+                if is_deleted {
+                    // A mod or patch has marked this weapon for deletion.
+                    // We must remove it from our map if a previous file added it.
+                    println!("Deleting Weapon ID: {:?}", weapon.id);
+                    weapons.remove(&weapon.id);
+                } else {
+                    // This is a new weapon or an override of an existing one.
+                    // The `insert` operation correctly handles both cases.
+                    println!("Loaded Weapon: '{}'", weapon.name);
+                    weapons.insert(weapon.id.clone(), weapon);
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to parse WEAP record: {}", e);
+            }
         }
     }
 }

@@ -1,36 +1,17 @@
-use std::{f32::consts::PI, time::Duration};
+use std::{collections::HashMap, f32::consts::PI, time::Duration};
 
 use bevy::prelude::*;
-use bevy_renet::renet::{ChannelConfig, ClientId, ConnectionConfig, SendType};
+use bevy_renet::renet::{ChannelConfig, ConnectionConfig, SendType};
 use serde::{Deserialize, Serialize};
 
-use crate::{NetworkedActorState, serializer::PlayerStateNetwork};
+use crate::{EntityId, NetworkedActorState, serializer::SerializableTransform};
 
 pub const PRIVATE_KEY: &[u8; bevy_renet::netcode::NETCODE_KEY_BYTES] =
     b"an example very very secret key."; // 32-bytes
 pub const PROTOCOL_ID: u64 = 7;
 
-#[derive(Debug, Component)]
-pub struct Player {
-    pub id: ClientId,
-}
-
-#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, Component, Resource)]
-pub struct PlayerInput2 {
-    pub up: bool,
-    pub down: bool,
-    pub left: bool,
-    pub right: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize, Event)]
-pub enum PlayerCommand {
-    BasicAttack { cast_at: Vec3 },
-}
 pub enum ClientChannel {
-    Input,
-    Command,
-    PlayerStateNetwork,
+    EntityTransforms,
     CriticalActions,
     State,
 }
@@ -48,41 +29,39 @@ pub struct Velocity(pub Vec3);
 #[derive(Debug, Serialize, Deserialize, Component)]
 pub enum ServerMessages {
     PlayerCreate {
-        entity: Entity,
-        id: ClientId,
+        entity_id: EntityId,
         translation: [f32; 3],
     },
     PlayerRemove {
-        id: ClientId,
+        entity_id: EntityId,
     },
-    SpawnProjectile {
-        entity: Entity,
-        translation: [f32; 3],
-    },
-    DespawnProjectile {
-        entity: Entity,
-    },
+
     /// Relays the animation state of a specific player.
     StateUpdate {
-        /// The ID of the player whose state this is.
-        player_id: u64,
-        /// The new state of that player.
+        /// The ID of the entity whose state this is.
+        entity_id: EntityId,
+        /// The new state of that entity.
         state: NetworkedActorState,
     },
+    /// Tells the player what their server-assigned entity id is
+    Welcome {
+        entity_id: EntityId,
+    },
 }
-
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NetworkedEntityData {
+    pub transform: SerializableTransform,
+}
 #[derive(Debug, Serialize, Deserialize, Default)]
-pub struct NetworkedEntities {
-    pub entities_and_states: Vec<(Entity, PlayerStateNetwork)>,
+pub struct NetworkedEntityDataSnapshot {
+    pub entity_data_map: HashMap<EntityId, NetworkedEntityData>,
 }
 impl From<ClientChannel> for u8 {
     fn from(channel_id: ClientChannel) -> Self {
         match channel_id {
-            ClientChannel::Command => 0,
-            ClientChannel::Input => 1,
-            ClientChannel::PlayerStateNetwork => 2,
-            ClientChannel::CriticalActions => 3,
-            ClientChannel::State => 4,
+            ClientChannel::EntityTransforms => 0,
+            ClientChannel::CriticalActions => 1,
+            ClientChannel::State => 2,
         }
     }
 }
@@ -91,25 +70,10 @@ impl ClientChannel {
     pub fn channels_config() -> Vec<ChannelConfig> {
         vec![
             ChannelConfig {
-                channel_id: Self::Input.into(),
+                channel_id: Self::EntityTransforms.into(),
                 max_memory_usage_bytes: 5 * 1024 * 1024,
-                send_type: SendType::ReliableOrdered {
-                    resend_time: Duration::ZERO,
-                },
-            },
-            ChannelConfig {
-                channel_id: Self::Command.into(),
-                max_memory_usage_bytes: 5 * 1024 * 1024,
-                send_type: SendType::ReliableOrdered {
-                    resend_time: Duration::ZERO,
-                },
-            },
-            ChannelConfig {
-                channel_id: Self::PlayerStateNetwork.into(),
-                max_memory_usage_bytes: 5 * 1024 * 1024,
-                send_type: SendType::ReliableOrdered {
-                    resend_time: Duration::ZERO,
-                },
+                // We don't care if positions jump a little for networked entities
+                send_type: SendType::Unreliable,
             },
             ChannelConfig {
                 channel_id: Self::CriticalActions.into(),
@@ -173,7 +137,9 @@ impl ServerChannel {
             ChannelConfig {
                 channel_id: Self::StateUpdates.into(),
                 max_memory_usage_bytes: 10 * 1024 * 1024,
-                send_type: SendType::Unreliable,
+                send_type: SendType::ReliableOrdered {
+                    resend_time: Duration::from_millis(200),
+                },
             },
         ]
     }

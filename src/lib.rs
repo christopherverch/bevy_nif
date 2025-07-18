@@ -135,7 +135,7 @@ pub enum ServerAcknowledgment {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ServerRelayMessage {
     RelayClientAction {
-        performing_client_id: u64,  // The client who was authoritative
+        performing_entity_id: u64,  // The entity performing this action
         action: NetworkEventWithId, // The original action (or a version of it)
     },
 }

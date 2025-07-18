@@ -89,8 +89,10 @@ pub struct PlayerCamera;
 pub struct LocalPlayer {
     pub entity_id: EntityId,
 }
-#[derive(Component, Default)]
-pub struct MeshEntityLink(pub Option<Entity>);
+#[derive(Component)]
+pub struct MeshEntityLink(pub Entity);
+#[derive(Component)]
+pub struct ColliderEntityLink(pub Entity);
 #[derive(Component, Default, Resource)]
 pub struct LocalPlayerMesh;
 #[derive(Resource)]

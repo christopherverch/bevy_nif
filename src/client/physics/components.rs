@@ -27,10 +27,11 @@ pub struct CreaturePhysicsState {
     // The single, compound collider shape for this character.
     // We clone it from the entity when the component is added.
     pub collision_shape: Collider,
+    /// Counts consecutive frames where significant geometry penetration is detected.
     pub stuck_frames: u32,
     pub last_stuck_position: Vec3,
     /// The vertical offset from the character's root transform to the center
-    /// of the collision shape. This is crucial for vanilla-accurate physics.
+    /// of the collision shape. This is needed for vanilla-accurate physics.
     pub vertical_offset: f32,
 }
 

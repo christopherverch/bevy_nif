@@ -1,16 +1,13 @@
 #![allow(dead_code)]
 // This file defines the Rust structs and enums necessary to replicate the state
 // management logic found in OpenMW's `character.hpp` and `character.cpp`.
-// These components are designed to be used with the Bevy engine's ECS.
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
 // --- Core State Enums ---
-// These enums mirror the state tracking enums in `character.hpp`.
 
 /// Represents the broad category of action the character is performing.
-/// This directly corresponds to the `CharacterState` enum in character.hpp.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum CharacterState {
     None,
@@ -81,6 +78,7 @@ pub enum UpperBodyState {
 pub enum JumpingStateKind {
     #[default]
     None,
+    Jumping,
     InAir,
     Landing,
 }
@@ -136,7 +134,7 @@ pub struct JumpingState {
     pub state: JumpingStateKind,
     /// The name of the animation group for the current jump state (e.g., "jumphh").
     pub current_animation_group: String,
-    /// A boolean flag indicating if the actor is airborne due to a jump.
+    /// These animations don't change the state so we need some other way to know to play them
     pub handled_jump_animation: bool,
     pub handled_landing_animation: bool,
 }

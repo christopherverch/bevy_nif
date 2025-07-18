@@ -5,8 +5,8 @@ use bevy_nif::nif::spawner::NifScene;
 use bevy_nif::nif_animation::{NifAnimator, NifAnimatorAdded};
 use bevy_rapier3d::prelude::*;
 use cdda_bevy::client::defs::{
-    AnimateableEntity, ClientEntityId, CreatureStats, LocalPlayer, LocalPlayerMesh, NeedsSetup,
-    NetworkedEntity, Player, RootEntityLink,
+    AnimateableEntity, ClientEntityId, CreatureStats, LocalPlayer, LocalPlayerMesh, MeshEntityLink,
+    NeedsSetup, NetworkedEntity, Player, RootEntityLink,
 };
 use cdda_bevy::serializer::SerializableTransform;
 use kira::Easing;
@@ -101,13 +101,16 @@ pub fn setup_player(
             RootEntityLink(Some(player_entity)),
             Name::new("player mesh"),
         ));
+        // Add a link to the mesh entity so we can reference it from the player
+        commands
+            .entity(player_entity)
+            .insert(MeshEntityLink(player_mesh));
 
         //if this is the local player
         if client_id.0 == setup_info.entity_id {
             commands.entity(player_mesh).insert((
                 //Default to first person, so hide the player's mesh
                 LocalPlayerMesh,
-                Visibility::Hidden,
             ));
             commands.entity(player_entity).insert((
                 MWCameraTarget,

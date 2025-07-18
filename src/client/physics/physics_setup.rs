@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy_nif::nif::{loader::Nif, physics::NifCollisionShape, spawner::NifScene};
 use bevy_rapier3d::{parry::math::Isometry, prelude::*};
 
-use cdda_bevy::client::const_defs::NIF_SCALE_MULTIPLIER;
+use cdda_bevy::client::{const_defs::NIF_SCALE_MULTIPLIER, defs::ColliderEntityLink};
 
 use super::CreaturePhysicsState;
 
@@ -32,7 +32,6 @@ pub fn setup_nif_physics(
 
         let actor_root_entity = needs_physics.0;
 
-        commands.entity(actor_root_entity).insert(Name::new("test"));
         // --- Determine RigidBody Type
         let mut compound_parts: Vec<(Vec3, Quat, Collider)> = Vec::new();
         for collision_shape in &nif_asset.collision_shapes {
@@ -55,17 +54,21 @@ pub fn setup_nif_physics(
             ))
             .id();
         let aabb = compound_collider.raw.compute_aabb(&Isometry::identity());
+        // This assumes the entity's transform origin is at its feet. The physics collider's
+        // origin is its geometric center, so we must offset it vertically by half its
+        // height to align its base with the entity's transform.
         let vertical_offset = aabb.half_extents().y;
-        commands.entity(actor_root_entity).insert(
-            // Also add a copy of the collider to our state component for easy access
-            // in the movement system. This avoids having to query for children.
+        commands.entity(actor_root_entity).insert((
             CreaturePhysicsState {
+                // Also add a copy of the collider to our state component for easy access
+                // in the movement system. This avoids having to query for children.
                 collision_shape: compound_collider,
                 vertical_offset,
                 on_ground: false,
                 ..default()
             },
-        );
+            ColliderEntityLink(collider_entity),
+        ));
 
         // Parent the collider entity to the actor root ---
         commands

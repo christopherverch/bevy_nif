@@ -36,3 +36,5 @@ pub const DO_EXTRA_STAIR_HACKS: bool = true;
 pub const S_MIN_STEP: f32 = 10.0 / UNITS_PER_METER;
 /// A further, less-tall fixed-distance move for the second hack.
 pub const S_MIN_STEP_2: f32 = 20.0 / UNITS_PER_METER;
+// A final, last-resort vertical distance to push the character upwards if it's severely stuck.
+pub const FAILSAFE_UNSTUCK_UPWARD_DISTANCE: f32 = 10.0 / UNITS_PER_METER;

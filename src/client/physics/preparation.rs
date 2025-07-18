@@ -1,12 +1,14 @@
 use bevy::prelude::*;
 use cdda_bevy::client::{
-    actor_defs::{ActorState, AnimationDisplacement, CharacterState},
+    actor_defs::{ActorState, AnimationDisplacement, CharacterState, JumpingStateKind},
     defs::{IsThirdPerson, LocalPlayer, PlayerInput},
 };
 
 use cdda_bevy::client::actor_funcs::get_current_speed;
 
 use super::components::CreaturePhysicsState;
+
+const JUMP_IMPULSE: f32 = 8.0;
 
 /// This system runs before the main movement solver.
 /// Its job is to determine the character's desired velocity for this frame
@@ -16,7 +18,7 @@ pub fn prepare_character_velocity_system(
     mut player_input: ResMut<PlayerInput>,
     mut query: Query<
         (
-            &ActorState,
+            &mut ActorState, // Changed to mutable
             &mut CreaturePhysicsState,
             &AnimationDisplacement,
             &Transform,
@@ -31,107 +33,108 @@ pub fn prepare_character_velocity_system(
         return;
     }
 
-    if let Ok((actor_state, mut physics_state, local_anim_displacement, root_transform)) =
+    if let Ok((mut actor_state, mut physics_state, local_anim_displacement, root_transform)) =
         query.single_mut()
     {
-        // Get camera facing vector (2d)
         let Ok(cam_transform) = camera_q.single() else {
             return;
         };
         let forward = cam_transform.forward().xz().normalize_or_zero();
         let right = cam_transform.right().xz().normalize_or_zero();
 
-        // Step 1: Determine the desired horizontal velocity based on view mode.
-        let horizontal_vel = if is_third_person.0 {
-            // --- 3rd Person Logic ---
-            let local_space_delta = Vec3::new(
-                local_anim_displacement.0.x,
-                0.0,
-                local_anim_displacement.0.z,
-            );
+        // Step 1: Determine the desired horizontal velocity.
+        let horizontal_vel = if physics_state.on_ground {
+            // --- ON-GROUND LOGIC ---
+            if is_third_person.0 {
+                // 3rd Person: Use root motion from the animation.
+                // Discard y movement since we handle it with gravity/jumping
+                let local_space_delta = Vec3::new(
+                    local_anim_displacement.0.x,
+                    0.0,
+                    local_anim_displacement.0.z,
+                );
 
-            let target_direction = (forward * player_input.move_direction.y
-                + right * player_input.move_direction.x)
-                .normalize_or_zero();
-            // 3. Get the angle of that direction in the world (from -PI to PI).
-            // Using atan2(x, z) is crucial for a Y-up coordinate system.
-            let target_angle = if target_direction.length_squared() > 0.0 {
-                target_direction.x.atan2(target_direction.y)
+                // Get the desired world-space direction from the camera and player input.
+                let target_direction = (forward * player_input.move_direction.y
+                    + right * player_input.move_direction.x)
+                    .normalize_or_zero();
+                // Convert that direction to a rotation angle.
+                let target_angle = if target_direction.length_squared() > 0.0 {
+                    target_direction.x.atan2(target_direction.y)
+                } else {
+                    let facing_vec = root_transform.forward();
+                    facing_vec.x.atan2(facing_vec.z)
+                };
+                // Get the inherent angle of the animation itself (e.g., a "WalkLeft" anim moves at -PI/2).
+                let anim_angle = get_animation_movement_direction(actor_state.movement.state);
+                // Find the rotational difference to align the animation's motion with the desired world direction.
+                let rotation = Quat::from_rotation_y(target_angle - anim_angle);
+
+                let world_space_displacement = rotation * local_space_delta;
+                if delta_time > 0.0 {
+                    world_space_displacement / delta_time
+                } else {
+                    Vec3::ZERO
+                }
             } else {
-                // If no input, use the character's current facing direction.
-                let facing_vec = root_transform.forward();
-                facing_vec.x.atan2(facing_vec.z)
-            };
-            let anim_angle = get_animation_movement_direction(actor_state.movement.state);
-            let rotation = Quat::from_rotation_y(target_angle - anim_angle);
-
-            let world_space_displacement = rotation * local_space_delta;
-
-            if delta_time > 0.0 {
-                world_space_displacement / delta_time
-            } else {
-                Vec3::ZERO
+                // 1st Person: Use player input directly.
+                let move_speed = get_current_speed(&actor_state);
+                let vel_2d = (forward * player_input.move_direction.y
+                    + right * player_input.move_direction.x)
+                    .normalize_or_zero()
+                    * move_speed;
+                Vec3::new(vel_2d.x, 0.0, vel_2d.y)
             }
         } else {
-            // --- 1st Person Logic ---
-            let move_speed = get_current_speed(actor_state);
+            // --- IN-AIR LOGIC (for both 1st and 3rd person) ---
+            // Air control is always derived from player input, not root motion.
+            let move_speed = get_current_speed(&actor_state);
             let vel_2d = (forward * player_input.move_direction.y
                 + right * player_input.move_direction.x)
                 .normalize_or_zero()
                 * move_speed;
-
             Vec3::new(vel_2d.x, 0.0, vel_2d.y)
         };
 
-        // Step 2: Combine horizontal velocity with vertical movement (jumping).
+        // Step 2: Handle jump input to get the full intended movement for this frame.
         let mut intended_movement = horizontal_vel;
         if player_input.jump {
-            intended_movement.y = 8.0; // Example jump impulse
+            if physics_state.on_ground && !physics_state.on_slope {
+                intended_movement.y = JUMP_IMPULSE;
+                actor_state.jumping.handled_jump_animation = false;
+                actor_state.jumping.state = JumpingStateKind::Jumping;
+            }
             player_input.jump = false;
         }
 
-        // =======================================================================
-        // START: REVISED VELOCITY LOGIC
-        // =======================================================================
-        let final_vel_for_frame;
+        // Step 3: Combine intended movement with inertia based on the physics state.
+        let final_vel_for_frame =
+            if actor_state.jumping.state == JumpingStateKind::Jumping && physics_state.on_ground {
+                // Condition 2: In the air or sliding. Player input provides air control,
+                // which is added to the existing inertia (from gravity and momentum).
 
-        // Condition 1: Jumping from walkable ground.
-        // The jump impulse itself becomes the new inertia for this frame[cite: 226].
-        if intended_movement.y > 0.0 && physics_state.on_ground && !physics_state.on_slope {
-            physics_state.inertia = intended_movement;
-            final_vel_for_frame = physics_state.inertia;
+                physics_state.inertia = intended_movement;
+                physics_state.inertia
+            } else if !physics_state.on_ground || physics_state.on_slope {
+                // Condition 2: In the air or sliding. Player input provides air control,
+                // which is added to the existing inertia (from gravity and momentum).
 
-        // Condition 2: In the air or on a steep, unwalkable slope.
-        // Velocity is a combination of existing inertia (gravity) and new horizontal input[cite: 227].
-        } else if !physics_state.on_ground || physics_state.on_slope {
-            // Start with the existing inertia from the last frame.
-            let mut new_velocity = physics_state.inertia;
-            // Override horizontal components with new player input.
-            new_velocity.x = intended_movement.x;
-            new_velocity.z = intended_movement.z;
-            // The vertical component (inertia.y) is preserved, letting gravity continue.
-            final_vel_for_frame = new_velocity;
+                let air_control_velocity = Vec3::new(intended_movement.x, 0.0, intended_movement.z);
+                air_control_velocity + physics_state.inertia
+            } else {
+                // Condition 3: On solid ground and not jumping. Velocity is determined
+                // entirely by player input and animation for this frame
+                intended_movement
+            };
 
-        // Condition 3: Default case - walking on flat ground.
-        // The velocity is simply the player's intended movement. Inertia is not involved.
-        } else {
-            final_vel_for_frame = intended_movement;
-        }
-
-        // This is a simplified check for being underwater or flying [cite: 224-225]
-        if actor_state.is_flying || actor_state.is_in_water {
-            // For flying/swimming, the full 3D vector from input is used directly, ignoring inertia.
-            // This requires more complex input handling (e.g., camera pitch).
-            // final_vel_for_frame = get_3d_movement_from_input(&cam_transform, &player_input);
-        }
-
-        // Store the final calculated velocity for the main solver to use.
         physics_state.velocity_for_frame = final_vel_for_frame;
-        // =======================================================================
-        // END: REVISED VELOCITY LOGIC
-        // =======================================================================
     }
 }
+/// Returns the inherent angle of motion for an animation in a right-handed Y-up coordinate
+/// system where +X is right and -Z is forward. This is used to counteract the animation's
+/// built-in direction so it can be rotated to match player input.
+/// For example, a "WalkForward" animation moves in the engine's -Z direction, which corresponds
+/// to an angle of PI radians (180 degrees).
 fn get_animation_movement_direction(state: CharacterState) -> f32 {
     use std::f32::consts::PI;
     match state {

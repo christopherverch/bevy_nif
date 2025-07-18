@@ -1,14 +1,17 @@
 // In src/client/physics/unstuck.rs
 
-use crate::physics::{components::CreaturePhysicsState, constants::ALLOWED_PENETRATION};
+use crate::physics::{
+    components::CreaturePhysicsState,
+    constants::{ALLOWED_PENETRATION, FAILSAFE_UNSTUCK_UPWARD_DISTANCE},
+};
 use bevy::prelude::*;
 use bevy_rapier3d::{
-    // This is the correct, low-level function we need from the underlying geometry library.
+    na::RealField,
     parry::query::contact as parry_contact,
     prelude::{Collider, QueryFilter, RapierContext},
     rapier::prelude::Isometry,
 };
-use cdda_bevy::client::const_defs::UNITS_PER_METER;
+use cdda_bevy::client::actor_defs::ActorState;
 
 use super::constants::COLLISION_MARGIN;
 
@@ -24,7 +27,7 @@ struct UnstuckContactData {
 /// Queries a hypothetical position for penetrations using direct, stateless geometry queries.
 fn query_potential_position(
     context: &RapierContext,
-    collider_query: &Query<(&GlobalTransform, &Collider)>,
+    collider_query: &Query<(&GlobalTransform, &Collider, Option<&ActorState>)>,
     root_entity: Entity,
     controller: &CreaturePhysicsState,
     test_pos: Vec3,
@@ -42,7 +45,7 @@ fn query_potential_position(
         QueryFilter::new().exclude_rigid_body(root_entity),
         |hit_entity| {
             // Narrow-phase: For each potential overlap, get its shape and transform.
-            if let Ok((hit_transform, hit_collider)) = collider_query.get(hit_entity) {
+            if let Ok((hit_transform, hit_collider, _)) = collider_query.get(hit_entity) {
                 let (_scale, rot, trans) = hit_transform.to_scale_rotation_translation();
                 let hit_iso: Isometry<f32> = (trans, rot).into();
 
@@ -58,6 +61,9 @@ fn query_potential_position(
                     let dist = contact.dist;
                     if dist < 0.0 {
                         // Negative distance is penetration.
+
+                        // Optimization: If we are penetrating but moving away from the surface,
+                        // ignore this contact. This can prevent fighting with the depenetration logic
                         if normal.dot(controller.velocity_for_frame) > 0.0 {
                             return true;
                         }
@@ -81,66 +87,86 @@ fn query_potential_position(
 
 pub fn unstuck_character(
     context: &RapierContext,
-    collider_query: &Query<(&GlobalTransform, &Collider)>,
+    collider_query: &Query<(&GlobalTransform, &Collider, Option<&ActorState>)>,
     root_entity: Entity,
+    collider_entity: Entity,
     transform: &mut Transform,
     controller: &mut CreaturePhysicsState,
 ) {
+    // Guard clauses remain the same.
     if controller.velocity_for_frame.length_squared() == 0.0 {
-        //
         return;
     }
     if controller.stuck_frames >= 10 {
-        //
         if (transform.translation - controller.last_stuck_position).length_squared() < 1.0 {
             return;
         } else {
-            controller.stuck_frames = 0; //
+            controller.stuck_frames = 0;
         }
     }
 
-    // --- FIX: Use the vertical offset for all position tests ---
-    // This is the "vanilla-accurate" hack from OpenMW.
-    let collision_shape_offset = Vec3::Y * controller.vertical_offset;
-    let initial_shape_position = transform.translation + collision_shape_offset;
+    // --- Stateful Initial Penetration Check ---
+    let mut deepest_penetration = 0.0;
+    let mut contact_sum = Vec3::ZERO;
+    let mut max_x = 0.0;
+    let mut max_y = 0.0;
+    let mut max_z = 0.0;
+    let mut contacts_found = 0;
 
-    // Perform the initial query at the collision shape's current position.
-    let initial_contacts = query_potential_position(
-        context,
-        collider_query,
-        root_entity,
-        controller,
-        initial_shape_position,
-        transform.rotation,
-    );
+    // Use `contact_pairs_with` with the now-provided `collider_entity`.
+    for contact_pair in context.contact_pairs_with(collider_entity) {
+        for manifold in contact_pair.manifolds() {
+            for contact_point in manifold.points() {
+                // `dist` is negative if there is a penetration.
+                if contact_point.dist() < deepest_penetration {
+                    deepest_penetration = contact_point.dist();
+                }
 
-    if initial_contacts.deepest_penetration >= -ALLOWED_PENETRATION {
-        //
+                let normal = if contact_pair.collider1() == Some(collider_entity) {
+                    -manifold.normal()
+                } else {
+                    manifold.normal()
+                };
+
+                let delta = normal * -contact_point.dist();
+                contact_sum += delta;
+                max_x = max_x.max(delta.x.abs());
+                max_y = max_y.max(delta.y.abs());
+                max_z = max_z.max(delta.z.abs());
+                contacts_found += 1;
+            }
+        }
+    }
+
+    if contacts_found > 0 {
+        contact_sum /= contacts_found as f32;
+    }
+
+    if deepest_penetration >= -ALLOWED_PENETRATION {
         controller.stuck_frames = 0;
         return;
     }
-    dbg!("was stuck!");
 
+    // --- The rest of the unstuck logic remains the same ---
     controller.stuck_frames += 1;
     controller.last_stuck_position = transform.translation;
 
-    let mut best_position = initial_shape_position;
-    let mut best_penetration = initial_contacts.deepest_penetration;
+    let collision_shape_offset = Vec3::Y * controller.vertical_offset;
+    let initial_shape_position = transform.translation + collision_shape_offset;
+    let mut final_shape_position = initial_shape_position;
 
-    let mut ejection_delta = initial_contacts.contact_sum;
-
-    // Clamp the ejection delta to the largest single-axis penetration [cite: 320-322].
-    if ejection_delta.x.abs() > initial_contacts.max_x {
-        ejection_delta *= initial_contacts.max_x / ejection_delta.x.abs();
+    let mut ejection_delta = contact_sum;
+    if ejection_delta.x.abs() > max_x {
+        ejection_delta *= max_x / ejection_delta.x.abs();
     }
-    if ejection_delta.y.abs() > initial_contacts.max_y {
-        ejection_delta *= initial_contacts.max_y / ejection_delta.y.abs();
+    if ejection_delta.y.abs() > max_y {
+        ejection_delta *= max_y / ejection_delta.y.abs();
     }
-    if ejection_delta.z.abs() > initial_contacts.max_z {
-        ejection_delta *= initial_contacts.max_z / ejection_delta.z.abs();
+    if ejection_delta.z.abs() > max_z {
+        ejection_delta *= max_z / ejection_delta.z.abs();
     }
 
-    // --- Attempt 1: Ejection via Clamped Summed Deltas --- [cite: 323]
+    // --- Attempt 1: Ejection via Clamped Summed Deltas ---
     let test_pos_1 = initial_shape_position + add_margin_to_delta(ejection_delta);
     let contacts_after_attempt_1 = query_potential_position(
         context,
@@ -151,15 +177,10 @@ pub fn unstuck_character(
         transform.rotation,
     );
 
-    if contacts_after_attempt_1.deepest_penetration > best_penetration {
-        best_penetration = contacts_after_attempt_1.deepest_penetration;
-        best_position = test_pos_1;
-    }
-
-    // --- Attempt 2 & 3 (Fallback logic) ---
-    if best_position == initial_shape_position {
-        // --- Attempt 2: Upwards-Only Ejection --- [cite: 324]
-        // Use the vertical component of the clamped delta.
+    if contacts_after_attempt_1.deepest_penetration > deepest_penetration {
+        final_shape_position = test_pos_1;
+    } else {
+        // --- Attempt 2 ---
         let upward_ejection = Vec3::Y * ejection_delta.y.abs();
         let test_pos_2 = initial_shape_position + add_margin_to_delta(upward_ejection);
         let contacts_after_attempt_2 = query_potential_position(
@@ -170,13 +191,11 @@ pub fn unstuck_character(
             test_pos_2,
             transform.rotation,
         );
-
-        if contacts_after_attempt_2.deepest_penetration > best_penetration {
-            best_penetration = contacts_after_attempt_2.deepest_penetration;
-            best_position = test_pos_2;
+        if contacts_after_attempt_2.deepest_penetration > deepest_penetration {
+            final_shape_position = test_pos_2;
         } else {
-            // --- Attempt 3: Fixed-Distance Upwards Ejection --- [cite: 326]
-            let fixed_upward_ejection = Vec3::Y * (10.0 / UNITS_PER_METER);
+            // --- Attempt 3 ---
+            let fixed_upward_ejection = Vec3::Y * FAILSAFE_UNSTUCK_UPWARD_DISTANCE;
             let test_pos_3 = initial_shape_position + add_margin_to_delta(fixed_upward_ejection);
             let contacts_after_attempt_3 = query_potential_position(
                 context,
@@ -186,19 +205,14 @@ pub fn unstuck_character(
                 test_pos_3,
                 transform.rotation,
             );
-
-            if contacts_after_attempt_3.deepest_penetration > best_penetration {
-                best_position = test_pos_3;
+            if contacts_after_attempt_3.deepest_penetration > deepest_penetration {
+                final_shape_position = test_pos_3;
             }
         }
     }
 
-    // --- FIX: Apply the best position found, correcting for the offset ---
-    // The `best_position` is the new center of our collision shape. We must
-    // subtract the offset to get the new root transform position.
-    transform.translation = best_position - collision_shape_offset;
+    transform.translation = final_shape_position - collision_shape_offset;
 }
-
 fn add_margin_to_delta(delta: Vec3) -> Vec3 {
     if delta.length_squared() == 0.0 {
         //

@@ -21,7 +21,6 @@ use cdda_bevy::{
 };
 use std::{
     collections::HashMap,
-    f32::consts::PI,
     time::{Duration, Instant},
 };
 
@@ -33,11 +32,6 @@ pub struct ProcessedActionCache(
     // Inner HashMap: Key is action_id (u64), Value is the Instant it was processed
     pub HashMap<ClientId, HashMap<u64, Instant>>,
 );
-
-#[derive(Debug, Component)]
-struct Bot {
-    auto_cast: Timer,
-}
 
 #[derive(Resource)]
 struct PlayerTransforms(HashMap<EntityId, Transform>);
@@ -137,7 +131,7 @@ fn server_update_system(
                     .insert(*client_id, new_player_entity_id);
                 server.send_message(*client_id, ServerChannel::ServerMessages, message);
 
-                // Initialize other players for this new client
+                // Spawn other players for this new client
                 for (entity_id, transform) in player_transforms.0.iter() {
                     let translation: [f32; 3] = transform.translation.into();
                     let message = bincode::serialize(&ServerMessages::PlayerCreate {
@@ -168,7 +162,7 @@ fn server_update_system(
                 // Add the player to the entity id -> entity map
                 lobby.players.insert(new_player_entity_id, player_entity);
 
-                // Tell other players this player joined
+                // Tell everyone this player joined
                 let translation: [f32; 3] = transform.translation.into();
                 let message = bincode::serialize(&ServerMessages::PlayerCreate {
                     entity_id: new_player_entity_id,
@@ -212,29 +206,25 @@ fn server_update_system(
             }
         }
         while let Some(message) = server.receive_message(client_id, ClientChannel::State) {
-            // Deserialize the message into our ClientMessage enum
             match bincode::deserialize::<ClientMessage>(&message) {
                 Ok(client_message) => {
                     match client_message {
                         ClientMessage::ActorStateUpdate(state) => {
-                            // The client has authoritatively told us its new state.
-                            dbg!("got actor state {}", &state);
+                            // The client has told us its new state.
                             if let Some(entity_id) = client_id_to_entity_id.0.get(&client_id) {
-                                // 1. Update the server's representation of the player.
+                                // Update the server's representation of the player.
                                 if let Some(player_entity) = lobby.players.get(&entity_id) {
-                                    // We insert the received state as a component on the server-side entity.
-                                    // This is useful for server-side logic and for the relay system.
                                     commands.entity(*player_entity).insert(state.clone());
                                 }
 
-                                // 2. Create the relay message to send to other clients.
+                                // Create the relay message to send to other clients.
                                 let relay_message = ServerMessages::StateUpdate {
                                     entity_id: *entity_id,
                                     state,
                                 };
                                 let serialized_relay_message =
                                     bincode::serialize(&relay_message).unwrap();
-                                // 3. Broadcast the message to all clients *except* the one who sent it.
+                                // Broadcast the message to all clients except the one who sent it.
                                 server.broadcast_message_except(
                                     *entity_id,
                                     ServerChannel::StateUpdates,
@@ -287,21 +277,18 @@ fn server_broadcast_entity_data(
 }
 
 pub fn setup_simple_camera(mut commands: Commands) {
-    // camera
     commands.spawn((
         Camera3d::default(),
         Transform::from_xyz(-20.5, 30.0, 20.5).looking_at(Vec3::ZERO, Vec3::Y),
     ));
 }
 
-pub fn server_handle_client_critical_actions_system(
+fn server_handle_client_critical_actions_system(
     mut server: ResMut<RenetServer>,
     mut cache: ResMut<ProcessedActionCache>,
-    // Potentially ResMut<GameWorldState> or specific queries for validation
+    client_id_to_entity_id: Res<ClientIdToEntityId>,
 ) {
     for client_id_u64 in server.clients_id() {
-        // Renet uses u64 for client_id
-
         while let Some(message_bytes) =
             server.receive_message(client_id_u64, ClientChannel::CriticalActions)
         {
@@ -360,13 +347,18 @@ pub fn server_handle_client_critical_actions_system(
 
                     // --- 3. If Validated, Relay to Other Clients ---
                     if server_validation_passed {
+                        let Some(entity_id) = client_id_to_entity_id.0.get(&client_id_u64) else {
+                            continue;
+                        };
+
                         let relay_message = ServerRelayMessage::RelayClientAction {
-                            performing_client_id: client_id_u64,
+                            performing_entity_id: *entity_id,
                             action: event.clone(), // Send the validated action
                         };
                         match bincode::serialize(&relay_message) {
                             Ok(payload) => {
                                 // Send to all *other* clients
+
                                 for other_client_id_u64 in server.clients_id() {
                                     if other_client_id_u64 != client_id_u64 {
                                         server.send_message(

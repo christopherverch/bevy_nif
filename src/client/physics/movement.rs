@@ -9,10 +9,13 @@ use bevy_rapier3d::{
     plugin::ReadRapierContext,
     prelude::{Collider, QueryFilter, RapierContext, ShapeCastHit, ShapeCastHitDetails},
 };
-use cdda_bevy::client::defs::LocalPlayer;
+use cdda_bevy::client::{
+    actor_defs::ActorState,
+    defs::{ColliderEntityLink, LocalPlayer},
+};
 
-use super::constants;
 use super::{components::CreaturePhysicsState, helpers::reject, unstuck::unstuck_character};
+use super::{constants, helpers::project};
 #[derive(Debug, Clone, Copy)]
 pub struct SweepHit {
     pub entity: Entity,
@@ -25,25 +28,35 @@ pub fn character_movement_system(
     time: Res<Time<Fixed>>,
     rapier_context: ReadRapierContext,
     mut character_query: Query<
-        (Entity, &mut Transform, &mut CreaturePhysicsState),
+        (
+            Entity,
+            &mut Transform,
+            &mut CreaturePhysicsState,
+            &ColliderEntityLink,
+        ),
         With<LocalPlayer>,
     >,
-    collider_query: Query<(&GlobalTransform, &Collider)>,
+    collider_query: Query<(
+        &GlobalTransform,
+        &Collider,
+        Option<&ActorState>, // Use ActorState to identify actors
+    )>,
 ) {
     let delta_time = time.delta_secs();
     if delta_time == 0.0 {
         return;
     }
 
-    let actor_entities: HashSet<Entity> = character_query.iter().map(|(e, _, _)| e).collect();
+    let actor_entities: HashSet<Entity> = character_query.iter().map(|(e, _, _, _)| e).collect();
     let Ok(rapier_context) = rapier_context.single() else {
         return;
     };
-    for (root_entity, mut transform, mut controller) in character_query.iter_mut() {
+    for (root_entity, mut transform, mut controller, collider_link) in character_query.iter_mut() {
         unstuck_character(
             &rapier_context,
             &collider_query,
             root_entity,
+            collider_link.0,
             &mut transform,
             &mut controller,
         );
@@ -63,7 +76,6 @@ pub fn character_movement_system(
                 break;
             }
 
-            // --- FIX: Use ShapeCastOptions struct for arguments ---
             let sweep_options = ShapeCastOptions {
                 max_time_of_impact: 1.0,
                 stop_at_penetration: true,
@@ -79,7 +91,7 @@ pub fn character_movement_system(
             );
 
             if let Some((hit_entity, hit)) = sweep_result {
-                let sweep_hit = SweepHit {
+                let mut sweep_hit = SweepHit {
                     entity: hit_entity,
                     toi: hit.time_of_impact,
                     world_normal: if let Some(ShapeCastHitDetails {
@@ -95,6 +107,35 @@ pub fn character_movement_system(
                     },
                     point: current_pos + move_vector * hit.time_of_impact,
                 };
+                // Actor collision
+                if let Ok((hit_transform, _, Some(_))) = collider_query.get(hit_entity) {
+                    // Check for existing penetration before overriding the collision normal.
+                    if rapier_context
+                        .contact_pair(root_entity, hit_entity)
+                        .is_some()
+                    {
+                        let my_origin = transform.translation;
+                        let other_origin = hit_transform.translation();
+
+                        // Calculate horizontal push-out vector
+                        let mut horizontal_normal = my_origin - other_origin;
+                        horizontal_normal.y = 0.0; // In Bevy, Y is vertical.
+                        horizontal_normal = horizontal_normal.normalize_or_zero();
+
+                        // Only apply the override if moving towards the other actor.
+                        if horizontal_normal.dot(move_vector) < 0.0 {
+                            sweep_hit.world_normal = horizontal_normal;
+                            sweep_hit.toi = 0.0; // Force immediate collision response
+                        } else {
+                            // If moving away from an overlapping actor, ignore the collision entirely
+                            // to prevent getting stuck.
+                            current_pos += move_vector;
+                            remaining_time = 0.0;
+                            continue;
+                        }
+                    }
+                    // If not overlapping, proceed with the normal sweep_hit result.
+                }
 
                 let was_stepped = try_step_up(
                     &rapier_context,
@@ -108,6 +149,8 @@ pub fn character_movement_system(
                 );
 
                 if was_stepped {
+                    // If a step-up was successfully performed, the character's position has changed.
+                    // We restart the movement loop from this new position to re-evaluate the next move.
                     continue;
                 }
 
@@ -116,7 +159,6 @@ pub fn character_movement_system(
                 current_pos += move_vector.normalize_or_zero() * safe_move_dist;
 
                 let ejection_vector = sweep_hit.world_normal * constants::COLLISION_MARGIN * 2.0;
-                // --- FIX: Ejection trace also needs ShapeCastOptions ---
                 if let Some((_, ejection_hit)) = rapier_context.cast_shape(
                     current_pos,
                     Quat::IDENTITY,
@@ -140,19 +182,64 @@ pub fn character_movement_system(
                 let seen_ground_this_iteration =
                     (on_ground_this_frame && !controller.on_slope) || hit_is_walkable;
 
+                // --- Crevice/Seam Logic ---
+                // When sliding into an acute interior corner, rejecting from each wall in succession
+                // can cancel out movement and make the character feel "stuck". This logic detects
+                // when we hit a surface that is acute to our last slide plane. If so, it calculates
+                // the "seam" of the two planes and projects velocity along that seam, allowing the
+                // character to slide smoothly along the corner.
                 if controller.times_slid > 0 {
-                    let dot_product = orig_plane_normal.dot(controller.last_slide_normal);
-                    if dot_product < 0.0 {
-                        let seam_vector = orig_plane_normal.cross(controller.last_slide_normal);
+                    // Check for an acute angle with the last two slide planes.
+                    let dot_a = orig_plane_normal.dot(controller.last_slide_normal);
+
+                    // The fallback normal is only relevant after the second slide.
+                    let dot_b = if controller.times_slid > 1 {
+                        orig_plane_normal.dot(controller.last_slide_normal_fallback)
+                    } else {
+                        1.0 // A non-negative value to ensure it's not chosen by default.
+                    };
+
+                    if dot_a <= 0.0 || dot_b <= 0.0 {
+                        // Choose the normal from the plane that is more acute to the current one.
+                        let best_normal = if dot_b < dot_a {
+                            let fallback = controller.last_slide_normal_fallback;
+                            // If we use the fallback, it becomes the new "last" normal for this calculation.
+                            controller.last_slide_normal = fallback;
+                            fallback
+                        } else {
+                            controller.last_slide_normal
+                        };
+
+                        // The seam is the cross product of the two normals.
+                        let seam_vector = best_normal.cross(orig_plane_normal).normalize_or_zero();
+
                         if seam_vector.length_squared() > 0.001 {
-                            let projected_vel = seam_vector * current_velocity.dot(seam_vector)
-                                / seam_vector.length_squared();
-                            current_velocity = projected_vel;
+                            // Project the velocity onto the seam vector to slide along it.
+                            current_velocity = project(current_velocity, seam_vector);
+
+                            // Also apply a small positional ejection out of the crevice to prevent snagging.
+                            let average_normal =
+                                (best_normal + orig_plane_normal).normalize_or_zero();
+                            let ejection_vec = average_normal * (constants::COLLISION_MARGIN * 2.0);
+
+                            if let Some((_, ejection_hit)) = rapier_context.cast_shape(
+                                current_pos,
+                                Quat::IDENTITY,
+                                ejection_vec,
+                                &character_shape,
+                                sweep_options,
+                                QueryFilter::new().exclude_rigid_body(root_entity),
+                            ) {
+                                // Move halfway into the clear space found.
+                                current_pos += ejection_vec * (ejection_hit.time_of_impact * 0.5);
+                            } else {
+                                current_pos += ejection_vec * 0.5;
+                            }
+
                             used_seam_logic = true;
                         }
                     }
                 }
-
                 if !used_seam_logic {
                     let old_velocity = current_velocity;
                     let mut effective_normal = orig_plane_normal;
@@ -233,7 +320,7 @@ fn trace_down(
     let predicate = |e| !actor_entities.contains(&e);
     let filter = QueryFilter::new()
         .exclude_rigid_body(character_entity)
-        .predicate(&predicate); // --- FIX: Use ShapeCastOptions struct for arguments ---
+        .predicate(&predicate);
     let sweep_options = ShapeCastOptions {
         max_time_of_impact: 1.0,
         stop_at_penetration: true,
@@ -359,7 +446,6 @@ fn try_step_up(
             let final_dist = dist - constants::COLLISION_MARGIN;
             let pre_ejection_pos = elevated_base_pos + move_direction * final_dist;
 
-            // --- START: NEW EJECTION LOGIC ---
             // Safely eject from the wall we hit to avoid penetration before the downward trace.
             let forward_hit_normal = if let Some(details) = &hit.details {
                 details.normal1.into()
@@ -393,7 +479,6 @@ fn try_step_up(
                 // Ejection trace hit nothing, so we have plenty of space. Eject by one margin.
                 pre_ejection_pos + forward_hit_normal * constants::COLLISION_MARGIN
             };
-            // --- END: NEW EJECTION LOGIC ---
 
             (final_step_forward_pos, Some(hit))
         } else {
@@ -430,7 +515,7 @@ fn try_step_up(
             if let Some(details) = hit.details {
                 let mut plane_normal: Vec3 = details.normal1.into();
                 if controller.on_ground
-                    && plane_normal.y < constants::MAX_SLOPE_DEGREES.to_radians().cos()
+                    && plane_normal.y <= constants::MAX_SLOPE_DEGREES.to_radians().cos()
                     && plane_normal.y != 0.0
                 {
                     plane_normal.y = 0.0;

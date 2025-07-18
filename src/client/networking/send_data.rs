@@ -4,7 +4,7 @@ use super::connecting_disconnecting::{create_player, remove_player};
 use super::{EntityIdToEntityMap, InterpolationSpeeds};
 use bevy::prelude::*;
 use bevy_renet::renet::RenetClient;
-use cdda_bevy::client::actor_defs::{ActorState, UpperBodyState};
+use cdda_bevy::client::actor_defs::{ActorState, JumpingStateKind, UpperBodyState};
 use cdda_bevy::client::defs::{
     ClientEntityId, IdToEntityMap, LocalPlayer, NetworkEventWithIdCounter, NetworkedEntity,
     PendingServerAcks, SentActionInfo,
@@ -145,7 +145,6 @@ fn process_networked_entities(
     }
 }
 
-// Update player state and animations
 fn update_other_player_transforms(
     local_player_entity: &Entity,
     received_networked_entities: NetworkedEntityDataSnapshot,
@@ -324,20 +323,20 @@ pub fn client_handle_relayed_actions_system(
     while let Some(message_bytes) = client.receive_message(ServerChannel::CriticalRelay) {
         match bincode::deserialize::<ServerRelayMessage>(&message_bytes) {
             Ok(ServerRelayMessage::RelayClientAction {
-                performing_client_id,
+                performing_entity_id,
                 action,
             }) => {
-                // This client is NOT `performing_client_id`
+                // This client is NOT `performing_entity_id`
 
                 info!(
                     "Received relayed action from client {}: {:?}",
-                    performing_client_id, action,
+                    performing_entity_id, action,
                 );
                 match action.payload {
                     NetworkEvent::Animation(animation_event) => {
                         // Find the entity that this event belongs to
                         if let Some(target_entity) =
-                            lobby.players.get(&performing_client_id).map(|e| e)
+                            lobby.players.get(&performing_entity_id).map(|e| e)
                         {
                             // Get its ActorState component
                             if let Ok(mut actor_state) = remote_player_query.get_mut(*target_entity)
@@ -349,8 +348,15 @@ pub fn client_handle_relayed_actions_system(
                                         actor_state.jumping.handled_jump_animation = false;
                                     }
                                     AnimationEvent::Landed => {
-                                        // This tells the animation system into playing the land animation
+                                        dbg!("triggering landing for");
+                                        dbg!(target_entity);
+                                        // 1. Set the one-shot trigger for the animation system.
                                         actor_state.jumping.handled_landing_animation = false;
+
+                                        // 2. Also set the jumping state to ensure the animation
+                                        //    system is in the correct state, regardless of when
+                                        //    the general state update arrives.
+                                        actor_state.jumping.state = JumpingStateKind::Landing;
                                     }
                                     AnimationEvent::AttackStarted { attack_type } => {
                                         // This kicks off the attack state machine on the remote client
@@ -371,7 +377,7 @@ pub fn client_handle_relayed_actions_system(
                     NetworkEvent::Sound(mut sound) => {
                         if sound.sound_source == SoundSource::LocalPlayer {
                             if let Some(target_entity) =
-                                lobby.players.get(&performing_client_id).map(|e| e)
+                                lobby.players.get(&performing_entity_id).map(|e| e)
                             {
                                 sound.sound_source = SoundSource::Attached(*target_entity);
                             }

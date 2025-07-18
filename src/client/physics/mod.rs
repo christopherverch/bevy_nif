@@ -21,6 +21,10 @@ pub use state_determination::determine_character_state_system;
 impl Plugin for CharacterMotionPlugin {
     fn build(&self, app: &mut bevy::app::App) {
         app.add_systems(Update, setup_nif_physics);
+        // `calculate_animation_displacement_system`: Produces `AnimationDisplacement` from animations.
+        // `prepare_character_velocity_system`: Consumes `AnimationDisplacement` and player input to produce a final `velocity_for_frame`.
+        // `character_movement_system`: Consumes `velocity_for_frame` to move the character and resolve all collisions.
+        // The entire chain has to run before `PhysicsSet::SyncBackend` so Rapier can see the final, moved transform.
         app.add_systems(
             FixedUpdate,
             (

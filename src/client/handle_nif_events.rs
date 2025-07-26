@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy_nif::nif_animation::{NifEvent, NifEventType};
-use cdda_bevy::client::{
+use tes3mp_rust::{
     defs::{CreatureStats, LocalPlayer},
     events::{SoundEvent, SoundSource},
 };

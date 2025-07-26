@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use cdda_bevy::client::{
+use tes3mp_rust::{
     actor_defs::{ActorState, UpperBodyState},
     events::PlayerReadyWeapon,
 };

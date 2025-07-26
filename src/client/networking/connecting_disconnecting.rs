@@ -5,9 +5,9 @@ use bevy_renet::{
     netcode::{ClientAuthentication, NetcodeClientTransport},
     renet::RenetClient,
 };
-use cdda_bevy::{
+use tes3mp_rust::{
     EntityId,
-    client::defs::{ClientEntityId, GameState, IdToEntityMap, NeedsSetup, ServerIP},
+    defs::{GameState, IdToEntityMap, NeedsSetup, ServerIP},
     networking::{PROTOCOL_ID, connection_config},
 };
 

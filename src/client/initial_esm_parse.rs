@@ -1,12 +1,12 @@
 use bevy_ecs::system::Commands;
-use cdda_bevy::client::defs::{
-    AllLandscapes, EsmReaderResource, LandTextureDefinitions, WeaponDefinitions,
-};
 use esm_parser_lib::{
     EsmReader, Header, LandTexture, Landscape, RefId, TextDecoder, esm_reader::Windows1252Decoder,
     loadweap::Weapon,
 };
 use std::{collections::HashMap, path::Path, time::Instant};
+use tes3mp_rust::defs::{
+    AllLandscapes, EsmReaderResource, LandTextureDefinitions, WeaponDefinitions,
+};
 
 pub fn populate_esm_resources(mut commands: Commands) {
     if let Ok((reader, landscapes, land_textures, weapons)) = run_initial_parse() {

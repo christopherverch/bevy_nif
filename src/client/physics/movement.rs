@@ -2,16 +2,17 @@
 
 use std::collections::HashSet;
 
+use tes3mp_rust::{
+    actor_defs::ActorState,
+    defs::{ColliderEntityLink, LocalPlayer},
+};
+
 use bevy::prelude::*;
 use bevy_rapier3d::{
     self,
     parry::query::ShapeCastOptions,
     plugin::ReadRapierContext,
     prelude::{Collider, QueryFilter, RapierContext, ShapeCastHit, ShapeCastHitDetails},
-};
-use cdda_bevy::client::{
-    actor_defs::ActorState,
-    defs::{ColliderEntityLink, LocalPlayer},
 };
 
 use super::{components::CreaturePhysicsState, helpers::reject, unstuck::unstuck_character};

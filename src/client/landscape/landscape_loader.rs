@@ -17,18 +17,17 @@ use bevy_ecs::{
     query::Added,
     system::{Commands, Query, Res, ResMut},
 };
-use cdda_bevy::client::{
-    const_defs::MORROWIND_CELL_SIZE,
-    defs::{
-        AllLandscapes, EsmReaderResource, LandTextureDefinitions, LandscapeAwaitingImages,
-        LandscapeCell, LandscapeLoader,
-    },
-};
 use esm_parser_lib::{
     EsmReader, LAND_NUM_TEXTURES, LAND_NUM_VERTS, LAND_SIDE_VERTICES,
     LAND_TEXTURE_SQUARES_PER_SIDE, LandTexture, LandVertexColor, LandVertexNormal,
 };
 use std::collections::{HashMap, HashSet};
+use tes3mp_rust::defs::{
+    AllLandscapes, EsmReaderResource, LandTextureDefinitions, LandscapeAwaitingImages,
+    LandscapeCell, LandscapeLoader,
+};
+
+use crate::const_defs::MORROWIND_CELL_SIZE;
 
 use super::terrain_material::{TerrainBlendMaterial, TerrainMaterialParams};
 

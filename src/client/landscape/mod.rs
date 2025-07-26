@@ -1,6 +1,6 @@
 use bevy::prelude::*;
-use cdda_bevy::client::defs::{LandscapeManagementSettings, LoadedLandscapeEntities};
 use landscape_loader::{load_landscape, setup_landscape_images};
+use tes3mp_rust::defs::{LandscapeManagementSettings, LoadedLandscapeEntities};
 pub mod landscape_loader;
 pub mod landscape_spawning_despawning;
 pub mod terrain_material;

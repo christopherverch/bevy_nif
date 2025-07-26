@@ -1,11 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::*;
-use cdda_bevy::client::defs::{
-    LandscapeCell, LandscapeLoader, LandscapeManagementSettings, LocalPlayer,
-};
+use tes3mp_rust::defs::{LandscapeCell, LandscapeLoader, LandscapeManagementSettings, LocalPlayer};
 
-use cdda_bevy::client::const_defs::MORROWIND_CELL_SIZE;
+use crate::const_defs::MORROWIND_CELL_SIZE;
 pub fn spawn_despawn_landscapes(
     player_transform: Single<&Transform, With<LocalPlayer>>,
     landscapes_query: Query<(Entity, &LandscapeCell)>,

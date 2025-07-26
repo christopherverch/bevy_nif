@@ -1,149 +1,206 @@
 use bevy::{
-    animation::{AnimationClip, AnimationPlayer, graph::AnimationGraphHandle},
+    animation::{
+        AnimationClip, AnimationPlayer,
+        graph::{AnimationGraph, AnimationGraphHandle},
+    },
     asset::Assets,
-    log,
-    time::Time,
+    log::{self, warn},
 };
-use bevy_ecs::system::{Query, Res};
+use bevy_ecs::system::{Query, Res, ResMut};
 use bevy_nif::nif_animation::{
     AnimationDefinition, BlendMask, NUM_DISCRETE_REGIONS, NifAnimator,
     bevy_types::{ActiveAnimation, Priority},
 };
 
-use crate::client::{
+use tes3mp_rust::{
     actor_defs::{ActorState, CharacterState, JumpingStateKind, UpperBodyState},
-    actor_funcs::get_current_speed,
-    const_defs::MW_SCALE_REDUCTION,
-    defs::{CreatureStats, IdToEntityMap, Player},
+    defs::{CreatureStats, IdToEntityMap, PlayerInput},
 };
+
+use crate::{actor::actor_funcs::get_current_speed, const_defs::MW_SCALE_REDUCTION};
 
 use super::animation_helpers::get_anim_components_for_creature;
 
 /// Checks all state variables of the actor and decides how they should be animated for this frame
 /// Also calls functions to handle looping, stopping, etc of animations
 pub fn animate_actors_using_state(
-    time: Res<Time>,
     anim_clips: Res<Assets<AnimationClip>>,
-    mut actor_query: Query<(&CreatureStats, &mut ActorState, Option<&Player>)>,
+    mut actor_query: Query<(&CreatureStats, &mut ActorState)>,
     mut animator_q: Query<(
         &mut AnimationPlayer,
         &mut NifAnimator,
         &AnimationGraphHandle,
     )>,
+    player_input: Res<PlayerInput>,
+    mut anim_graphs: ResMut<Assets<AnimationGraph>>,
     id_to_entity_map: Res<IdToEntityMap>,
 ) {
-    for (creature_stats, mut actor_state, player_opt) in actor_query.iter_mut() {
-        let Some((_, mut animation_player, mut animator, _)) =
+    for (creature_stats, mut actor_state) in actor_query.iter_mut() {
+        let Some((_, mut animation_player, mut animator, graph_handle)) =
             get_anim_components_for_creature(&creature_stats, &id_to_entity_map, &mut animator_q)
         else {
             continue;
         };
+        let vitals_took_control = handle_vitals_animations(
+            &mut animation_player,
+            &mut animator,
+            &mut anim_graphs,
+            graph_handle,
+            &mut actor_state,
+        );
+
+        if vitals_took_control {
+            continue; // Vitals logic is handling animations, skip everything else.
+        }
         // First, process any ongoing transitions from the previous frame.
         handle_animation_transitions(
             &mut animation_player,
             &mut animator,
             &anim_clips,
+            &mut anim_graphs,
+            graph_handle,
             &mut actor_state,
         );
-        let weapon_logic_took_control =
-            handle_actor_weapon_actions(&mut animation_player, &mut animator, &mut actor_state);
-        if weapon_logic_took_control {
-            continue; // Skip jump/movement logic for this frame
-        }
-        //  We only handle ground movement if the character is not in a jumping state that overrides it.
-        let jump_logic_took_control =
-            handle_actor_jumping(&mut animation_player, &mut animator, &mut actor_state);
+        // Handle any high-priority combat actions like equipping.
+        // This function will set an upper-body animation if needed.
+        handle_actor_weapon_actions(
+            &mut animation_player,
+            &mut animator,
+            &mut anim_graphs,
+            graph_handle,
+            &player_input,
+            &mut actor_state,
+        );
 
-        if !jump_logic_took_control {
-            handle_actor_ground_movement(
-                &time,
-                &anim_clips,
-                &mut animation_player,
-                &mut animator,
-                &mut actor_state,
-                player_opt.is_some(),
-            );
-        }
+        // Next, handle all locomotion (jumping or ground movement).
+        // The resolver has already ensured that only one of these can be active.
+        handle_actor_jumping(
+            &mut animation_player,
+            &mut animator,
+            &mut anim_graphs,
+            graph_handle,
+            &mut actor_state,
+        );
+
+        handle_actor_ground_movement(
+            &mut animation_player,
+            &mut anim_graphs,
+            graph_handle,
+            &mut animator,
+            &mut actor_state,
+        );
     }
 }
 
 /// Checks for finished non-looping animations and processes their transitions or removals.
-///
-/// This function is responsible for two primary state changes:
-/// 1.  **Intro-to-Loop:** When an introductory animation (like `walkforward_intro`) finishes,
-///     it seamlessly transitions to its corresponding looping animation (`walkforward_loop`).
-/// 2.  **Outro Removal:** When a one-shot animation (like `jumpland_outro`) finishes, it's
-///     removed, allowing the character to return to an idle or movement state.
 fn handle_animation_transitions(
     animation_player: &mut AnimationPlayer,
     animator: &mut NifAnimator,
     anim_clips: &Assets<AnimationClip>,
+    anim_graphs: &mut Assets<AnimationGraph>,
+    graph_handle: &AnimationGraphHandle,
     actor_state: &mut ActorState,
 ) {
     let mut transitions_to_perform = Vec::new();
     let mut animations_to_remove = Vec::new();
 
-    // Step 1: Identify finished animations and decide their next action (transition, remove, or freeze).
-    // This two-pass approach (collecting first, then mutating) avoids borrow checker issues.
+    // Step 1: Identify finished animations.
     for (group_name, active_anim) in animator.active_animations.iter() {
-        // We only care about animations that are not set to loop indefinitely.
         if active_anim.loop_count == u32::MAX {
             continue;
         }
-
         if let Some(anim_state) = animation_player.animation(active_anim.node_index) {
             if let Some(clip) = anim_clips.get(&active_anim.clip_handle) {
                 let remaining_time = clip.duration() / anim_state.speed() - anim_state.elapsed();
-
                 if remaining_time <= 0.001 {
                     if let Some(next_clip_name) = &active_anim.next_clip_name {
-                        // Case 1 (Transition): The animation has a successor (e.g., intro -> loop).
                         transitions_to_perform.push((group_name.clone(), next_clip_name.clone()));
                     } else if active_anim.loop_count == 0 {
-                        // Case 2 (Remove): A one-shot outro (e.g., jump land) finished.
                         animations_to_remove.push(group_name.clone());
                     }
-                    // Case 3 (Freeze): loop_count is > 0 (e.g. 1 for a jump intro) and has no successor.
-                    // We do nothing, letting it freeze on its last frame.
                 }
             }
         }
     }
 
-    // Step 2: Execute the collected state changes.
+    // Step 2: Execute state changes for finished animations.
     for name in animations_to_remove {
-        if name == "weaponequip" {
+        let upper_body_state = actor_state.combat.upper_body_state;
+
+        // Using the state is more robust than matching the string name
+        if matches!(upper_body_state, UpperBodyState::Equipping) {
             actor_state.combat.upper_body_state = UpperBodyState::WeaponEquipped;
-            log::info!("State -> WeaponEquipped");
-        } else if name == "weaponunequip" {
+
+            // --- THIS IS THE FIX ---
+            // Find the currently active movement animation.
+            let movement_group = &actor_state.movement.current_animation_group;
+            if !movement_group.is_empty() {
+                if let Some(active_move_anim) = animator.active_animations.get_mut(movement_group) {
+                    // Update its mask to reclaim the full body.
+                    active_move_anim.blend_mask = BlendMask::ALL;
+                }
+            }
+        } else if matches!(upper_body_state, UpperBodyState::Unequipping) {
             actor_state.combat.upper_body_state = UpperBodyState::None;
-            log::info!("State -> None (Weapon Unequipped)");
+            actor_state.combat.weapon_type = 0;
+        } else if matches!(
+            upper_body_state,
+            UpperBodyState::AttackWindUp
+                | UpperBodyState::AttackRelease
+                | UpperBodyState::AttackEnd
+        ) {
+            actor_state.combat.upper_body_state = UpperBodyState::WeaponEquipped;
         }
-        clear_animation(animation_player, animator, actor_state, &name);
+
+        // Now, remove the animation that just finished.
+        clear_animation(
+            animation_player,
+            animator,
+            actor_state,
+            anim_graphs,
+            graph_handle,
+            &name,
+        );
+
+        // The special case for unequipping is still needed to force a change
+        // from a weapon-specific animation (e.g., "runforward1h") to a generic one ("runforward").
+        if upper_body_state == UpperBodyState::Unequipping {
+            clear_animation(
+                animation_player,
+                animator,
+                actor_state,
+                anim_graphs,
+                graph_handle,
+                &actor_state.movement.current_animation_group.clone(),
+            );
+        }
     }
 
+    // Step 3: Handle intro-to-loop transitions. (No change here)
     for (current_anim_name, next_anim_name) in transitions_to_perform {
-        if let Some(mut transitioning_anim) =
-            clear_animation(animation_player, animator, actor_state, &current_anim_name)
-        {
+        if let Some(mut transitioning_anim) = clear_animation(
+            animation_player,
+            animator,
+            actor_state,
+            anim_graphs,
+            graph_handle,
+            &current_anim_name,
+        ) {
             if let Some(definition) = animator.animation_definitions.get(&next_anim_name) {
                 let original_priority = transitioning_anim.priorities[0];
-
-                // Update the state to represent the new looping animation.
                 transitioning_anim.clip_handle = definition.clip_handle.clone();
                 transitioning_anim.node_index = definition.node_index;
-                transitioning_anim.next_clip_name = None; // This is the loop, no successor.
-                transitioning_anim.loop_count = u32::MAX; // Mark as a looping animation.
-
+                transitioning_anim.next_clip_name = None;
+                transitioning_anim.loop_count = u32::MAX;
                 play_animation(
                     animation_player,
                     animator,
                     actor_state,
+                    anim_graphs,
+                    graph_handle,
                     &next_anim_name,
                     transitioning_anim,
                 );
-
-                // Update ActorState to track the new active animation group.
                 if original_priority == Priority::Jump {
                     actor_state.jumping.current_animation_group = next_anim_name;
                 } else {
@@ -160,6 +217,8 @@ fn handle_animation_transitions(
 fn handle_actor_jumping(
     animation_player: &mut AnimationPlayer,
     animator: &mut NifAnimator,
+    anim_graphs: &mut Assets<AnimationGraph>,
+    graph_handle: &AnimationGraphHandle,
     actor_state: &mut ActorState,
 ) -> bool {
     // --- 1. Handle a new jump event (from input) ---
@@ -172,15 +231,27 @@ fn handle_actor_jumping(
                 animation_player,
                 animator,
                 actor_state,
+                anim_graphs,
+                graph_handle,
                 &actor_state.movement.current_animation_group.clone(),
             );
             clear_animation(
                 animation_player,
                 animator,
                 actor_state,
+                anim_graphs,
+                graph_handle,
                 &actor_state.jumping.current_animation_group.clone(),
             );
-            play_jump_animation(animation_player, animator, actor_state, &name, false);
+            play_jump_animation(
+                animation_player,
+                animator,
+                anim_graphs,
+                graph_handle,
+                actor_state,
+                &name,
+                false,
+            );
         }
         return true; // A jump was initiated, block ground movement this frame.
     }
@@ -194,15 +265,27 @@ fn handle_actor_jumping(
                 animation_player,
                 animator,
                 actor_state,
+                anim_graphs,
+                graph_handle,
                 &actor_state.movement.current_animation_group.clone(),
             );
             clear_animation(
                 animation_player,
                 animator,
                 actor_state,
+                anim_graphs,
+                graph_handle,
                 &actor_state.jumping.current_animation_group.clone(),
             );
-            play_jump_animation(animation_player, animator, actor_state, &name, true);
+            play_jump_animation(
+                animation_player,
+                animator,
+                anim_graphs,
+                graph_handle,
+                actor_state,
+                &name,
+                true,
+            );
         }
     }
 
@@ -223,11 +306,21 @@ fn handle_actor_jumping(
             animation_player,
             animator,
             actor_state,
+            anim_graphs,
+            graph_handle,
             &actor_state.movement.current_animation_group.clone(),
         );
 
         if let Some(name) = resolve_jump_intro_name(actor_state.combat.weapon_type, animator) {
-            play_jump_animation(animation_player, animator, actor_state, &name, false);
+            play_jump_animation(
+                animation_player,
+                animator,
+                anim_graphs,
+                graph_handle,
+                actor_state,
+                &name,
+                false,
+            );
         }
     }
 
@@ -252,6 +345,8 @@ fn handle_actor_jumping(
             animation_player,
             animator,
             actor_state,
+            anim_graphs,
+            graph_handle,
             &actor_state.jumping.current_animation_group.clone(),
         );
     }
@@ -264,6 +359,8 @@ fn handle_actor_jumping(
 fn play_jump_animation(
     player: &mut AnimationPlayer,
     animator: &mut NifAnimator,
+    anim_graphs: &mut Assets<AnimationGraph>,
+    graph_handle: &AnimationGraphHandle,
     actor_state: &mut ActorState,
     anim_name: &str,
     is_landing: bool,
@@ -281,11 +378,19 @@ fn play_jump_animation(
             } else {
                 Priority::Jump
             }; NUM_DISCRETE_REGIONS],
-            blend_mask: BlendMask::ALL.bits(),
-            animation_speed: 1.0,
+            blend_mask: BlendMask::ALL,
+            speed_mult: 1.0,
         };
 
-        play_animation(player, animator, actor_state, anim_name, new_animation);
+        play_animation(
+            player,
+            animator,
+            actor_state,
+            anim_graphs,
+            graph_handle,
+            anim_name,
+            new_animation,
+        );
 
         if is_landing {
             actor_state.movement.current_animation_group = anim_name.to_string();
@@ -299,26 +404,16 @@ fn play_jump_animation(
 
 /// Manages idle, walking, running, and turning animations.
 fn handle_actor_ground_movement(
-    time: &Time,
-    anim_clips: &Assets<AnimationClip>,
     animation_player: &mut AnimationPlayer,
+    anim_graphs: &mut Assets<AnimationGraph>,
+    graph_handle: &AnimationGraphHandle,
     animator: &mut NifAnimator,
     actor_state: &mut ActorState,
-    is_player: bool,
 ) {
-    let weapon_type = actor_state.combat.weapon_type;
+    let effective_move_state = actor_state.movement.state;
 
-    let effective_move_state = determine_effective_move_state(
-        time,
-        anim_clips,
-        animation_player,
-        animator,
-        actor_state,
-        is_player,
-    );
-
-    let target_anim_name = resolve_movement_anim_name(effective_move_state, weapon_type, animator)
-        .or_else(|| resolve_idle_anim_name(effective_move_state, weapon_type, animator));
+    let target_anim_name = resolve_movement_anim_name(effective_move_state, actor_state, animator)
+        .or_else(|| resolve_idle_anim_name(effective_move_state, actor_state, animator));
 
     let new_name = target_anim_name.as_deref().unwrap_or("").to_string();
     let current_name = &actor_state.movement.current_animation_group.clone();
@@ -362,7 +457,14 @@ fn handle_actor_ground_movement(
     }
 
     // State is not stable, so switch animations.
-    clear_animation(animation_player, animator, actor_state, current_name);
+    clear_animation(
+        animation_player,
+        animator,
+        actor_state,
+        anim_graphs,
+        graph_handle,
+        current_name,
+    );
 
     if !new_name.is_empty() {
         if let Some(definition) = animator.animation_definitions.get(&new_name) {
@@ -372,10 +474,23 @@ fn handle_actor_ground_movement(
                 actor_state.is_sneaking,
                 definition,
                 animator,
-                weapon_type,
+                actor_state,
                 get_current_speed(actor_state),
             );
-
+            let blend_mask = if matches!(
+                actor_state.combat.upper_body_state,
+                UpperBodyState::Equipping | UpperBodyState::Unequipping
+            ) {
+                BlendMask::LOWER_BODY // Only affect legs if using a weapon
+            } else {
+                BlendMask::ALL // Affect the whole body otherwise
+            };
+            // Idle animations must have Idle priority, not Movement priority.
+            let priority = if new_name.starts_with("idle") {
+                Priority::Idle
+            } else {
+                Priority::Movement
+            };
             let new_animation = ActiveAnimation {
                 clip_handle: definition.clip_handle.clone(),
                 node_index: definition.node_index,
@@ -385,15 +500,17 @@ fn handle_actor_ground_movement(
                 } else {
                     u32::MAX
                 },
-                priorities: [Priority::Movement; NUM_DISCRETE_REGIONS],
-                blend_mask: BlendMask::ALL.bits(),
-                animation_speed: speed_multiplier,
+                priorities: [priority; NUM_DISCRETE_REGIONS],
+                blend_mask,
+                speed_mult: speed_multiplier,
             };
 
             play_animation(
                 animation_player,
                 animator,
                 actor_state,
+                anim_graphs,
+                graph_handle,
                 &new_name,
                 new_animation,
             );
@@ -404,98 +521,7 @@ fn handle_actor_ground_movement(
     actor_state.movement.last_state = effective_move_state;
 }
 
-/// Determines the character's animation state, applying special logic to
-/// smooth out turning animations by enforcing a minimum duration. This prevents
-/// visual flickering if the player taps a turn key.
-fn determine_effective_move_state(
-    time: &Time,
-    anim_clips: &Assets<AnimationClip>,
-    animation_player: &AnimationPlayer,
-    animator: &NifAnimator,
-    actor_state: &mut ActorState,
-    is_player: bool,
-) -> CharacterState {
-    let initial_move_state = actor_state.movement.state;
-    let last_frame_state = actor_state.movement.last_state;
-
-    let is_currently_turning = matches!(
-        last_frame_state,
-        CharacterState::TurnLeft
-            | CharacterState::TurnRight
-            | CharacterState::SwimTurnLeft
-            | CharacterState::SwimTurnRight
-    );
-    let new_state_is_idle = matches!(
-        initial_move_state,
-        CharacterState::Idle | CharacterState::IdleSneak | CharacterState::IdleSwim
-    );
-
-    // If we were turning last frame and are now idle, check if we should
-    // continue the turn animation for a short period to make it look smoother.
-    if is_currently_turning && new_state_is_idle {
-        // Player logic: continue turning until the animation reaches a certain progress threshold.
-        if is_player {
-            let current_anim_name = &actor_state.movement.current_animation_group;
-            let (intro_anim_name, is_in_loop_now) =
-                if let Some(base) = current_anim_name.strip_suffix("_loop") {
-                    (base.to_string(), true)
-                } else {
-                    (current_anim_name.clone(), false)
-                };
-
-            if let Some(intro_def) = animator.animation_definitions.get(&intro_anim_name) {
-                if let Some(loop_anim_name) = &intro_def.next_clip_name {
-                    if let Some(loop_def) = animator.animation_definitions.get(loop_anim_name) {
-                        if let (Some(intro_clip), Some(loop_clip)) = (
-                            anim_clips.get(&intro_def.clip_handle),
-                            anim_clips.get(&loop_def.clip_handle),
-                        ) {
-                            let total_turn_duration = intro_clip.duration() + loop_clip.duration();
-                            let mut total_elapsed_time = 0.0;
-                            if is_in_loop_now {
-                                if let Some(loop_anim_state) =
-                                    animation_player.animation(loop_def.node_index)
-                                {
-                                    total_elapsed_time =
-                                        intro_clip.duration() + loop_anim_state.elapsed();
-                                }
-                            } else if let Some(intro_anim_state) =
-                                animation_player.animation(intro_def.node_index)
-                            {
-                                total_elapsed_time = intro_anim_state.elapsed();
-                            }
-
-                            if total_turn_duration > 0.0
-                                && (total_elapsed_time / total_turn_duration) < 0.4
-                            {
-                                return last_frame_state; // Override state to continue turning.
-                            }
-                        }
-                    }
-                }
-            }
-        // NPC logic: use a simple timer.
-        } else {
-            if actor_state.movement.turn_animation_timer > 0.0 {
-                actor_state.movement.turn_animation_timer -= time.delta_secs();
-            }
-            if matches!(
-                initial_move_state,
-                CharacterState::TurnLeft | CharacterState::TurnRight
-            ) {
-                actor_state.movement.turn_animation_timer = 0.05; // Reset timer on new turn.
-            } else if actor_state.movement.turn_animation_timer > 0.0 {
-                return last_frame_state; // Override state to continue turning.
-            }
-        }
-    }
-
-    // In all other cases, the effective state is just the current input state.
-    initial_move_state
-}
-
 // --- Core Animation Control Functions ---
-
 /// Stops an animation and cleans up all related state from the controllers.
 ///
 /// Ensures that when an animation group is stopped, its state is correctly removed from:
@@ -504,10 +530,13 @@ fn determine_effective_move_state(
 /// 3.  The main `ActorState` component (to prevent stale state bugs).
 ///
 /// Returns the `ActiveAnimation` struct of the removed animation if it existed.
+/// Stops an animation and triggers a recalculation of all priority-based masks.
 fn clear_animation(
     animation_player: &mut AnimationPlayer,
     animator: &mut NifAnimator,
     actor_state: &mut ActorState,
+    anim_graphs: &mut Assets<AnimationGraph>,
+    graph_handle: &AnimationGraphHandle,
     group_name: &str,
 ) -> Option<ActiveAnimation> {
     if group_name.is_empty() {
@@ -517,19 +546,18 @@ fn clear_animation(
     if let Some(removed_anim) = animator.active_animations.remove(group_name) {
         log::trace!("Stopping animation group: '{}'", group_name);
 
+        // Stop playback in Bevy
         if let Some(definition) = animator.animation_definitions.get(group_name) {
             animation_player.stop(definition.node_index);
-        }
-
-        let blend_mask = BlendMask::from_bits_truncate(removed_anim.blend_mask);
-        for i in 0..NUM_DISCRETE_REGIONS {
-            let region_mask = BlendMask::from_bits_truncate(1 << i);
-            if blend_mask.contains(region_mask)
-                && animator.active_regions[i] == removed_anim.priorities[i]
-            {
-                animator.active_regions[i] = Priority::Idle;
+            if let Some(graph) = anim_graphs.get_mut(graph_handle) {
+                if let Some(node) = graph.get_mut(definition.node_index) {
+                    node.mask = !0; // Mask all bones for this node
+                }
             }
         }
+
+        // After removing, recalculate and apply masks for all remaining animations.
+        recalculate_and_apply_masks(animator, anim_graphs, graph_handle);
 
         // Prevent stale state by clearing tracking fields in ActorState.
         if actor_state.jumping.current_animation_group == group_name {
@@ -538,65 +566,51 @@ fn clear_animation(
         if actor_state.movement.current_animation_group == group_name {
             actor_state.movement.current_animation_group.clear();
         }
-
+        if actor_state.combat.current_animation_group == group_name {
+            actor_state.combat.current_animation_group.clear();
+        }
         return Some(removed_anim);
     }
     None
 }
 
-/// Plays a new animation, stopping any lower-priority animations that conflict with it.
+/// Plays a new animation and recalculates all priority-based masks.
 fn play_animation(
     animation_player: &mut AnimationPlayer,
     animator: &mut NifAnimator,
     actor_state: &mut ActorState,
+    anim_graphs: &mut Assets<AnimationGraph>,
+    graph_handle: &AnimationGraphHandle,
     group_key: &str,
     new_animation: ActiveAnimation,
 ) {
-    let new_blend_mask = BlendMask::from_bits_truncate(new_animation.blend_mask);
-    let mut keys_to_remove = Vec::new();
-
-    // Find and collect all active animations that have a lower priority and affect the same body parts.
-    'outer: for (existing_key, existing_anim) in &animator.active_animations {
-        let existing_blend_mask = BlendMask::from_bits_truncate(existing_anim.blend_mask);
-        if !new_blend_mask.intersects(existing_blend_mask) {
-            continue; // No overlap in body parts, no conflict.
-        }
-        for i in 0..NUM_DISCRETE_REGIONS {
-            let region_mask = BlendMask::from_bits_truncate(1 << i);
-            if new_blend_mask.contains(region_mask) && existing_blend_mask.contains(region_mask) {
-                if new_animation.priorities[i] >= existing_anim.priorities[i] {
-                    keys_to_remove.push(existing_key.clone());
-                    continue 'outer; // Mark for removal and check next animation.
-                }
-            }
-        }
-    }
-
-    for key in keys_to_remove {
-        clear_animation(animation_player, animator, actor_state, &key);
-    }
-
-    // Update the animator state with the new winning priorities.
-    for i in 0..NUM_DISCRETE_REGIONS {
-        let region_mask = BlendMask::from_bits_truncate(1 << i);
-        if new_blend_mask.contains(region_mask) {
-            animator.active_regions[i] = new_animation.priorities[i];
-        }
+    // Stop any animation that is an intro to this one.
+    if let Some(base_name) = group_key.strip_suffix("_loop") {
+        clear_animation(
+            animation_player,
+            animator,
+            actor_state,
+            anim_graphs,
+            graph_handle,
+            base_name,
+        );
     }
 
     let node_index = new_animation.node_index;
-    let speed_multiplier = new_animation.animation_speed;
+    let speed_multiplier = new_animation.speed_mult;
 
+    // Add the new animation to the active list. Its blend_mask is its original, intended scope.
     animator
         .active_animations
         .insert(group_key.to_string(), new_animation.clone());
+
+    // Recalculate and apply masks for ALL active animations.
+    recalculate_and_apply_masks(animator, anim_graphs, graph_handle);
+
+    // Start playback.
     let anim_state = animation_player
         .play(node_index)
         .set_speed(speed_multiplier);
-
-    // loop_count == u32::MAX indicates a looping animation (e.g., walk_loop).
-    // loop_count == 1 indicates an intro that plays once and freezes (e.g., jump_intro).
-    // loop_count == 0 indicates an outro that plays once and is removed (e.g., jump_land).
     if new_animation.loop_count == u32::MAX {
         anim_state.repeat();
     } else {
@@ -610,7 +624,6 @@ fn play_animation(
         new_animation.loop_count == u32::MAX
     );
 }
-
 // --- Animation Name Resolution Helpers ---
 
 /// Generates a prioritized list of animation names based on a base name and weapon type.
@@ -643,7 +656,7 @@ fn find_first_valid_animation(candidates: &[String], animator: &NifAnimator) -> 
 /// Resolves a logical idle state into a final, playable animation group name.
 fn resolve_idle_anim_name(
     state: CharacterState,
-    weapon_type: i32,
+    actor_state: &ActorState,
     animator: &NifAnimator,
 ) -> Option<String> {
     let base_group = match state {
@@ -652,8 +665,17 @@ fn resolve_idle_anim_name(
         CharacterState::IdleSwim => "idleswim",
         _ => return None, // Not an idle state
     };
-    let candidates = generate_weapon_anim_candidates(base_group, weapon_type);
-    find_first_valid_animation(&candidates, animator)
+    // Only search for weapon-specific idles if a weapon is actually equipped.
+    if actor_state.combat.weapon_type > 0 {
+        let candidates =
+            generate_weapon_anim_candidates(base_group, actor_state.combat.weapon_type);
+        if let Some(found) = find_first_valid_animation(&candidates, animator) {
+            return Some(found);
+        }
+    }
+
+    // Fallback to the generic base idle animation.
+    Some(base_group.to_string())
 }
 
 /// Resolves the JUMP INTRO animation group name (e.g., "jumphh").
@@ -676,11 +698,13 @@ fn resolve_jump_landing_name(weapon_type: i32, animator: &NifAnimator) -> Option
 
 /// Resolves a logical movement state into a final, playable animation group name,
 /// including handling run-to-walk and swim-to-walk fallbacks.
-fn resolve_movement_anim_name(
+pub fn resolve_movement_anim_name(
     state: CharacterState,
-    weapon_type: i32,
+    actor_state: &ActorState,
     animator: &NifAnimator,
 ) -> Option<String> {
+    // The state is WeaponEquipped, not Equipping or Unequipping.
+    let weapon_equipped = actor_state.combat.weapon_type > 0;
     let mut base_group = match state {
         CharacterState::WalkForward => "walkforward",
         CharacterState::WalkBack => "walkback",
@@ -709,7 +733,16 @@ fn resolve_movement_anim_name(
         _ => return None,
     };
 
-    // --- Handle swim-to-walk/run fallback ---
+    // If a weapon is fully equipped, try to find a weapon-specific movement animation.
+    if weapon_equipped {
+        let candidates =
+            generate_weapon_anim_candidates(base_group, actor_state.combat.weapon_type);
+        if let Some(found) = find_first_valid_animation(&candidates, animator) {
+            return Some(found);
+        }
+    }
+
+    // Fallback for swim animations (try non-swim version if specific swim anim not found)
     if base_group.starts_with("swim")
         && !animator
             .animation_definitions
@@ -719,46 +752,17 @@ fn resolve_movement_anim_name(
         base_group = base_group.strip_prefix("swim").unwrap_or(base_group);
     }
 
-    // --- Find primary candidates ---
-    let candidates = generate_weapon_anim_candidates(base_group, weapon_type);
-    if let Some(found) = find_first_valid_animation(&candidates, animator) {
-        return Some(found);
-    }
-
-    // --- Handle run-to-walk fallback ---
+    // Fallback for run animations (try walk version if run anim not found)
     if base_group.starts_with("run") {
-        if let Some(walk_base) = base_group.strip_prefix("run") {
-            let walk_group = format!("walk{}", walk_base);
-            let walk_candidates = generate_weapon_anim_candidates(&walk_group, weapon_type);
-            if let Some(found) = find_first_valid_animation(&walk_candidates, animator) {
-                return Some(found);
+        if find_first_valid_animation(&[base_group.to_string()], animator).is_none() {
+            if let Some(walk_base) = base_group.strip_prefix("run") {
+                let walk_group = format!("walk{}", walk_base);
+                return Some(walk_group);
             }
         }
     }
 
-    None // No suitable animation found
-}
-
-/// Returns the specific and fallback animation suffixes for a given weapon type.
-fn get_weapon_suffixes(weapon_type: i32) -> (Option<&'static str>, Option<&'static str>) {
-    // Corresponds to ESM::Weapon::Type enum
-    match weapon_type {
-        0 => (Some("hh"), None), // Hand-to-hand
-        1 => (Some("shortblade"), Some("1h")),
-        2 => (Some("longblade"), Some("1h")),
-        3 => (Some("axe"), Some("1h")),
-        4 => (Some("blunt"), Some("1h")),
-        5 => (Some("longblade"), Some("2h")), // Longblade Two-Hand
-        6 => (Some("axe"), Some("2h")),       // Axe Two-Hand
-        7 => (Some("blunt"), Some("2h")),     // Blunt Two-Hand
-        8 => (Some("spear"), Some("2h")),
-        9 => (Some("bow"), Some("bow")),
-        10 => (Some("crossbow"), Some("crossbow")),
-        11 => (Some("throwing"), Some("throwing")),
-        12 => (Some("spell"), None),
-        13 => (Some("crossbow"), Some("1h")), // Crossbows use 1h movement
-        _ => (None, None),                    // No weapon or unknown
-    }
+    Some(base_group.to_string())
 }
 
 /// Converts a running state to its walking equivalent.
@@ -783,7 +787,7 @@ fn calculate_anim_speed_multiplier(
     is_sneaking: bool,
     definition: &AnimationDefinition,
     animator: &NifAnimator,
-    weapon_type: i32,
+    actor_state: &ActorState,
     character_speed: f32,
 ) -> f32 {
     if !matches!(
@@ -798,7 +802,7 @@ fn calculate_anim_speed_multiplier(
     // For running, OpenMW uses the 'walk' animation's speed for calculation.
     if is_running {
         let walk_state = run_state_to_walk_state(state);
-        anim_base_speed = resolve_movement_anim_name(walk_state, weapon_type, animator)
+        anim_base_speed = resolve_movement_anim_name(walk_state, &actor_state, animator)
             .and_then(|name| animator.animation_definitions.get(&name))
             .map_or(definition.base_velocity.length(), |def| {
                 def.base_velocity.length()
@@ -831,24 +835,246 @@ fn calculate_anim_speed_multiplier(
 fn handle_actor_weapon_actions(
     animation_player: &mut AnimationPlayer,
     animator: &mut NifAnimator,
+    anim_graphs: &mut Assets<AnimationGraph>,
+    graph_handle: &AnimationGraphHandle,
+    player_input: &PlayerInput,
     actor_state: &mut ActorState,
 ) -> bool {
-    let anim_name = match actor_state.combat.upper_body_state {
-        UpperBodyState::Equipping => "weaponequip".to_string(),
-        UpperBodyState::Unequipping => "weaponunequip".to_string(),
-        _ => return false, // No weapon action in progress.
-    };
-
-    if actor_state.combat.current_animation_group == anim_name {
-        return true; // Animation is already in progress.
+    // This mirrors OpenMW's check for releasing the attack button.
+    if actor_state.combat.upper_body_state == UpperBodyState::AttackWindUp
+        && !player_input.attack_is_held
+    {
+        // For the simple attack animations, we transition directly to AttackEnd
+        // to play the follow-through and then reset.
+        actor_state.combat.upper_body_state = UpperBodyState::AttackEnd;
     }
 
-    // New action: clear other animations and play the weapon anim.
-    clear_animation(
+    let weapon_group = get_weapon_long_group(actor_state.combat.weapon_type);
+    if weapon_group.is_empty() {
+        return false;
+    }
+
+    let (action, loop_count) = match actor_state.combat.upper_body_state {
+        UpperBodyState::Equipping => ("equip", 0),
+        UpperBodyState::Unequipping => ("unequip", 0),
+        UpperBodyState::AttackWindUp => (actor_state.combat.attack_type.as_str(), 0),
+        _ => return false,
+    };
+
+    let anim_name = if weapon_group.is_empty() {
+        // Fallback for creatures or unexpected cases
+        match action {
+            "chop" => "attack1".to_string(),
+            "slash" => "attack2".to_string(),
+            "thrust" => "attack3".to_string(),
+            _ => action.to_string(),
+        }
+    } else {
+        // This is the correct logic for player/NPCs, combining the
+        // weapon group and the attack type.
+        format!("{}: {}", weapon_group, action)
+    };
+    if actor_state.combat.current_animation_group == anim_name {
+        return true;
+    }
+
+    if animator.animation_definitions.contains_key(&anim_name) {
+        // --- START OF FIX ---
+        // Determine if the character is moving *before* we clear the movement animation state.
+        let was_moving = !actor_state.movement.current_animation_group.is_empty()
+            && !actor_state
+                .movement
+                .current_animation_group
+                .starts_with("idle");
+
+        // Force the ground movement to re-evaluate by clearing the current movement animation.
+        clear_animation(
+            animation_player,
+            animator,
+            actor_state,
+            anim_graphs,
+            graph_handle,
+            &actor_state.movement.current_animation_group.clone(),
+        );
+
+        let definition = animator.animation_definitions.get(&anim_name).unwrap();
+
+        // Use the `was_moving` state we captured earlier to set the correct mask.
+        let blend_mask = if was_moving {
+            BlendMask::UPPER_BODY
+        } else {
+            BlendMask::ALL
+        };
+        // --- END OF FIX ---
+
+        let new_animation = ActiveAnimation {
+            clip_handle: definition.clip_handle.clone(),
+            node_index: definition.node_index,
+            next_clip_name: None,
+            loop_count: 0,
+            speed_mult: 1.0,
+            blend_mask,
+            priorities: [
+                Priority::Idle,   // Lower Body
+                Priority::Weapon, // Torso
+                Priority::Weapon, // Left Arm
+                Priority::Weapon, // Right Arm
+            ],
+        };
+
+        play_animation(
+            animation_player,
+            animator,
+            actor_state,
+            anim_graphs,
+            graph_handle,
+            &anim_name,
+            new_animation,
+        );
+        actor_state.combat.current_animation_group = anim_name;
+    } else {
+        warn!("Could not find weapon animation definition: {}", anim_name);
+        match actor_state.combat.upper_body_state {
+            UpperBodyState::Equipping => {
+                actor_state.combat.upper_body_state = UpperBodyState::WeaponEquipped
+            }
+            UpperBodyState::Unequipping => {
+                actor_state.combat.upper_body_state = UpperBodyState::None
+            }
+            _ => {}
+        }
+        return false;
+    }
+
+    true
+}
+// Corresponds to the weapon's main animation group (e.g., "weapontwohand", "bow")
+fn get_weapon_long_group(weapon_type: i32) -> &'static str {
+    // Based on ESM::Weapon::Type
+    match weapon_type {
+        0 => "handtohand",
+        1..=4 => "weapononehand",
+        5..=7 => "weapontwohand", // For swords, axes, blunts
+        8 => "weapontwowide",     // Spears use a different group
+        9 => "bow",
+        10 | 13 => "crossbow",
+        11 => "throwweapon", // Corrected from "throwing" to match anim names
+        12 => "spellcast",   // Corrected from "spell" to match anim names
+        _ => "",
+    }
+}
+
+/// Returns the specific and fallback animation suffixes for a given weapon type.
+fn get_weapon_suffixes(weapon_type: i32) -> (Option<&'static str>, Option<&'static str>) {
+    // These now match the suffixes found in your animation list (hh, 1h, 2c, 2w, etc.)
+    match weapon_type {
+        0 => (Some("hh"), None),     // Hand-to-hand
+        1..=4 => (Some("1h"), None), // All 1-handed weapons use "1h"
+        5..=7 => (Some("2c"), None), // 2-handed close-stance weapons (swords, axes)
+        8 => (Some("2w"), None),     // 2-handed wide-stance weapons (spears)
+        9 => (Some("bow"), None),
+        10 | 13 => (Some("crossbow"), Some("1h")), // Crossbows use 1h for movement
+        12 => (Some("spell"), None),               // Spellcasting uses "spell"
+        _ => (None, None),                         // Thrown, Spell, and None have no suffix
+    }
+}
+/// Recalculates the effective blend mask for every active animation based on priority and applies it.
+fn recalculate_and_apply_masks(
+    animator: &mut NifAnimator,
+    anim_graphs: &mut Assets<AnimationGraph>,
+    graph_handle: &AnimationGraphHandle,
+) {
+    let mut effective_masks: std::collections::HashMap<String, u64> =
+        std::collections::HashMap::new();
+
+    // For each body region, find the animation with the highest priority that *wants* to affect it.
+    for i in 0..NUM_DISCRETE_REGIONS {
+        let region_mask = 1 << i;
+        let mut winner_key: Option<String> = None;
+        let mut highest_priority = Priority::Idle;
+
+        for (key, anim) in &animator.active_animations {
+            // THIS IS THE KEY CHANGE: We now read the animation's *original*, intended blend mask.
+            let intended_mask = anim.blend_mask;
+            if intended_mask.bits() & region_mask != 0 {
+                if anim.priorities[i] >= highest_priority {
+                    highest_priority = anim.priorities[i];
+                    winner_key = Some(key.clone());
+                }
+            }
+        }
+
+        // Grant this region to the winner.
+        if let Some(key) = winner_key {
+            *effective_masks.entry(key).or_insert(0) |= region_mask;
+        }
+    }
+
+    // Apply the newly calculated effective masks to the visual animation graph.
+    // We NO LONGER modify the `anim.blend_mask` field itself.
+    if let Some(graph) = anim_graphs.get_mut(graph_handle) {
+        for (key, anim) in &mut animator.active_animations {
+            let effective_mask = effective_masks.get(key).cloned().unwrap_or(0);
+
+            // Update visual mask in the animation graph
+            if let Some(definition) = animator.animation_definitions.get(key) {
+                if let Some(node) = graph.get_mut(definition.node_index) {
+                    node.mask = !effective_mask; // The graph mask is an UNMASK
+                }
+            }
+        }
+    }
+}
+
+/// This function replicates OpenMW's `refreshHitRecoilAnims` functionality.
+/// It plays the hit animation if the state is set, and clears the state
+/// after the animation is finished.
+fn handle_vitals_animations(
+    animation_player: &mut AnimationPlayer,
+    animator: &mut NifAnimator,
+    anim_graphs: &mut Assets<AnimationGraph>,
+    graph_handle: &AnimationGraphHandle,
+    actor_state: &mut ActorState,
+) -> bool {
+    // Returns true if it took control
+
+    // Check if a hit animation is currently playing
+    if !actor_state.vitals.current_hit_animation.is_empty() {
+        // If the animation is no longer playing, we can clear the state.
+        if !animator
+            .active_animations
+            .contains_key(&actor_state.vitals.current_hit_animation)
+        {
+            actor_state.vitals.hit_state = CharacterState::None;
+            actor_state.vitals.current_hit_animation.clear();
+        }
+    }
+
+    // If no hit state is active, do nothing.
+    if actor_state.vitals.hit_state == CharacterState::None {
+        return false;
+    }
+
+    // A hit state IS active. Let's play the animation if it's not already playing.
+    let anim_name = match actor_state.vitals.hit_state {
+        CharacterState::Hit => "hit".to_string(),
+        CharacterState::KnockDown => "knockdown".to_string(),
+        // Add other hit states here later
+        _ => return false,
+    };
+
+    if actor_state.vitals.current_hit_animation == anim_name {
+        return true; // Animation is already playing, do nothing else.
+    }
+
+    // A new hit state was set, so we need to start the animation.
+    // It must interrupt everything else.
+    clear_all_other_animations(
         animation_player,
         animator,
         actor_state,
-        &actor_state.movement.current_animation_group.clone(),
+        anim_graphs,
+        graph_handle,
     );
 
     if let Some(definition) = animator.animation_definitions.get(&anim_name) {
@@ -856,20 +1082,56 @@ fn handle_actor_weapon_actions(
             clip_handle: definition.clip_handle.clone(),
             node_index: definition.node_index,
             next_clip_name: None,
-            loop_count: 0, // One-shot animation.
-            priorities: [Priority::Weapon; NUM_DISCRETE_REGIONS],
-            blend_mask: BlendMask::UPPER_BODY.bits(),
-            animation_speed: 1.0,
+            loop_count: 0, // Play once.
+            priorities: [Priority::Hit; NUM_DISCRETE_REGIONS],
+            blend_mask: BlendMask::ALL,
+            speed_mult: 1.0,
         };
-
         play_animation(
             animation_player,
             animator,
             actor_state,
+            anim_graphs,
+            graph_handle,
             &anim_name,
             new_animation,
         );
-        actor_state.combat.current_animation_group = anim_name;
+        actor_state.vitals.current_hit_animation = anim_name;
     }
-    true
+
+    true // Vitals state took control.
+}
+
+// You will also need a helper to clear other animations.
+fn clear_all_other_animations(
+    animation_player: &mut AnimationPlayer,
+    animator: &mut NifAnimator,
+    actor_state: &mut ActorState,
+    anim_graphs: &mut Assets<AnimationGraph>,
+    graph_handle: &AnimationGraphHandle,
+) {
+    clear_animation(
+        animation_player,
+        animator,
+        actor_state,
+        anim_graphs,
+        graph_handle,
+        &actor_state.movement.current_animation_group.clone(),
+    );
+    clear_animation(
+        animation_player,
+        animator,
+        actor_state,
+        anim_graphs,
+        graph_handle,
+        &actor_state.jumping.current_animation_group.clone(),
+    );
+    clear_animation(
+        animation_player,
+        animator,
+        actor_state,
+        anim_graphs,
+        graph_handle,
+        &actor_state.combat.current_animation_group.clone(),
+    );
 }

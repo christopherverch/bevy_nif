@@ -1,24 +1,26 @@
-//use cdda_bevy::client::animation::play_animation_local;
+//use tes3mp_rust::client::animation::play_animation_local;
 
 use super::connecting_disconnecting::{create_player, remove_player};
 use super::{EntityIdToEntityMap, InterpolationSpeeds};
 use bevy::prelude::*;
 use bevy_renet::renet::RenetClient;
-use cdda_bevy::client::actor_defs::{ActorState, JumpingStateKind, UpperBodyState};
-use cdda_bevy::client::defs::{
-    ClientEntityId, IdToEntityMap, LocalPlayer, NetworkEventWithIdCounter, NetworkedEntity,
-    PendingServerAcks, SentActionInfo,
-};
-use cdda_bevy::client::events::SoundSource;
-use cdda_bevy::networking::{
+use std::time::Instant;
+use tes3mp_rust::events::SoundSource;
+use tes3mp_rust::networking::{
     ClientChannel, NetworkedEntityDataSnapshot, ServerChannel, ServerMessages,
 };
-use cdda_bevy::serializer::SerializableTransform;
-use cdda_bevy::{
+use tes3mp_rust::serializer::SerializableTransform;
+use tes3mp_rust::{
     AnimationEvent, ClientMessage, NetworkEvent, NetworkEventWithId, NetworkedActorState,
     ServerAcknowledgment, ServerRelayMessage,
 };
-use std::time::Instant;
+use tes3mp_rust::{
+    actor_defs::{ActorState, JumpingStateKind, UpperBodyState},
+    defs::{
+        ClientEntityId, IdToEntityMap, LocalPlayer, NetworkEventWithIdCounter, NetworkedEntity,
+        PendingServerAcks, SentActionInfo,
+    },
+};
 
 /// Sends the transform of the local player to the server
 pub fn client_send_transform(

@@ -1,7 +1,7 @@
 use std::{f32::consts::PI, time::Instant};
 
 use bevy::prelude::*;
-use cdda_bevy::client::defs::Pause;
+use tes3mp_rust::defs::Pause;
 
 use crate::setup_scene::HudText;
 

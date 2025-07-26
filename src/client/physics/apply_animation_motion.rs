@@ -1,12 +1,14 @@
 use bevy::prelude::*;
 use bevy_nif::nif_animation::NifAnimator;
-use cdda_bevy::client::{
+use tes3mp_rust::{
     actor_defs::{ActorState, AnimationDisplacement, JumpingStateKind, RootMotionState},
-    animation::animation_helpers::get_anim_components_for_creature,
     defs::{CreatureStats, IdToEntityMap, IsThirdPerson, LocalPlayer, MeshEntityLink},
 };
 
-use cdda_bevy::client::const_defs::MW_SCALE_REDUCTION;
+use crate::{
+    animation::animation_helpers::get_anim_components_for_creature, const_defs::MW_SCALE_REDUCTION,
+};
+
 pub fn calculate_animation_displacement_system(
     is_third_person: Res<IsThirdPerson>,
 

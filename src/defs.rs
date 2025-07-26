@@ -93,7 +93,7 @@ pub struct LocalPlayer {
 pub struct MeshEntityLink(pub Entity);
 #[derive(Component)]
 pub struct ColliderEntityLink(pub Entity);
-#[derive(Component, Default, Resource)]
+#[derive(Component, Default)]
 pub struct LocalPlayerMesh;
 #[derive(Resource)]
 pub struct ServerIP(pub String);
@@ -101,6 +101,8 @@ pub struct ServerIP(pub String);
 pub struct PlayerInput {
     pub move_direction: Vec2,
     pub rotation_z: f32, // Rotation around the Z axis this frame
+    pub attack_is_held: bool,
+    pub attack_just_pressed: bool,
     pub jump: bool,
     pub run: bool,
     pub sneak: bool,

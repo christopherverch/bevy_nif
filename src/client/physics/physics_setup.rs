@@ -1,8 +1,9 @@
 use bevy::prelude::*;
 use bevy_nif::nif::{loader::Nif, physics::NifCollisionShape, spawner::NifScene};
 use bevy_rapier3d::{parry::math::Isometry, prelude::*};
+use tes3mp_rust::defs::ColliderEntityLink;
 
-use cdda_bevy::client::{const_defs::NIF_SCALE_MULTIPLIER, defs::ColliderEntityLink};
+use crate::const_defs::NIF_SCALE_MULTIPLIER;
 
 use super::CreaturePhysicsState;
 

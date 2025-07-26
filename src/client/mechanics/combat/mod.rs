@@ -1,12 +1,4 @@
 pub mod combat_visuals;
-use bevy::color::palettes::basic;
-use bevy::prelude::*;
-use cdda_bevy::client::{
-    defs::CreatureStats,
-    events::{TriggerHit, TryAttackTrigger},
-};
-
-use crate::utils::create_line_mesh;
 /*
 pub fn execute_attack(
     attacker_entity: Entity,

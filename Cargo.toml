@@ -1,37 +1,39 @@
 [package]
-name = "cdda_bevy"
+name = "tes3mp_rust"
 version = "0.1.0"
 edition = "2024"
 
 
 [dependencies]
 bevy = { version = "0.16", default-features = false, features = ["bevy_asset", "bevy_render", "bevy_winit", "bevy_core_pipeline", "bevy_pbr", "bevy_scene", "bevy_text", "bevy_ui", "x11", "bevy_gltf", "png", "ktx2", "hdr", "default_font", "zstd", "tonemapping_luts", "bevy_state", "multi_threaded", "bevy_animation", "animation", "dynamic_linking", "tga"] }
-esm_reader = { path = "crates/esm_reader"}
 
-bytes = "1"
+esm_reader = { path = "crates/esm_reader"}
+bevy_nif = { path = "crates/bevy_nif"}
+bsatoollib = "0.2.1"
 bevy_renet = { path = "crates/renet/bevy_renet"}
+bytes = "1"
 serde = "1.0.219"
 bincode = "1.3.3"
 fastrand = "2.3.0"
 bevy_egui = "0.34.1"
 renet_visualizer = "1.0.0"
-bsatoollib = "0.2.1"
-serde_json = "1.0.140"
-bevy_nif = { path = "crates/bevy_nif"}
 bitflags = "2.9.0"
-glam = "0.30.2"
-hound = "3.5.1"
 thiserror = "2.0.12"
-rodio = "0.20.1"
-rubato = "0.16.2"
 bevy-inspector-egui = "0.31.0"
-bevy_rapier3d = { path = "crates/bevy_rapier/bevy_rapier3d"}
 bevy_ecs = "0.16.0"
-bevy_kira_audio = {version = "0.23.0", default-features = false, features = ["wav"]}
-once_cell = "1.21.3"
+bevy_kira_audio = {git= "https://github.com/christopherverch/bevy_kira_audio", default-features = false, features = ["wav"]}
+bevy_rapier3d = "0.30.0"
+kira = "0.10.8"
 [[bin]]
 name = "client"
 path = "src/client/main.rs"
+# This section lists dependencies for the crates in this package.
+
+# THIS IS THE FIX:
+# This line tells Cargo: "The client binary needs to use code from the
+# tes3mp_rust library that is part of this same package."
+# This is what "links" the unlinked crate.
+
 
 [[bin]]
 name = "server"

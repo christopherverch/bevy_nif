@@ -1,23 +1,15 @@
 use std::collections::HashMap;
 
-use crate::client::{
-    actor_defs::{ActorState, CharacterState, JumpingStateKind, UpperBodyState},
-    events::{SetAnimSpeedSeekEvent, SoundEvent, TriggerHit},
-};
+use actor_defs::{ActorState, CharacterState, JumpingStateKind, UpperBodyState};
 use bevy::prelude::*;
 use bevy_nif::nif_animation::{BlendMask, NifEventType};
+use events::{SetAnimSpeedSeekEvent, SoundEvent, TriggerHit};
 use serde::{Deserialize, Serialize};
-pub mod client {
-    pub mod actor_defs;
-    pub mod actor_funcs;
-    pub mod animation;
-    pub mod const_defs;
-    pub mod defs;
-    pub mod events;
-}
+pub mod actor_defs;
+pub mod defs;
+pub mod events;
 pub mod networking;
 pub mod serializer;
-
 pub type EntityId = u64;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]

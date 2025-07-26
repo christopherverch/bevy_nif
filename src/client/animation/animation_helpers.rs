@@ -2,7 +2,7 @@ use bevy::animation::{AnimationPlayer, graph::AnimationGraphHandle};
 use bevy_ecs::{entity::Entity, system::Query, world::Mut};
 use bevy_nif::nif_animation::NifAnimator;
 
-use crate::client::defs::{CreatureStats, IdToEntityMap};
+use tes3mp_rust::defs::{CreatureStats, IdToEntityMap};
 
 pub fn get_anim_components_for_creature<'a>(
     creature_stats: &'a CreatureStats,

@@ -50,11 +50,11 @@ pub struct ActiveAnimation {
     /// How many times this animation should loop. u32::MAX can represent indefinite looping.
     pub loop_count: u32,
     /// A bitmask defining which body parts this animation affects.
-    pub blend_mask: u64,
+    pub blend_mask: BlendMask,
     /// The name of the clip to transition to when this one finishes.
     pub next_clip_name: Option<String>,
     pub priorities: [Priority; NUM_DISCRETE_REGIONS],
-    pub animation_speed: f32,
+    pub speed_mult: f32,
 }
 /// Defines the animation priority levels, ordered from lowest to highest.
 ///

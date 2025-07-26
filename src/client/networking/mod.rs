@@ -9,13 +9,11 @@ use send_data::{
 use super::Connected;
 use bevy_renet::client_connected;
 use bevy_renet::netcode::NetcodeClientPlugin;
-use cdda_bevy::{
-    EntityIdToEntityMap,
-    client::defs::{
-        ClientEntityId, LocalPlayer, NetworkEventWithIdCounter, PendingServerAcks, ServerIP,
-    },
-};
 use std::collections::HashMap;
+use tes3mp_rust::{
+    EntityIdToEntityMap,
+    defs::{ClientEntityId, LocalPlayer, NetworkEventWithIdCounter, PendingServerAcks, ServerIP},
+};
 
 mod connecting_disconnecting;
 mod handle_other_players;

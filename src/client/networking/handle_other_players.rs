@@ -1,10 +1,8 @@
 use bevy::prelude::*;
 use bevy_renet::renet::RenetClient;
-use cdda_bevy::{
-    client::{
-        actor_defs::ActorState,
-        defs::{LocalPlayer, NetworkedEntity},
-    },
+use tes3mp_rust::{
+    actor_defs::ActorState,
+    defs::{LocalPlayer, NetworkedEntity},
     networking::{ServerChannel, ServerMessages},
 };
 

@@ -2,10 +2,10 @@ use bevy_ecs::{
     query::With,
     system::{Commands, Query, ResMut},
 };
-use cdda_bevy::{
+use tes3mp_rust::{
     AnimationEvent, NetworkEvent,
     client::{
-        actor_defs::{ActorState, CharacterState, JumpingStateKind},
+        actor::actor_defs::{ActorState, CharacterState, JumpingStateKind},
         defs::{LocalPlayer, PlayerInput},
     },
 };

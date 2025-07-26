@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy_kira_audio::{Audio, AudioControl, EmitterSettings, SpatialAudioEmitter};
-use cdda_bevy::client::events::{SoundEvent, SoundSource};
 use kira::Easing;
+use tes3mp_rust::events::{SoundEvent, SoundSource};
 
 /// Reacts to SoundEvent triggers and spawns a sound either attached to the player, an entity or detached
 pub fn generate_sound(

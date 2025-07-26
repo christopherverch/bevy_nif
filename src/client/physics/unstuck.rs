@@ -1,9 +1,5 @@
 // In src/client/physics/unstuck.rs
 
-use crate::physics::{
-    components::CreaturePhysicsState,
-    constants::{ALLOWED_PENETRATION, FAILSAFE_UNSTUCK_UPWARD_DISTANCE},
-};
 use bevy::prelude::*;
 use bevy_rapier3d::{
     na::RealField,
@@ -11,9 +7,13 @@ use bevy_rapier3d::{
     prelude::{Collider, QueryFilter, RapierContext},
     rapier::prelude::Isometry,
 };
-use cdda_bevy::client::actor_defs::ActorState;
 
-use super::constants::COLLISION_MARGIN;
+use tes3mp_rust::actor_defs::ActorState;
+
+use super::{
+    CreaturePhysicsState,
+    constants::{ALLOWED_PENETRATION, COLLISION_MARGIN, FAILSAFE_UNSTUCK_UPWARD_DISTANCE},
+};
 
 #[derive(Debug, Default, Clone, Copy)]
 struct UnstuckContactData {

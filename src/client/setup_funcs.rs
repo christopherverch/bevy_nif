@@ -4,21 +4,21 @@ use bevy_nif::nif::attach_parts::AttachmentType;
 use bevy_nif::nif::spawner::NifScene;
 use bevy_nif::nif_animation::{NifAnimator, NifAnimatorAdded};
 use bevy_rapier3d::prelude::*;
-use cdda_bevy::client::defs::{
+use kira::Easing;
+use std::time::Instant;
+use tes3mp_rust::defs::{
     AnimateableEntity, ClientEntityId, CreatureStats, LocalPlayer, LocalPlayerMesh, MeshEntityLink,
     NeedsSetup, NetworkedEntity, Player, RootEntityLink,
 };
-use cdda_bevy::serializer::SerializableTransform;
-use kira::Easing;
-use std::time::Instant;
+use tes3mp_rust::serializer::SerializableTransform;
 
 use crate::camera::MWCameraTarget;
+use crate::const_defs::NIF_SCALE_MULTIPLIER;
 use crate::physics::physics_setup::NeedsNifPhysics;
-use cdda_bevy::client::actor_defs::{
+use tes3mp_rust::actor_defs::{
     ActorState, AnimationDisplacement, CharacterState, CombatState, JumpingState, MovementState,
     RootMotionState, VitalsState,
 };
-use cdda_bevy::client::const_defs::NIF_SCALE_MULTIPLIER;
 
 pub fn setup_player(
     mut commands: Commands,

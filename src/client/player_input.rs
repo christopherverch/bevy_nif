@@ -3,9 +3,9 @@ use std::f32::consts::PI;
 use bevy::input::mouse::{MouseMotion, MouseWheel};
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
-use cdda_bevy::client::actor_defs::ActorState;
-use cdda_bevy::client::defs::{IsThirdPerson, LocalPlayer, PlayerInput};
-use cdda_bevy::client::events::{PlayerReadyWeapon, ToggledThirdPerson};
+use tes3mp_rust::actor_defs::{ActorState, CharacterState};
+use tes3mp_rust::defs::{IsThirdPerson, LocalPlayer, PlayerInput};
+use tes3mp_rust::events::{PlayerReadyWeapon, ToggledThirdPerson};
 
 use crate::camera::MWCamera;
 pub struct MWInputPlugin;
@@ -26,8 +26,16 @@ impl Plugin for MWInputPlugin {
         app.add_systems(PreUpdate, orbit_mouse.run_if(orbit_condition))
             .add_systems(Update, zoom_mouse)
             .insert_resource(IsThirdPerson::default())
-            .add_systems(Update, keyboard_input);
+            .add_systems(Update, keyboard_input)
+            .add_systems(Update, mouse_input);
     }
+}
+pub fn mouse_input(
+    mouse_button_input: Res<ButtonInput<MouseButton>>,
+    mut player_input: ResMut<PlayerInput>,
+) {
+    player_input.attack_is_held = mouse_button_input.pressed(MouseButton::Left);
+    player_input.attack_just_pressed = mouse_button_input.just_pressed(MouseButton::Left);
 }
 pub fn keyboard_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
@@ -66,6 +74,8 @@ pub fn keyboard_input(
         player_input.sneak = !player_input.sneak;
         actor_state.is_sneaking = player_input.sneak;
     }
+
+    // DEBUG
     if keyboard_input.just_pressed(KeyCode::KeyQ) {
         // Increment the index, wrapping around if it goes past the end of the array.
         *current_weapon_index = (*current_weapon_index + 1) % WEAPON_TYPES.len();
@@ -73,6 +83,12 @@ pub fn keyboard_input(
         let new_weapon_type = WEAPON_TYPES[*current_weapon_index];
         actor_state.combat.weapon_type = new_weapon_type;
         info!("Switched to weapon type: {}", new_weapon_type);
+    }
+    // DEBUG
+    if keyboard_input.just_pressed(KeyCode::KeyH) {
+        // Set the state directly. This is what a real combat system would do.
+        actor_state.vitals.hit_state = CharacterState::Hit;
+        println!("Debug: Forcing Hit state");
     }
     if keyboard_input.just_pressed(KeyCode::KeyF) {
         commands.trigger(PlayerReadyWeapon { player_entity });
@@ -162,6 +178,9 @@ pub fn orbit_mouse(
             cam_transform.rotation = new_rotation; // Apply the original new rotation
         }
     }
+}
+pub fn clear_player_rotation_input_system(mut player_input: ResMut<PlayerInput>) {
+    player_input.rotation_z = 0.0;
 }
 
 fn zoom_mouse(mut scroll_evr: EventReader<MouseWheel>, mut cam_q: Query<&mut MWCamera>) {

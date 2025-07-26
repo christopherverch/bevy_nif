@@ -10,9 +10,9 @@ use serde::{Deserialize, Serialize};
 /// Represents the broad category of action the character is performing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum CharacterState {
+    #[default]
     None,
     SpecialIdle,
-    #[default]
     Idle,
     IdleSwim,
     IdleSneak,
@@ -92,6 +92,7 @@ pub struct MovementState {
     pub state: CharacterState,
     /// The name of the animation group currently playing for this state (e.g., "runforwardhh").
     pub current_animation_group: String,
+    pub speed_multiplier: f32,
     /// The smoothed velocity vector, used to prevent jerky transitions.
     pub smoothed_speed: Vec2,
     /// Tracks if the character's primary movement is backward.

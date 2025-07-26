@@ -1,8 +1,14 @@
+use actor::{
+    actor_funcs::apply_hit, animation_resolver::resolve_final_animation_state_system,
+    controller::character_controller_system,
+};
+use animation::actor_animator::animate_actors_using_state;
 use bevy::{
     pbr::{DefaultOpaqueRendererMethod, DirectionalLightShadowMap},
     prelude::*,
 };
 use mechanics::combat::combat_visuals::CombatVisualsPlugin;
+use tes3mp_rust::defs::{GameState, IdToEntityMap, Pause, PlayerInput};
 mod networking;
 mod setup_scene;
 pub mod ui;
@@ -15,24 +21,22 @@ use bevy_rapier3d::prelude::RapierPhysicsPlugin;
 use bevy_rapier3d::prelude::*;
 use bevy_renet::RenetClientPlugin;
 use camera::MWCameraPlugin;
-use cdda_bevy::client::{
-    actor_funcs::apply_hit,
-    animation::actor_animator::animate_actors_using_state,
-    defs::{GameState, IdToEntityMap, Pause, PlayerInput},
-};
 use equipment::on_player_ready_weapon;
 use handle_nif_events::handle_nif_trigger;
 use landscape::LandscapePlugin;
+mod animation;
+mod const_defs;
 mod physics;
 use landscape::terrain_material::TerrainBlendMaterial;
 use networking::{NetworkingPlugin, connect_to_server};
 use physics::{
     CharacterMotionPlugin, calculate_animation_displacement_system,
-    determine_character_state_system,
+    movement::character_movement_system, preparation::prepare_character_velocity_system,
 };
 use sound::generate_sound;
 use temporary_funcs::{animate_light_direction, switch_mode};
-mod camera;
+pub mod actor;
+pub mod camera;
 mod equipment;
 mod handle_nif_events;
 mod initial_esm_parse;
@@ -115,8 +119,25 @@ fn main() {
         .add_systems(Update, (switch_mode, animate_light_direction))
         .add_systems(
             FixedUpdate,
-            determine_character_state_system.before(calculate_animation_displacement_system),
+            (
+                // The new controller system takes the place of the old one.
+                calculate_animation_displacement_system,
+                prepare_character_velocity_system,
+                character_movement_system,
+            )
+                .chain()
+                .before(PhysicsSet::SyncBackend),
         )
-        .add_systems(Update, animate_actors_using_state)
+        .add_systems(
+            Update,
+            (
+                // This is the new, correct chain for all animation state logic.
+                character_controller_system,
+                resolve_final_animation_state_system,
+                animate_actors_using_state,
+            )
+                .chain(),
+        )
+        .add_systems(PostUpdate, clear_player_rotation_input_system)
         .run();
 }

@@ -1,14 +1,10 @@
-use crate::{
-    AnimationConfig, NetworkEvent, RepeatAnim,
-    client::events::{RequestAnimation, SoundEvent, SoundSource},
-};
 use bevy::prelude::*;
 use bevy_nif::nif_animation::BlendMask;
-
-use super::{
+use tes3mp_rust::{
+    AnimationConfig, NetworkEvent, RepeatAnim,
     actor_defs::ActorState,
     defs::{CreatureStats, IdToEntityMap, IsThirdPerson, LocalPlayer},
-    events::TriggerHit,
+    events::{RequestAnimation, SoundEvent, SoundSource, TriggerHit},
 };
 
 pub fn apply_hit(

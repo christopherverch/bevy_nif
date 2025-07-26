@@ -8,11 +8,11 @@ use bevy_renet::{
     RenetServerPlugin,
     renet::{ClientId, RenetServer, ServerEvent},
 };
-use cdda_bevy::{
+use tes3mp_rust::{
     ClientMessage, EntityId, EntityIdToEntityMap, NetworkEventWithId, ServerAcknowledgment,
     client::defs::Player, networking::NetworkedEntityData, serializer::SerializableTransform,
 };
-use cdda_bevy::{
+use tes3mp_rust::{
     ServerRelayMessage,
     networking::{
         ClientChannel, NetworkedEntityDataSnapshot, Projectile, ServerChannel, ServerMessages,
@@ -43,7 +43,7 @@ fn add_netcode_network(app: &mut App) {
     use bevy_renet::netcode::{
         NetcodeServerPlugin, NetcodeServerTransport, ServerAuthentication, ServerConfig,
     };
-    use cdda_bevy::networking::{PROTOCOL_ID, connection_config};
+    use tes3mp_rust::networking::{PROTOCOL_ID, connection_config};
     use std::{net::UdpSocket, time::SystemTime};
 
     app.add_plugins(NetcodeServerPlugin);

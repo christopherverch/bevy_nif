@@ -11,7 +11,7 @@ use bevy::{
 };
 use bevy_nif::nif::spawner::NifScene;
 use bevy_rapier3d::prelude::{Collider, RigidBody, Sleeping};
-use cdda_bevy::client::defs::{PlayerCamera, TestingComponent};
+use tes3mp_rust::defs::{PlayerCamera, TestingComponent};
 
 #[derive(Component)]
 pub struct HudText;

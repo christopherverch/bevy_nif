@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use cdda_bevy::client::actor_defs::{ActorState, UpperBodyState};
+use tes3mp_rust::actor_defs::{ActorState, UpperBodyState};
 
 // Marker component for the weapon entity attached to the character's hand.
 #[derive(Component)]

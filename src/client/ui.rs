@@ -2,7 +2,7 @@ use bevy::color::palettes::basic::*;
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
 use bevy::ui::FocusPolicy;
-use cdda_bevy::client::defs::{GameState, ServerIP};
+use tes3mp_rust::defs::{GameState, ServerIP};
 #[derive(Resource, Default)]
 struct FocusedIpInput {
     entity: Option<Entity>, // Use Option<Entity>

@@ -1,10 +1,11 @@
 use bevy::prelude::*;
-use cdda_bevy::client::{
+
+use tes3mp_rust::{
     actor_defs::{ActorState, AnimationDisplacement, CharacterState, JumpingStateKind},
     defs::{IsThirdPerson, LocalPlayer, PlayerInput},
 };
 
-use cdda_bevy::client::actor_funcs::get_current_speed;
+use crate::actor::actor_funcs::get_current_speed;
 
 use super::components::CreaturePhysicsState;
 

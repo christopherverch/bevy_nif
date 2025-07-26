@@ -1,8 +1,9 @@
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, PrimaryWindow, Window};
-use cdda_bevy::client::defs::{IsThirdPerson, LocalPlayerMesh, TestingComponent};
+use tes3mp_rust::defs::{IsThirdPerson, LocalPlayerMesh, TestingComponent};
 
-use cdda_bevy::client::const_defs::FIRST_PERSON_CAMERA_HEIGHT_OFFSET;
+use crate::const_defs::FIRST_PERSON_CAMERA_HEIGHT_OFFSET;
+
 pub struct MWCameraPlugin;
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CameraSyncSet;

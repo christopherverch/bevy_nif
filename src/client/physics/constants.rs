@@ -3,7 +3,7 @@
 //! This module contains the exact physics constants ported from the OpenMW C++
 //! source code.
 
-use cdda_bevy::client::const_defs::UNITS_PER_METER;
+use crate::const_defs::UNITS_PER_METER;
 
 pub const GRAVITY_CONST: f32 = 8.96;
 // The steepest slope, in degrees, that is considered "walkable ground".

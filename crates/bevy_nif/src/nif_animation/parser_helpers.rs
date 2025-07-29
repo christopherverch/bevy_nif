@@ -1,131 +1,16 @@
 // src/nif_animation/parser_helpers.rs
 
-use bevy::ecs::entity::Entity;
-use bevy::ecs::hierarchy::ChildOf;
-use bevy::ecs::system::Query;
 use bevy::log::warn;
 use bevy::math::Vec3;
 use bevy::prelude::Quat;
 use bevy_animation::animatable::Animatable;
-use bevy_animation::animation_curves::AnimatableKeyframeCurve; // Assuming Bevy's math types
+use bevy_animation::animation_curves::AnimatableKeyframeCurve;
 
-// Assuming your NIF parser output structs are in `crate::nif::types` or similar
-// and your public Bevy-facing types (like region constants) are in `super::bevy_types`
 use super::bevy_types::{
-    REGION_INDEX_LEFT_ARM,
-    REGION_INDEX_LOWER_BODY,
-    REGION_INDEX_RIGHT_ARM,
-    REGION_INDEX_TORSO,
-    REGION_ROOT_LEFT_ARM,
-    // Or wherever your REGION_ROOT constants are defined
-    REGION_ROOT_LOWER_BODY,
-    REGION_ROOT_RIGHT_ARM,
-    REGION_ROOT_TORSO,
+    REGION_INDEX_LEFT_ARM, REGION_INDEX_LOWER_BODY, REGION_INDEX_RIGHT_ARM, REGION_INDEX_TORSO,
+    REGION_ROOT_LEFT_ARM, REGION_ROOT_LOWER_BODY, REGION_ROOT_RIGHT_ARM, REGION_ROOT_TORSO,
 };
 use crate::nif::skeleton::Skeleton;
-use crate::nif::types::{
-    NiKeyframeData,
-    NiTextKeyExtraData,
-    ParsedBlock,
-    ParsedNifData,
-    Quaternion as NifQuaternion, // Example: crate::nif::animation::Quaternion
-    RecordLink,
-    // Assuming your NIF parser defines Vector3 and Quaternion in crate::nif::types or crate::nif::base
-    // and they are distinct from Bevy's. If they are type aliases to Bevy's, adjust accordingly.
-};
-use crate::nif_animation::bevy_types::{REGION_ROOT_LEFT_LEG, REGION_ROOT_RIGHT_LEG};
-
-// --- Text Key Parsing Helper ---
-
-/// Parses a NIF text key value string into its (OriginalGroupName, LowercaseGroupName, LowercaseCommand).
-/// GroupName can contain colons. Command is typically the last part after the last colon.
-/// Parses a NIF text key value string into its (OriginalGroupName, LowercaseGroupName, LowercaseCommand).
-/// GroupName can contain colons. Command is typically one of the known_commands.
-pub(super) fn parse_nif_text_key_value(line: &str) -> Option<(String, String, String)> {
-    let line = line.trim();
-    let parts: Vec<&str> = line.splitn(2, ':').collect();
-
-    let (group, command_str) = if parts.len() == 2 {
-        (parts[0].trim(), parts[1].trim())
-    } else {
-        ("", parts[0].trim()) // No group, the whole line is the command string
-    };
-
-    if command_str.is_empty() {
-        return None;
-    }
-
-    let command_words: Vec<&str> = command_str.split_whitespace().collect();
-    let command = command_words.last().cloned().unwrap_or("").to_lowercase();
-
-    // The name part is all words in the command string *except* the last one.
-    let name_part = if command_words.len() > 1 {
-        command_words[0..command_words.len() - 1].join(" ")
-    } else {
-        // If there's only one word, it's the command, so there's no specific name part.
-        // e.g., "start", "stop"
-        String::new()
-    };
-
-    let full_original_name = if group.is_empty() {
-        name_part
-    } else if name_part.is_empty() {
-        group.to_string()
-    } else {
-        format!("{}:{}", group, name_part)
-    };
-
-    if full_original_name.is_empty() {
-        return None;
-    }
-
-    let full_lowercase_name = full_original_name.to_lowercase();
-
-    Some((full_original_name, full_lowercase_name, command))
-}
-
-// Define known generic event prefixes (lowercase)
-pub(super) const KNOWN_GENERIC_EVENT_GROUP_NAMES: [&str; 2] = ["soundgen", "sound"];
-
-// --- NIF Data Access Helpers (from your test.txt / animation.rs_new.txt) ---
-
-/// Resolves a RecordLink to a specific ParsedBlock and attempts to cast it using the provided caster function.
-pub(super) fn get_block<'a, T>(
-    nif_data: &'a ParsedNifData,
-    link: RecordLink,
-    caster: fn(&'a ParsedBlock) -> Option<&'a T>,
-) -> Option<&'a T> {
-    link.and_then(|index| nif_data.blocks.get(index).and_then(caster))
-}
-
-// Specific caster function for NiKeyframeData
-pub(super) fn as_keyframe_data(block: &ParsedBlock) -> Option<&NiKeyframeData> {
-    if let ParsedBlock::KeyframeData(kfd) = block {
-        Some(kfd)
-    } else {
-        None
-    }
-}
-
-// Specific caster function for NiTextKeyExtraData
-pub(super) fn as_text_key_extra_data(block: &ParsedBlock) -> Option<&NiTextKeyExtraData> {
-    if let ParsedBlock::TextKeyExtraData(tked) = block {
-        Some(tked)
-    } else {
-        None
-    }
-}
-
-// --- Coordinate/Type Conversion Helpers (from your test.txt / animation.rs_new.txt) ---
-
-// Convert your NIF parser's Quaternion to Bevy's Quat
-pub(super) fn to_bevy_quat(q_nif: NifQuaternion) -> Quat {
-    // Assuming NifQuaternion is `pub type Quaternion = bevy::math::Quat;` or similar
-    // If NifQuaternion is already Bevy's Quat, this function might just be `q_nif`
-    // If it's a custom struct like `struct Quaternion { x:f32, y:f32, z:f32, w:f32 }` then:
-    // Quat::from_xyzw(q_nif.x, q_nif.y, q_nif.z, q_nif.w)
-    q_nif // Assuming it's already a Bevy Quat as per your types.txt
-}
 
 // --- Bone Region Determination Helper ---
 // (Moved here as it's a parser/skeleton interpretation helper)

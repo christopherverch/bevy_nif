@@ -8,9 +8,13 @@ use bevy_renet::{
     RenetServerPlugin,
     renet::{ClientId, RenetServer, ServerEvent},
 };
+use std::{
+    collections::HashMap,
+    time::{Duration, Instant},
+};
 use tes3mp_rust::{
     ClientMessage, EntityId, EntityIdToEntityMap, NetworkEventWithId, ServerAcknowledgment,
-    client::defs::Player, networking::NetworkedEntityData, serializer::SerializableTransform,
+    defs::Player, networking::NetworkedEntityData, serializer::SerializableTransform,
 };
 use tes3mp_rust::{
     ServerRelayMessage,
@@ -18,10 +22,6 @@ use tes3mp_rust::{
         ClientChannel, NetworkedEntityDataSnapshot, Projectile, ServerChannel, ServerMessages,
         Velocity, setup_level,
     },
-};
-use std::{
-    collections::HashMap,
-    time::{Duration, Instant},
 };
 
 // How long to remember a processed action ID to prevent duplicates
@@ -43,8 +43,8 @@ fn add_netcode_network(app: &mut App) {
     use bevy_renet::netcode::{
         NetcodeServerPlugin, NetcodeServerTransport, ServerAuthentication, ServerConfig,
     };
-    use tes3mp_rust::networking::{PROTOCOL_ID, connection_config};
     use std::{net::UdpSocket, time::SystemTime};
+    use tes3mp_rust::networking::{PROTOCOL_ID, connection_config};
 
     app.add_plugins(NetcodeServerPlugin);
 

@@ -90,6 +90,8 @@ pub enum JumpingStateKind {
 pub struct MovementState {
     /// The current movement mode, like walking, running, or turning.
     pub state: CharacterState,
+    /// The state without any logic done to correct it, just purely from input
+    pub raw_state: CharacterState,
     /// The name of the animation group currently playing for this state (e.g., "runforwardhh").
     pub current_animation_group: String,
     pub speed_multiplier: f32,

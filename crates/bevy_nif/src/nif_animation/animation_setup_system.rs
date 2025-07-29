@@ -38,6 +38,10 @@ pub struct ProcessedAnimation {
     pub start_time: f32,
     pub end_time: f32,
     pub events: Vec<String>,
+    pub min_attack_time_relative: f32,
+    pub max_attack_time_relative: f32,
+    pub hit_time_relative: f32,
+    pub min_hit_time_relative: f32,
 }
 
 /// A temporary struct to hold all data about a block before the final split decision.
@@ -48,6 +52,11 @@ struct AnimationBlockData {
     end_time: f32,
     loop_start_time: Option<f32>,
     loop_end_time: Option<f32>,
+    min_attack_time: Option<f32>,
+    max_attack_time: Option<f32>,
+    hit_time: Option<f32>,
+    min_hit_time: Option<f32>,
+    follow_events: HashMap<String, f32>,
 }
 #[derive(Debug, Clone)]
 struct RawBoneAnimation {
@@ -59,7 +68,6 @@ struct RawBoneAnimation {
     all_rotation_keys: Vec<(f32, Quat)>,
     /// All translation keys for this bone, sorted by time.
     all_translation_keys: Vec<(f32, Vec3)>,
-    // NOTE: Add `all_scale_keys` here if we need to support scaling.
 }
 
 pub fn setup_animations(
@@ -216,7 +224,7 @@ pub fn setup_animations(
             // If we found any keys for this bone, sort them by time and store them.
             if !bone_anim.all_rotation_keys.is_empty() || !bone_anim.all_translation_keys.is_empty()
             {
-                // Sorting here is crucial for the filtering logic later.
+                // Sorting here is needed for the filtering logic later.
                 bone_anim
                     .all_rotation_keys
                     .sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
@@ -224,7 +232,7 @@ pub fn setup_animations(
                     .all_translation_keys
                     .sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
 
-                // MOVED: Tag the bone with AnimationTarget *once* during extraction.
+                // Tag the bone with AnimationTarget during extraction.
                 if tagged_bones.insert(bone_anim.bone_entity) {
                     commands
                         .entity(bone_anim.bone_entity)
@@ -265,7 +273,7 @@ pub fn setup_animations(
                     }
                 }
             }
-            // Sort the keys by time. This is crucial for the binary search.
+            // Sort the keys by time for the binary search.
             keys.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
             keys
         };
@@ -274,18 +282,17 @@ pub fn setup_animations(
         let mut animation_definitions_map: HashMap<String, AnimationDefinition> = HashMap::new();
         let root_blend_node = animation_graph.add_blend(0.5, animation_graph.root);
 
-        // MOVED & CHANGED: Add targets to graph mask based on pre-filtered `raw_bone_data`
+        // Add targets to graph mask based on pre-filtered `raw_bone_data`
         for bone in &raw_bone_data {
             let region_idx = determine_bone_primary_region_index(&bone.bone_name, skeleton);
             animation_graph.add_target_to_mask_group(bone.target_id, region_idx as u32);
         }
 
-        // --- This is the new, more efficient loop structure ---
         for processed_clip in &processed_animations {
             let mut root_translation_curve: Option<AnimatableKeyframeCurve<Vec3>> = None;
             let mut bevy_clip = AnimationClip::default();
 
-            // Loop over our pre-collected bone data, NOT the NIF controllers.
+            // Loop over our pre-collected bone data
             for bone in &raw_bone_data {
                 // --- Handle Rotations from pre-collected data ---
                 if !bone.all_rotation_keys.is_empty() {
@@ -304,7 +311,7 @@ pub fn setup_animations(
 
                 // --- Handle Translations from pre-collected data ---
                 if !bone.all_translation_keys.is_empty() {
-                    // This part is unchanged: get the correctly timed keys for the current clip segment.
+                    // Get the correctly timed keys for the current clip segment.
                     let trans_keys = filter_and_retime_keyframes(
                         bone.all_translation_keys.iter().cloned(),
                         processed_clip.start_time,
@@ -312,7 +319,6 @@ pub fn setup_animations(
                     );
 
                     if let Some(curve) = make_bevy_curve(&trans_keys) {
-                        // THIS IS THE NEW LOGIC:
                         if bone.is_bip01 {
                             // If it's the root bone, store its translation curve in our temporary variable.
                             root_translation_curve = Some(curve);
@@ -320,7 +326,6 @@ pub fn setup_animations(
                             // For any other bone, add its translation to the main animation clip as before.
                             bevy_clip.add_curve_to_target(
                                 bone.target_id,
-                                // Using your original, correct syntax
                                 AnimatableCurve::new(
                                     animated_field!(Transform::translation),
                                     curve,
@@ -363,7 +368,7 @@ pub fn setup_animations(
             let bevy_clip_handle = bevy_animation_clips.add(bevy_clip);
             let mut base_velocity = Vec3::ZERO;
 
-            // Use the helper function you created to check if this clip should define a velocity.
+            // Use the helper function to check if this clip should define a velocity.
             let is_standalone = is_inherently_looping(&processed_clip.name)
                 && !loop_base_names.contains(&processed_clip.name);
             if processed_clip.name.ends_with("_loop") || is_standalone {
@@ -398,6 +403,9 @@ pub fn setup_animations(
                     duration: clip_duration,
                     base_velocity,
                     root_translation_curve,
+                    min_attack_time_relative: processed_clip.min_attack_time_relative,
+                    hit_time_relative: processed_clip.hit_time_relative,
+                    min_hit_time_relative: processed_clip.min_hit_time_relative,
                 },
             );
         }
@@ -481,10 +489,11 @@ pub fn setup_animations(
 }
 fn parse_and_split_animation_blocks(nif_keys: &[TextKey]) -> Vec<ProcessedAnimation> {
     // --- Pass 1: Flatten all text key lines into a single, time-sorted list ---
-    // (This pass is unchanged)
     let mut all_events: Vec<ParsedKeyEvent> = Vec::new();
     for key in nif_keys {
         for line in key.value.lines() {
+            dbg!(line);
+            dbg!(key.time);
             if let Some((name, command)) = parse_line(line) {
                 all_events.push(ParsedKeyEvent {
                     time: key.time,
@@ -498,7 +507,6 @@ fn parse_and_split_animation_blocks(nif_keys: &[TextKey]) -> Vec<ProcessedAnimat
     all_events.sort_by(|a, b| a.time.partial_cmp(&b.time).unwrap());
 
     // --- Pass 2: Identify "real" animation clips ---
-    // (This pass is unchanged)
     let mut clip_defining_names = std::collections::HashSet::new();
     for event in &all_events {
         if event.command == "start" || event.command == "stop" {
@@ -507,7 +515,6 @@ fn parse_and_split_animation_blocks(nif_keys: &[TextKey]) -> Vec<ProcessedAnimat
     }
 
     // --- Pass 3: Determine the boundaries for only the real clips ---
-    // (This pass is unchanged):
     let mut temp_blocks: HashMap<String, AnimationBlockData> = HashMap::new();
     for event in &all_events {
         let parent_clip_name = clip_defining_names
@@ -525,34 +532,54 @@ fn parse_and_split_animation_blocks(nif_keys: &[TextKey]) -> Vec<ProcessedAnimat
                         end_time: f32::MIN,
                         loop_start_time: None,
                         loop_end_time: None,
+                        min_attack_time: None,
+                        max_attack_time: None,
+                        hit_time: None,
+                        min_hit_time: None,
+                        follow_events: HashMap::new(),
                     });
 
             block.start_time = block.start_time.min(event.time);
             block.end_time = block.end_time.max(event.time);
 
-            if event.name == *clip_name {
-                if event.command == "loop start" {
-                    block.loop_start_time = Some(event.time);
-                } else if event.command == "loop stop" {
-                    block.loop_end_time = Some(event.time);
+            match event.command.as_str() {
+                "loop start" => block.loop_start_time = Some(event.time),
+                "loop stop" => block.loop_end_time = Some(event.time),
+                "min attack" => block.min_attack_time = Some(event.time),
+                "max attack" => block.max_attack_time = Some(event.time),
+                "hit" => block.hit_time = Some(event.time),
+                "min hit" => block.min_hit_time = Some(event.time),
+                cmd if cmd.contains(" follow") && cmd.ends_with(" start") => {
+                    // We want to store the base name, e.g., "large follow", not "large follow start".
+                    if let Some(base_cmd) = cmd.strip_suffix(" start") {
+                        block
+                            .follow_events
+                            .insert(base_cmd.trim().to_string(), event.time);
+                    }
                 }
+                _ => {} // Ignore other commands like "start", "stop" here
             }
         }
     }
 
     // --- Pass 4: Split clips ---
-    // (This logic is also unchanged)
     let mut final_animations: Vec<ProcessedAnimation> = Vec::new();
     let temp_blocks_vec: Vec<AnimationBlockData> = temp_blocks.into_values().collect();
+
     for block_data in temp_blocks_vec {
+        // First, check for looping animations (your existing logic is correct)
         if let (Some(ls), Some(le)) = (block_data.loop_start_time, block_data.loop_end_time) {
             if le >= ls {
-                if ls >= block_data.start_time {
+                if ls > block_data.start_time {
                     final_animations.push(ProcessedAnimation {
                         name: block_data.name.clone(),
                         start_time: block_data.start_time,
                         end_time: ls,
                         events: Vec::new(),
+                        min_attack_time_relative: 0.0,
+                        max_attack_time_relative: 0.0,
+                        hit_time_relative: 0.0,
+                        min_hit_time_relative: 0.0,
                     });
                 }
                 final_animations.push(ProcessedAnimation {
@@ -560,6 +587,10 @@ fn parse_and_split_animation_blocks(nif_keys: &[TextKey]) -> Vec<ProcessedAnimat
                     start_time: ls,
                     end_time: le,
                     events: Vec::new(),
+                    min_attack_time_relative: 0.0,
+                    max_attack_time_relative: 0.0,
+                    hit_time_relative: 0.0,
+                    min_hit_time_relative: 0.0,
                 });
                 if block_data.end_time > le {
                     final_animations.push(ProcessedAnimation {
@@ -567,22 +598,149 @@ fn parse_and_split_animation_blocks(nif_keys: &[TextKey]) -> Vec<ProcessedAnimat
                         start_time: le,
                         end_time: block_data.end_time,
                         events: Vec::new(),
+                        min_attack_time_relative: 0.0,
+                        max_attack_time_relative: 0.0,
+                        hit_time_relative: 0.0,
+                        min_hit_time_relative: 0.0,
                     });
                 }
                 continue;
             }
+        } else if block_data.min_attack_time.is_some() || !block_data.follow_events.is_empty() {
+            let base_name = &block_data.name;
+
+            // --- 1. Create Windup Clip (if it exists) ---
+            let release_start_time = if let (Some(min_attack), Some(max_attack)) =
+                (block_data.min_attack_time, block_data.max_attack_time)
+            {
+                final_animations.push(ProcessedAnimation {
+                    name: format!("{}_windup", base_name),
+                    start_time: block_data.start_time,
+                    end_time: max_attack,
+                    events: Vec::new(),
+                    min_attack_time_relative: min_attack - block_data.start_time,
+                    max_attack_time_relative: max_attack - block_data.start_time,
+                    hit_time_relative: 0.0,
+                    min_hit_time_relative: 0.0,
+                });
+                max_attack
+            } else {
+                block_data.start_time
+            };
+
+            // --- 2. Create Release/Shoot Clip ---
+            let mut sorted_follows: Vec<_> = block_data.follow_events.iter().collect();
+            sorted_follows.sort_by(|a, b| a.1.partial_cmp(b.1).unwrap());
+
+            let release_end_time = if let Some(hit_time) = block_data.hit_time {
+                hit_time
+            } else if let Some((_, first_follow_time)) = sorted_follows.first() {
+                **first_follow_time
+            } else {
+                block_data.end_time
+            };
+
+            // Calculate relative times and add them to the _release clip.
+            let mut hit_time_rel = 0.0;
+            let mut min_hit_time_rel = 0.0;
+            if let Some(hit_time) = block_data.hit_time {
+                hit_time_rel = hit_time - release_start_time;
+                if let Some(min_hit) = block_data.min_hit_time {
+                    if min_hit < hit_time {
+                        min_hit_time_rel = min_hit - release_start_time;
+                    }
+                }
+            }
+
+            final_animations.push(ProcessedAnimation {
+                name: format!("{}_release", base_name),
+                start_time: release_start_time,
+                end_time: release_end_time,
+                events: Vec::new(),
+                min_attack_time_relative: 0.0,
+                max_attack_time_relative: 0.0,
+                hit_time_relative: hit_time_rel, // Add calculated value
+                min_hit_time_relative: min_hit_time_rel, // Add calculated value
+            });
+
+            // --- 3. Create a clip for EACH specific follow event ---
+            if !sorted_follows.is_empty() {
+                // If the animation continues after the release but before the first follow,
+                // create a generic follow/recovery clip for that duration.
+                if sorted_follows.first().unwrap().1 > &release_end_time {
+                    final_animations.push(ProcessedAnimation {
+                        name: format!("{}_follow", base_name),
+                        start_time: release_end_time,
+                        end_time: *sorted_follows.first().unwrap().1, // End at the start of the first named follow
+                        events: Vec::new(),
+                        min_attack_time_relative: 0.0,
+                        max_attack_time_relative: 0.0,
+                        hit_time_relative: 0.0,
+                        min_hit_time_relative: 0.0,
+                    });
+                }
+
+                // Create the specific follow clips
+                for (command, start_time) in &sorted_follows {
+                    let follow_type_name = command.replace(' ', "_"); // e.g., "large follow" -> "large_follow"
+
+                    // Find the correct "stop" time for this specific follow clip.
+                    let stop_event_cmd = format!("{} stop", command); // e.g., "large follow stop"
+
+                    // Search all_events (from Pass 1) for the matching stop command.
+                    let stop_time = all_events
+                        .iter()
+                        .find(|event| {
+                            event.name.to_lowercase() == block_data.name
+                                && event.command == stop_event_cmd
+                        })
+                        .map_or(
+                            block_data.end_time, // Fallback to the main block's end time if not found.
+                            |event| event.time,  // Use the time from the found "follow stop" event.
+                        );
+
+                    final_animations.push(ProcessedAnimation {
+                        name: format!("{}_{}", base_name, follow_type_name),
+                        start_time: **start_time,
+                        end_time: stop_time, // Use the correct, specific stop time.
+                        events: Vec::new(),
+                        min_attack_time_relative: 0.0,
+                        max_attack_time_relative: 0.0,
+                        hit_time_relative: 0.0,
+                        min_hit_time_relative: 0.0,
+                    });
+                }
+            } else if block_data.end_time > release_end_time + 1e-4 {
+                // This handles melee attacks that have a follow-through but no named follow events.
+                final_animations.push(ProcessedAnimation {
+                    name: format!("{}_follow", base_name),
+                    start_time: release_end_time,
+                    end_time: block_data.end_time,
+                    events: Vec::new(),
+                    min_attack_time_relative: 0.0,
+                    max_attack_time_relative: 0.0,
+                    hit_time_relative: 0.0,
+                    min_hit_time_relative: 0.0,
+                });
+            }
+
+            continue; // Go to the next animation block
         }
+        // If it's not a looping anim or a main attack anim, treat it as a single clip.
+        // This will correctly handle animations like "equip", "unequip", "hit", "death",
+        // and the separate "follow" animations.
         final_animations.push(ProcessedAnimation {
             name: block_data.name,
             start_time: block_data.start_time,
             end_time: block_data.end_time,
             events: Vec::new(),
+            min_attack_time_relative: 0.0,
+            max_attack_time_relative: 0.0,
+            hit_time_relative: 0.0,
+            min_hit_time_relative: 0.0,
         });
     }
-
-    // --- Pass 5 (Corrected): Populate events with Hybrid Logic ---
-    // This replaces the old Pass 5 and 6. It attempts to place events by name first,
-    // then falls back to placing them by time, ensuring no events are dropped.
+    // --- Pass 5: Populate events with Hybrid Logic ---
     for event in &all_events {
         // Skip boundary markers, as they are not gameplay events.
         if event.command == "start"
@@ -639,31 +797,61 @@ fn parse_and_split_animation_blocks(nif_keys: &[TextKey]) -> Vec<ProcessedAnimat
     final_animations.sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
     final_animations
 }
+// A list of all possible commands we need to recognize.
+// Order is important for commands that are subsets of others (e.g., "shoot follow" before "shoot").
+const KNOWN_COMMANDS: &[&str] = &[
+    // Most specific commands first
+    "large follow start",
+    "large follow stop",
+    "medium follow start",
+    "medium follow stop",
+    "small follow start",
+    "small follow stop",
+    "shoot follow start",
+    "shoot follow stop",
+    "follow start",
+    "follow stop",
+    "loop start",
+    "loop stop",
+    "min attack",
+    "max attack",
+    "min hit",
+    "hit",
+    // Less specific commands last
+    "large follow",
+    "medium follow",
+    "small follow",
+    "shoot follow",
+    "start",
+    "stop",
+    "shoot",
+    "block",
+    "equip",
+    "unequip",
+];
 fn parse_line(line: &str) -> Option<(String, String)> {
     let line = line.trim();
     if line.is_empty() {
         return None;
     }
+    let lower_line = line.to_lowercase();
 
-    if let Some(pos) = line.rfind(char::is_whitespace) {
-        let mut command = line[pos..].trim().to_lowercase();
-        let mut name_part = line[..pos].trim();
-
-        // Check if the word before the command is "Loop"
-        if (command == "start" || command == "stop") && name_part.to_lowercase().ends_with(" loop")
-        {
-            command = format!("loop {}", command);
-            name_part = &name_part[..name_part.len() - 5];
-        }
-
-        let final_name = name_part.trim_end_matches(':').trim().to_string();
-
-        if !final_name.is_empty() && !command.is_empty() {
-            return Some((final_name, command));
+    for &cmd in KNOWN_COMMANDS {
+        if lower_line.ends_with(cmd) {
+            let cmd_start_index = lower_line.len() - cmd.len();
+            // Ensure we are matching a whole word command, not just a partial suffix.
+            if cmd_start_index == 0 || lower_line.as_bytes().get(cmd_start_index - 1) == Some(&b' ')
+            {
+                // Trim whitespace, then remove the colon.
+                let name_part = line[..cmd_start_index].trim().trim_end_matches(':').trim();
+                if !name_part.is_empty() {
+                    return Some((name_part.to_string(), cmd.to_string()));
+                }
+            }
         }
     }
 
-    // Fallback for single-name:command pairs like "SoundGen:Left"
+    // Fallback for simple "Group:Action" lines like "SoundGen:Left"
     if let Some(pos) = line.find(':') {
         let name = line[..pos].trim().to_string();
         let command = line[pos + 1..].trim().to_lowercase();

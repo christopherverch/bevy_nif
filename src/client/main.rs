@@ -1,6 +1,6 @@
 use actor::{
-    actor_funcs::apply_hit, animation_resolver::resolve_final_animation_state_system,
-    controller::character_controller_system,
+    actor_funcs::apply_hit,
+    controller::{character_controller_system, resolve_final_animation_state_system},
 };
 use animation::actor_animator::animate_actors_using_state;
 use bevy::{

@@ -40,7 +40,10 @@ pub struct AnimationDefinition {
     pub base_velocity: Vec3,
     /// The isolated translation curve for the root bone (`Bip01`).
     /// This is sampled manually for root motion.
-    pub root_translation_curve: Option<AnimatableKeyframeCurve<Vec3>>, // <-- ADD THIS LINE
+    pub root_translation_curve: Option<AnimatableKeyframeCurve<Vec3>>,
+    pub min_attack_time_relative: f32, // For attack animations only
+    pub hit_time_relative: f32,
+    pub min_hit_time_relative: f32,
 }
 #[derive(Debug, Clone)]
 pub struct ActiveAnimation {

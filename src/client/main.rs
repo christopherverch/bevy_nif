@@ -7,7 +7,6 @@ use bevy::{
     pbr::{DefaultOpaqueRendererMethod, DirectionalLightShadowMap},
     prelude::*,
 };
-use mechanics::combat::combat_visuals::CombatVisualsPlugin;
 use tes3mp_rust::defs::{GameState, IdToEntityMap, Pause, PlayerInput};
 mod networking;
 mod setup_scene;
@@ -41,7 +40,6 @@ mod equipment;
 mod handle_nif_events;
 mod initial_esm_parse;
 mod landscape;
-mod mechanics;
 mod player_input;
 mod setup_funcs;
 mod sound;
@@ -71,7 +69,6 @@ fn main() {
             DefaultPlugins,
             BevyNifPlugin,
             CharacterMotionPlugin,
-            CombatVisualsPlugin,
             MWInputPlugin,
             LandscapePlugin,
             UiPlugin,

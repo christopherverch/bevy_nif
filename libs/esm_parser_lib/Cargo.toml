@@ -1,0 +1,25 @@
+[package]
+name = "esm_parser_lib" # Or whatever you want to name your package/library
+version = "0.1.0"
+edition = "2024"
+
+# This section is often optional if you have src/lib.rs,
+# as Rust will infer the library.
+# But it's good to be explicit.
+[lib]
+name = "esm_parser_lib" # This is the name you'll use to import the library
+path = "src/lib.rs"
+
+# This section defines your executable.
+[[bin]]
+name = "esm_test_runner" # The name of your executable binary file
+path = "src/main.rs"
+
+[dependencies]
+bitflags = "2.9.1"
+bytemuck = "1.23.0"
+encoding_rs = "0.8.35"
+smart-default = "0.7.1"
+esp_macros = {path = "../esp_macros"}
+glam = "0.30.5"
+

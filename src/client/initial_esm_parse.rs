@@ -1,12 +1,13 @@
-use bevy_ecs::system::Commands;
+use bevy::prelude::*;
 use esm_parser_lib::{
-    EsmReader, Header, LandTexture, Landscape, RefId, TextDecoder, esm_reader::Windows1252Decoder,
-    loadweap::Weapon,
+    EsmError, EsmReader, Header, LandTexture, Landscape, Load, RefId, Weapon,
+    types::flags::ObjectFlags,
 };
 use std::{collections::HashMap, path::Path, time::Instant};
 use tes3mp_rust::defs::{
     AllLandscapes, EsmReaderResource, LandTextureDefinitions, WeaponDefinitions,
 };
+use to_utf8::Utf8Encoder;
 
 pub fn populate_esm_resources(mut commands: Commands) {
     if let Ok((reader, landscapes, land_textures, weapons)) = run_initial_parse() {
@@ -14,16 +15,18 @@ pub fn populate_esm_resources(mut commands: Commands) {
         commands.insert_resource(AllLandscapes(landscapes));
         commands.insert_resource(LandTextureDefinitions(land_textures));
         commands.insert_resource(WeaponDefinitions(weapons));
-    }
+    } else {
+        panic!("Failed to parse esm!");
+    };
 }
 pub fn run_initial_parse() -> Result<
     (
-        EsmReader<'static>,
+        EsmReader,
         HashMap<(i32, i32), Landscape>,
         HashMap<u32, LandTexture>,
         HashMap<RefId, Weapon>,
     ),
-    String,
+    EsmError,
 > {
     let mut land_textures = HashMap::new();
     let file_path_str = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/Morrowind.esm");
@@ -35,22 +38,20 @@ pub fn run_initial_parse() -> Result<
             "Error: File not found at '{}'. Please update the path in main.rs.",
             file_path.display()
         );
-        return Err(format!(
+        return Err(EsmError::Custom(format!(
             "
             Error: File not found at '{}'. Please update the path in main.rs.",
             file_path.display(),
-        ));
+        )));
     }
-
-    let mut reader = EsmReader::new();
+    let encoder = Utf8Encoder::new(to_utf8::FromType::Windows1252);
+    let mut reader = EsmReader::new(encoder);
+    reader.set_encoder(Utf8Encoder::new(to_utf8::FromType::Windows1252));
 
     println!("\nAttempting to open: {}", file_path.display());
     let start_time = Instant::now();
 
-    match reader.open_raw_path(
-        file_path,
-        Some(Box::new(Windows1252Decoder::default()) as Box<dyn TextDecoder>),
-    ) {
+    match reader.open(file_path) {
         Ok(_) => {
             let duration = start_time.elapsed();
             println!(
@@ -74,7 +75,7 @@ pub fn run_initial_parse() -> Result<
                 //"INFO", "LTEX", "WAYP", "LAND", "KEYM",
                 "LAND", "LTEX", "WEAP",
             ];
-            'record_loop: while reader.has_more_recs() {
+            'record_loop: while reader.has_more_recs()? {
                 let mut all_targets_done = true;
                 for rec_type_str_check in target_record_types {
                     if *parsed_counts.get(rec_type_str_check).unwrap_or(&0) < records_to_show_each {
@@ -90,7 +91,7 @@ pub fn run_initial_parse() -> Result<
                     break 'record_loop;
                 }
 
-                match reader.get_rec_name() {
+                match reader.read_rec_name() {
                     Ok(rec_name) => {
                         let record_name_bytes = rec_name.data;
                         let record_id_string_val = rec_name.to_string_lossy();
@@ -98,7 +99,7 @@ pub fn run_initial_parse() -> Result<
                         let record_type_for_map_key = record_id_string_val.to_string();
                         let record_id_for_messages = record_id_string_val.as_str();
 
-                        match reader.get_rec_header() {
+                        match reader.read_rec_header() {
                             Ok(_flags) => {
                                 let current_parsed_count =
                                     *parsed_counts.get(&record_type_for_map_key).unwrap_or(&0);
@@ -140,7 +141,7 @@ pub fn run_initial_parse() -> Result<
                     }
                 }
             }
-            if reader.has_more_recs() {
+            if reader.has_more_recs()? {
                 println!("...and possibly more records.");
             } else {
                 println!("End of file reached.");
@@ -160,7 +161,8 @@ pub fn run_initial_parse() -> Result<
     let default_texture = LandTexture {
         texture_file: "_land_default.tga".to_string(),
         // no idea what to put for id
-        id: RefId::new(),
+        flags: ObjectFlags::empty(),
+        id: RefId::default(),
         index: u16::MAX as u32,
     };
     land_textures.insert(default_texture.index, default_texture);
@@ -170,20 +172,24 @@ pub fn print_header_information(header: &Header) {
     println!("\n--- Header Information ---");
     println!("  File Version (float): {}", header.esm_version_f());
     println!("  Author: '{}'", header.get_author());
-    let desc_preview = header.get_desc().chars().take(70).collect::<String>();
+    let desc_preview = header
+        .get_description()
+        .chars()
+        .take(70)
+        .collect::<String>();
     println!(
         "  Description: '{}'{}",
         desc_preview,
-        if header.get_desc().len() > 70 {
+        if header.get_description().len() > 70 {
             "..."
         } else {
             ""
         }
     );
     println!("  Number of Records: {}", header.get_record_count());
-    if !header.get_game_files().is_empty() {
+    if !header.master_data.is_empty() {
         println!("  Master Files:");
-        for master in header.get_game_files() {
+        for master in &header.master_data {
             println!("    - Name: {}, Size: {}", master.name, master.size);
         }
     }
@@ -198,8 +204,8 @@ pub fn try_parse_and_print_record(
 ) {
     if *rec_name_bytes == *b"LTEX" {
         match LandTexture::load(reader) {
-            Ok((tex, is_deleted)) => {
-                if is_deleted {
+            Ok(tex) => {
+                if tex.flags.contains(ObjectFlags::DELETED) {
                     // Remove if a mod deleted it.
                     textures.remove(&tex.index);
                 } else {
@@ -213,9 +219,9 @@ pub fn try_parse_and_print_record(
 
     if *rec_name_bytes == *b"LAND" {
         match Landscape::load(reader) {
-            Ok((mut landscape, is_deleted)) => {
+            Ok(mut landscape) => {
                 let key = (landscape.grid_x, landscape.grid_y);
-                if is_deleted {
+                if landscape.flags.contains(ObjectFlags::DELETED) {
                     // Remove if a mod deleted it.
                     landscapes.remove(&key);
                 } else {
@@ -234,9 +240,8 @@ pub fn try_parse_and_print_record(
     }
     if *rec_name_bytes == *b"WEAP" {
         match Weapon::load(reader) {
-            Ok((weapon, is_deleted)) => {
-                // <-- now we use the variable
-                if is_deleted {
+            Ok(weapon) => {
+                if weapon.flags.contains(ObjectFlags::DELETED) {
                     // A mod or patch has marked this weapon for deletion.
                     // We must remove it from our map if a previous file added it.
                     println!("Deleting Weapon ID: {:?}", weapon.id);
@@ -244,7 +249,7 @@ pub fn try_parse_and_print_record(
                 } else {
                     // This is a new weapon or an override of an existing one.
                     // The `insert` operation correctly handles both cases.
-                    println!("Loaded Weapon: '{}'", weapon.name);
+                    //println!("Loaded Weapon: '{}'", weapon.name);
                     weapons.insert(weapon.id.clone(), weapon);
                 }
             }

@@ -1,8 +1,9 @@
 // header_type.rs
 
 use crate::Load;
-use crate::common_types::{EsmVersion, FormatVersion, Name32, Name64};
-use crate::esm_reader::{ConsumptionType, EsmError, EsmReader}; // Assuming esm_reader.rs is in the same crate/module
+use crate::common_types::{EsmVersion, Name32, Name64};
+use crate::esm_reader::{ConsumptionType, EsmError, EsmReader};
+use crate::format_version_defs::{DEFAULT_FORMAT_VERSION, FormatVersion}; // Assuming esm_reader.rs is in the same crate/module
 
 // --- Structs from loadtes3.hpp ---
 
@@ -46,25 +47,34 @@ pub struct Header {
 impl Load for Header {
     fn load(reader: &mut EsmReader) -> Result<Self, EsmError> {
         let mut header = Header::default();
-
+        // TODO:: is this needed?
+        header.format_version =
+            if let Some(format_version) = reader.read_typed_named_header(Name32::new("FORM"))? {
+                format_version
+            } else {
+                DEFAULT_FORMAT_VERSION
+            };
         if reader.is_next_sub(Name32::new("HEDR"))? {
-            reader.get_sub_header()?;
-            header.data.version.ui = reader.read_as::<u32>(ConsumptionType::SubrecordPayload)?;
-            header.data.file_type = reader.read_as::<i32>(ConsumptionType::SubrecordPayload)?;
-            header.data.author = reader.get_string_view(32)?;
-            header.data.description = reader.get_string_view(256)?;
-            header.data.num_records = reader.read_as::<i32>(ConsumptionType::SubrecordPayload)?;
+            reader.read_sub_header()?;
+            header.data.version.ui = reader.read_typed::<u32>(ConsumptionType::SubrecordPayload)?;
+            header.data.file_type = reader.read_typed::<i32>(ConsumptionType::SubrecordPayload)?;
+            header.data.author = reader.read_decode_str(32)?.to_string();
+            header.data.description = reader.read_decode_str(256)?.to_string();
+            header.data.num_records =
+                reader.read_typed::<i32>(ConsumptionType::SubrecordPayload)?;
+            dbg!(&header);
         }
 
         while reader.is_next_sub(Name32::new("MAST"))? {
             let mut master_data = MasterData::default();
-            reader.get_sub_header()?;
-            master_data.name =
-                reader.get_string_view(reader.context.remaining_subrec_data as usize)?;
+            reader.read_sub_header()?;
+            master_data.name = reader
+                .read_decode_str(reader.context.remaining_subrec_data as usize)?
+                .to_string();
 
             if reader.is_next_sub(Name32::new("DATA"))? {
-                reader.get_sub_header()?;
-                master_data.size = reader.read_as::<u64>(ConsumptionType::SubrecordPayload)?;
+                reader.read_sub_header()?;
+                master_data.size = reader.read_typed::<u64>(ConsumptionType::SubrecordPayload)?;
             } else {
                 return Err(reader.fail("Expected DATA subrecord after MAST"));
             }
@@ -72,35 +82,35 @@ impl Load for Header {
         }
 
         if reader.is_next_sub(Name32::new("GMDT"))? {
-            reader.get_sub_header()?;
+            reader.read_sub_header()?;
             header.game_data.current_health =
-                reader.read_as::<f32>(ConsumptionType::SubrecordPayload)?;
+                reader.read_typed::<f32>(ConsumptionType::SubrecordPayload)?;
             header.game_data.maximum_health =
-                reader.read_as::<f32>(ConsumptionType::SubrecordPayload)?;
-            header.game_data.hour = reader.read_as::<f32>(ConsumptionType::SubrecordPayload)?;
+                reader.read_typed::<f32>(ConsumptionType::SubrecordPayload)?;
+            header.game_data.hour = reader.read_typed::<f32>(ConsumptionType::SubrecordPayload)?;
             reader.read_exact(
                 &mut header.game_data.unknown1,
                 ConsumptionType::SubrecordPayload,
             )?;
             header.game_data.current_cell_name =
-                reader.read_as::<Name64>(ConsumptionType::SubrecordPayload)?;
+                reader.read_typed::<Name64>(ConsumptionType::SubrecordPayload)?;
             reader.read_exact(
                 &mut header.game_data.unknown2,
                 ConsumptionType::SubrecordPayload,
             )?;
             header.game_data.player_name =
-                reader.read_as::<Name32>(ConsumptionType::SubrecordPayload)?;
+                reader.read_typed::<Name32>(ConsumptionType::SubrecordPayload)?;
         }
 
         if reader.is_next_sub(Name32::new("SCRD"))? {
-            reader.get_sub_header()?;
+            reader.read_sub_header()?;
             let size = reader.context.remaining_subrec_data as usize;
             header.scrd.resize(size, 0);
             reader.read_exact(&mut header.scrd, ConsumptionType::SubrecordPayload)?;
         }
 
         if reader.is_next_sub(Name32::new("SCRS"))? {
-            reader.get_sub_header()?;
+            reader.read_sub_header()?;
             let size = reader.context.remaining_subrec_data as usize;
             header.scrs.resize(size, 0);
             reader.read_exact(&mut header.scrs, ConsumptionType::SubrecordPayload)?;

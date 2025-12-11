@@ -5,9 +5,9 @@
 //!    but defers loading their actual content.
 //! 2. Data loading: A separate method to load the actual large data arrays when needed.
 
-use crate::Load;
 use crate::common_types::EsmContext;
 use crate::esm_reader::{ConsumptionType, EsmError, EsmReader};
+use crate::{Load, Name32};
 
 use super::flags::ObjectFlags; // Assuming EsmContext is your context struct
 
@@ -131,7 +131,7 @@ impl Load for Landscape {
         let mut found_intv = false;
 
         // Store the context for deferred loading
-        land.record_context = Some(reader.get_context_for_deferred_load()?);
+        land.record_context = Some(reader.get_cloned_context()?);
 
         // --- Pass 1: Read INTV and DATA, identify presence of other subrecords ---
         // This loop mimics OpenMW's first pass in Land::load
@@ -139,26 +139,35 @@ impl Load for Landscape {
             // Get the name of the next subrecord. This reads 4 bytes (name) and updates
             // file_pos, rem_file_data, rem_rec_data by 4.
             // context.sub_name is set. context.sub_cached is now false.
-            let current_sub_name = reader.get_sub_name()?;
+            let current_sub_name = reader.get_or_read_sub_name()?;
 
             // Now get the size for this subrecord. This reads 4 bytes (size) and updates
             // file_pos, rem_file_data, rem_rec_data by 4.
             // context.remaining_subrec_data is set to the payload size.
             // This specific get_sub_header does not use/set sub_cached.
-            reader.get_sub_header()?;
+            reader.read_sub_header()?;
 
             match current_sub_name.as_bytes() {
                 b"INTV" => {
-                    if reader.get_sub_size() as usize != LAND_INTV_PAYLOAD_SIZE { /* error */ }
-                    land.grid_x = reader.get_i32_le(ConsumptionType::SubrecordPayload)?;
-                    land.grid_y = reader.get_i32_le(ConsumptionType::SubrecordPayload)?;
+                    if reader.get_sub_size() as usize != LAND_INTV_PAYLOAD_SIZE {
+                        return Err(EsmError::SubSizeMismatch {
+                            actual: reader.get_sub_size(),
+                            expected: LAND_INTV_PAYLOAD_SIZE as u32,
+                            sub_name: Name32::new("INTV"),
+                            rec_name: Name32::new("LAND"),
+                            file: reader.context.filename.clone(),
+                            offset: reader.file_pos,
+                        });
+                    }
+                    land.grid_x = reader.read_typed(ConsumptionType::SubrecordPayload)?;
+                    land.grid_y = reader.read_typed(ConsumptionType::SubrecordPayload)?;
                     found_intv = true;
                     // All payload consumed, remaining_subrec_data should be 0
                     debug_assert!(reader.context.remaining_subrec_data == 0);
                 }
                 b"DATA" => {
                     if reader.get_sub_size() as usize != LAND_DATA_PAYLOAD_SIZE { /* error */ }
-                    let flags = reader.get_u32_le(ConsumptionType::SubrecordPayload)?;
+                    let flags = reader.read_typed(ConsumptionType::SubrecordPayload)?;
                     land.data_flags_from_esm = Some(flags);
                     if (flags & 0x1) != 0 {
                         land.present_data_types |= LandDataTypes::VNML;
@@ -221,7 +230,7 @@ impl Load for Landscape {
                         // The length is WNAM_PAYLOAD_SIZE because each i8 is 1 byte.
                         std::slice::from_raw_parts_mut(ptr_u8_mut, WNAM_PAYLOAD_SIZE)
                     };
-                    reader.get_exact(
+                    reader.read_exact(
                         &mut u8_slice_for_read[..],
                         ConsumptionType::SubrecordPayload,
                     )?;
@@ -246,7 +255,7 @@ impl Load for Landscape {
                             let mut chunked_textures_array = [0u16; LAND_NUM_TEXTURES];
                             for i in 0..LAND_NUM_TEXTURES {
                                 chunked_textures_array[i] =
-                                    reader.get_u16_le(ConsumptionType::SubrecordPayload)?;
+                                    reader.read_typed(ConsumptionType::SubrecordPayload)?;
                             }
                             //currently the data is stored in weird 4x4 chunks, we need to un-chunk
                             //it
@@ -321,8 +330,8 @@ impl Landscape {
 
         // Iterate through the subrecords again, this time loading the data.
         while reader.has_more_subs() {
-            let current_sub_name = reader.get_sub_name()?;
-            reader.get_sub_header()?; // Reads size, sets reader.context.remaining_subrec_data
+            let current_sub_name = reader.get_or_read_sub_name()?;
+            reader.read_sub_header()?; // Reads size, sets reader.context.remaining_subrec_data
 
             match current_sub_name.as_bytes() {
                 b"INTV" | b"DATA" | b"DELE" => {
@@ -349,7 +358,7 @@ impl Landscape {
                                     VNML_PAYLOAD_SIZE,
                                 )
                             };
-                            reader.get_exact(buffer, ConsumptionType::SubrecordPayload)?;
+                            reader.read_exact(buffer, ConsumptionType::SubrecordPayload)?;
                             payload_data.vertex_normals = Some(normals_array);
                         } else if reader.get_sub_size() > 0 {
                             // Size mismatch, but data exists. Skip to avoid errors.
@@ -382,8 +391,8 @@ impl Landscape {
                     if self.present_data_types.contains(LandDataTypes::VHGT) {
                         if reader.get_sub_size() as usize == VHGT_PAYLOAD_SIZE {
                             // --- This is the new decoding logic, moved from your Bevy app ---
-                            let height_offset =
-                                reader.get_f32_le(ConsumptionType::SubrecordPayload)?;
+                            let height_offset: f32 =
+                                reader.read_typed(ConsumptionType::SubrecordPayload)?;
 
                             // Read the raw i8 data into a temporary buffer
                             let mut raw_height_data = [0i8; LAND_NUM_VERTS];
@@ -393,7 +402,7 @@ impl Landscape {
                                     LAND_NUM_VERTS,
                                 )
                             };
-                            reader.get_exact(buffer, ConsumptionType::SubrecordPayload)?;
+                            reader.read_exact(buffer, ConsumptionType::SubrecordPayload)?;
                             reader.skip_raw_bytes(3, ConsumptionType::SubrecordPayload)?; // Skip padding
 
                             // Now, perform the decoding immediately
@@ -459,7 +468,7 @@ impl Landscape {
                                 )
                             };
                             reader
-                                .get_exact(u8_slice_for_read, ConsumptionType::SubrecordPayload)?;
+                                .read_exact(u8_slice_for_read, ConsumptionType::SubrecordPayload)?;
                             payload_data.wnam_global_map_data = Some(wnam_array);
 
                             // Verify against already loaded wnam_data_direct if desired (optional debug check)
@@ -503,7 +512,7 @@ impl Landscape {
                                     VCLR_PAYLOAD_SIZE,
                                 )
                             };
-                            reader.get_exact(buffer, ConsumptionType::SubrecordPayload)?;
+                            reader.read_exact(buffer, ConsumptionType::SubrecordPayload)?;
                             payload_data.vertex_colors = Some(colors_array);
                         } else if reader.get_sub_size() > 0 {
                             eprintln!(

@@ -3,6 +3,8 @@ use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::rc::{Rc, Weak};
 
+use to_utf8::Utf8Encoder;
+
 use crate::{EsmError, EsmReader};
 
 // Assuming these structs are defined elsewhere
@@ -104,7 +106,7 @@ impl ReadersCache {
                     item_rc.clone()
                 }
                 ReaderState::Closed => {
-                    item_mut.reader.open_raw(path)?;
+                    item_mut.reader.open(path)?;
                     item_mut.state = ReaderState::Busy;
                     // Move the index from closed to busy
                     self_mut.closed_queue.retain(|&x| x != index);
@@ -117,8 +119,9 @@ impl ReadersCache {
             }
         } else {
             self_mut.close_extra_readers();
-            let mut reader = EsmReader::new()?;
-            reader.open_raw(path)?;
+            let encoder = Utf8Encoder::new(to_utf8::FromType::Windows1252);
+            let mut reader = EsmReader::new(encoder);
+            reader.open(path)?;
             let new_item = Rc::new(RefCell::new(CacheItem {
                 state: ReaderState::Busy,
                 reader,
@@ -205,4 +208,3 @@ impl ReadersCache {
         None
     }
 }
-

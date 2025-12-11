@@ -77,9 +77,7 @@ fn main() {
             smoothing_factor: 1.0,
         },
         LogDiagnosticsPlugin::default(),
-        EguiPlugin {
-            enable_multipass_for_primary_context: true,
-        },
+        EguiPlugin::default(),
     ));
     app.insert_resource(ProcessedActionCache::default());
     app.insert_resource(EntityIdToEntityMap::default());

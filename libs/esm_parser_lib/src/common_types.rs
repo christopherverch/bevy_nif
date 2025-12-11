@@ -5,8 +5,6 @@ use std::str;
 
 use bytemuck::{Pod, Zeroable};
 
-// --- From esmcommon.hpp ---
-
 pub type StringSizeType = u32;
 
 #[derive(Debug, Clone, Copy, Hash)]
@@ -21,7 +19,14 @@ impl<const N: usize> Default for FixedString<N> {
         Self { data: [0; N] }
     }
 }
-
+#[macro_export]
+macro_rules! name32 {
+    ($s:literal) => {{
+        // Use the const constructor to create the FixedString<32> at compile time.
+        // This requires the FixedString<32>::new_const function we defined earlier.
+        $crate::Name32::new_const($s)
+    }};
+}
 impl<const N: usize> FixedString<N> {
     pub const S_CAPACITY: usize = N;
 
@@ -35,6 +40,36 @@ impl<const N: usize> FixedString<N> {
         } else if N != 4 && N > 0 && len == N {
             data[N - 1] = 0;
         }
+        Self { data }
+    }
+    pub const fn new_const(s: &'static str) -> Self {
+        let bytes = s.as_bytes();
+        let s_len = bytes.len();
+
+        let mut data = [0u8; N];
+
+        // Determine the number of bytes to copy (up to N)
+        let len_to_copy = if s_len < N { s_len } else { N };
+
+        // Manually copy bytes using a const-compatible while loop
+        let mut i = 0;
+        while i < len_to_copy {
+            data[i] = bytes[i];
+            i += 1;
+        }
+
+        // null-termination logic for strings that fit:
+        // C++ FixedString<4> is a special case (no null terminator).
+        if N != 4 {
+            if len_to_copy < N {
+                // Case 1: string fits and is shorter than capacity. Null-terminate
+                data[len_to_copy] = 0;
+            } else if N > 0 {
+                // Case 2: string is exactly N. Null-terminate by overwriting the last byte.
+                data[N - 1] = 0;
+            }
+        }
+
         Self { data }
     }
     pub fn as_bytes(&self) -> &[u8; N] {
@@ -117,15 +152,15 @@ pub type Name64 = FixedString<8>;
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EsmContext {
     pub filename: PathBuf,
+    // Maybe remaining rec data should be i64 so we can go past and then backtrack?
     pub remaining_rec_data: u32,
     pub remaining_subrec_data: u32,
-    pub remaining_file_data: u64,
     pub rec_name: Name32,
     pub sub_name: Name32,
     // When working with multiple esX files, we will generate lists of all files that
     // actually contribute to a specific cell. Therefore, we need to store the index
     // of the file belonging to this contest. See CellStore::(list/load)refs for details.
-    pub index: usize,
+    pub index: i16,
     pub parent_file_indices: Vec<usize>,
     /// True if subName has been read but not used.
     pub sub_cached: bool,
@@ -139,7 +174,6 @@ impl EsmContext {
         self.filename.clear();
         self.remaining_rec_data = 0;
         self.remaining_subrec_data = 0;
-        self.remaining_file_data = 0;
         self.sub_cached = false;
         self.rec_name.clear();
         self.sub_name.clear();
@@ -152,13 +186,6 @@ pub struct EsmVersion {
     pub f: f32,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FormatVersion(pub u32);
-
-pub const MAX_STRING_REF_ID_FORMAT_VERSION_CONST: FormatVersion = FormatVersion(1);
-pub const MAX_LIMITED_SIZE_STRINGS_FORMAT_VERSION_CONST: FormatVersion = FormatVersion(1);
-pub const MAX_USE_ESM_CELL_ID_FORMAT_VERSION_CONST: FormatVersion = FormatVersion(1);
-
 #[macro_export]
 macro_rules! static_assert {
     ($condition:expr) => {
@@ -170,7 +197,6 @@ macro_rules! static_assert {
 }
 
 fn _size_checks() {
-    assert_eq!(std::mem::size_of::<Name>(), 4);
-    assert_eq!(std::mem::size_of::<Name32>(), 32);
-    assert_eq!(std::mem::size_of::<Name64>(), 64);
+    assert_eq!(std::mem::size_of::<Name32>(), 4);
+    assert_eq!(std::mem::size_of::<Name64>(), 8);
 }

@@ -1,5 +1,7 @@
 use bitflags::bitflags;
 
+use crate::{EsmError, EsmReader, Load, esm_reader::ConsumptionType};
+
 bitflags! {
     #[repr(transparent)]
     #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -19,5 +21,12 @@ bitflags! {
         const HAS_WATER = 0x02;
         const ILLEGAL_TO_REST = 0x04;
         const QUASI_EXTERIOR = 0x08;
+    }
+}
+impl Load for ObjectFlags {
+    fn load(reader: &mut EsmReader) -> Result<Self, EsmError> {
+        ObjectFlags::from_bits(reader.read_typed(ConsumptionType::SubrecordPayload)?).ok_or_else(
+            || EsmError::Custom("Failed to convert flag bytes to ObjectFlags!".to_string()),
+        )
     }
 }

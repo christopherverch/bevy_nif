@@ -1,18 +1,17 @@
-#![allow(unused_variables, dead_code)]
-
 use std::collections::HashSet;
 
 use tes3mp_rust::{
     actor_defs::ActorState,
     defs::{ColliderEntityLink, LocalPlayer},
+    events::{SoundEvent, SoundSource},
 };
 
 use bevy::prelude::*;
 use bevy_rapier3d::{
-    self,
-    parry::query::ShapeCastOptions,
     plugin::ReadRapierContext,
-    prelude::{Collider, QueryFilter, RapierContext, ShapeCastHit, ShapeCastHitDetails},
+    prelude::{
+        Collider, QueryFilter, RapierContext, ShapeCastHit, ShapeCastHitDetails, ShapeCastOptions,
+    },
 };
 
 use super::{components::CreaturePhysicsState, helpers::reject, unstuck::unstuck_character};
@@ -37,11 +36,13 @@ pub fn character_movement_system(
         ),
         With<LocalPlayer>,
     >,
+
     collider_query: Query<(
         &GlobalTransform,
         &Collider,
         Option<&ActorState>, // Use ActorState to identify actors
     )>,
+    mut commands: Commands,
 ) {
     let delta_time = time.delta_secs();
     if delta_time == 0.0 {
@@ -65,8 +66,8 @@ pub fn character_movement_system(
         let mut iterations = 0;
         let mut current_pos = transform.translation;
         let mut current_velocity = controller.velocity_for_frame;
-        let character_shape = controller.collision_shape.clone();
         controller.times_slid = 0;
+        let character_shape = &controller.collision_shape.clone();
         let on_ground_this_frame = controller.on_ground;
 
         while remaining_time > 0.0 && iterations < constants::MAX_ITERATIONS {
@@ -82,14 +83,16 @@ pub fn character_movement_system(
                 stop_at_penetration: true,
                 ..default()
             };
+            dbg!("ignoring", root_entity);
             let sweep_result = rapier_context.cast_shape(
                 current_pos,
                 Quat::IDENTITY,
                 move_vector,
-                &character_shape,
+                character_shape.into(),
                 sweep_options, // Pass the struct here
                 QueryFilter::new().exclude_rigid_body(root_entity),
             );
+            dbg!(sweep_result);
 
             if let Some((hit_entity, hit)) = sweep_result {
                 let mut sweep_hit = SweepHit {
@@ -141,7 +144,7 @@ pub fn character_movement_system(
                 let was_stepped = try_step_up(
                     &rapier_context,
                     root_entity,
-                    &character_shape,
+                    character_shape,
                     &mut current_pos,
                     &mut current_velocity,
                     &mut remaining_time,
@@ -164,7 +167,7 @@ pub fn character_movement_system(
                     current_pos,
                     Quat::IDENTITY,
                     ejection_vector,
-                    &character_shape,
+                    character_shape.into(),
                     sweep_options, // Re-use the same options
                     QueryFilter::new().exclude_rigid_body(root_entity),
                 ) {
@@ -227,7 +230,7 @@ pub fn character_movement_system(
                                 current_pos,
                                 Quat::IDENTITY,
                                 ejection_vec,
-                                &character_shape,
+                                character_shape.into(),
                                 sweep_options,
                                 QueryFilter::new().exclude_rigid_body(root_entity),
                             ) {
@@ -281,7 +284,7 @@ pub fn character_movement_system(
             if let Some(hit) = trace_down(
                 &rapier_context,
                 root_entity,
-                &character_shape,
+                character_shape,
                 current_pos,
                 trace_dist,
                 &actor_entities,
@@ -302,7 +305,14 @@ pub fn character_movement_system(
         } else {
             controller.inertia = Vec3::ZERO;
         }
+        let was_on_ground = controller.on_ground;
         controller.on_ground = final_on_ground;
+        if !was_on_ground && controller.on_ground {
+            commands.trigger(SoundEvent {
+                sound_source: SoundSource::LocalPlayer,
+                sound_path: "sounds/bodyfallMED.wav".to_string(),
+            });
+        }
         controller.on_slope = final_on_slope;
         transform.translation = current_pos;
     }
@@ -331,7 +341,7 @@ fn trace_down(
         position,
         Quat::IDENTITY,
         down_vector,
-        character_shape,
+        character_shape.into(),
         sweep_options,
         filter,
     );
@@ -390,7 +400,7 @@ fn try_step_up(
         *current_pos,
         Quat::IDENTITY,
         up_cast_vector,
-        character_shape,
+        character_shape.into(),
         sweep_options,
         filter,
     );
@@ -433,7 +443,7 @@ fn try_step_up(
             elevated_base_pos,
             Quat::IDENTITY,
             forward_cast_vector,
-            character_shape,
+            character_shape.into(),
             sweep_options,
             filter,
         );
@@ -460,7 +470,7 @@ fn try_step_up(
                 pre_ejection_pos,
                 Quat::IDENTITY,
                 ejection_cast_vector,
-                character_shape,
+                character_shape.into(),
                 sweep_options,
                 filter,
             );

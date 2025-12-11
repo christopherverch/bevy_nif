@@ -31,6 +31,7 @@ pub fn setup_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
     println!("spawning menu");
     commands
         .spawn((
+            Visibility::Visible,
             Node {
                 width: Val::Percent(100.0),
                 height: Val::Percent(100.0),
@@ -106,7 +107,7 @@ pub fn setup_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                                 border: UiRect::all(Val::Px(5.0)), // The Border component
                                 ..default()
                             },
-                            BorderColor(Color::BLACK),
+                            BorderColor::all(Color::BLACK),
                             BackgroundColor(GREEN.into()), // Assuming NORMAL_BUTTON is Color::GREEN
                             BorderRadius::MAX,
                             ConnectButton,
@@ -167,7 +168,10 @@ fn button_system(
             Interaction::Pressed => {
                 **text = "Press".to_string();
                 *color = PRESSED_BUTTON.into();
-                border_color.0 = RED.into();
+                border_color.top = RED.into();
+                border_color.bottom = RED.into();
+                border_color.left = RED.into();
+                border_color.right = RED.into();
                 game_state.set(GameState::Connecting);
                 server_addr.0 = ip_input_field.0.clone();
                 println!("ip: {}", server_addr.0);
@@ -175,18 +179,24 @@ fn button_system(
             Interaction::Hovered => {
                 **text = "Hover".to_string();
                 *color = HOVERED_BUTTON.into();
-                border_color.0 = Color::WHITE;
+                border_color.top = Color::WHITE;
+                border_color.bottom = Color::WHITE;
+                border_color.left = Color::WHITE;
+                border_color.right = Color::WHITE;
             }
             Interaction::None => {
                 **text = "Button".to_string();
                 *color = NORMAL_BUTTON.into();
-                border_color.0 = Color::BLACK;
+                border_color.top = Color::BLACK;
+                border_color.bottom = Color::BLACK;
+                border_color.left = Color::BLACK;
+                border_color.right = Color::BLACK;
             }
         }
     }
 }
 fn listen_keyboard_input_events(
-    mut events: EventReader<KeyboardInput>,
+    mut events: MessageReader<KeyboardInput>,
     text_query: Single<&mut Text, With<IpInputField>>,
     focused_input: Option<Res<FocusedIpInput>>,
     mut game_state: ResMut<NextState<GameState>>,

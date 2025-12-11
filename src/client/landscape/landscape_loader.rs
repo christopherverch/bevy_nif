@@ -1,22 +1,15 @@
+use bevy::mesh::{Indices, PrimitiveTopology};
+use bevy::prelude::*;
 use bevy::{
     asset::{AssetServer, Assets, Handle, RenderAssetUsages},
     image::{Image, ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor},
     log::warn,
     math::Vec3,
     pbr::MeshMaterial3d,
-    render::{
-        mesh::{Indices, Mesh, Mesh3d, PrimitiveTopology},
-        render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
-        view::Visibility,
-    },
+    render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
     transform::components::Transform,
 };
-use bevy_ecs::{
-    entity::Entity,
-    name::Name,
-    query::Added,
-    system::{Commands, Query, Res, ResMut},
-};
+use bevy_rapier3d::prelude::*;
 use esm_parser_lib::{
     EsmReader, LAND_NUM_TEXTURES, LAND_NUM_VERTS, LAND_SIDE_VERTICES,
     LAND_TEXTURE_SQUARES_PER_SIDE, LandTexture, LandVertexColor, LandVertexNormal,
@@ -200,7 +193,7 @@ fn finish_landscape_setup(
         return;
     };
     let (positions_bevy, normals_bevy, uvs_bevy, colors_bevy, indices) = landscape_data;
-
+    let heightfield_collider = create_heightfield_collider(&positions_bevy);
     let positions_vec3_for_collider: Vec<Vec3> = positions_bevy
         .iter()
         .map(|pos_array| Vec3::from_array(*pos_array))
@@ -228,7 +221,7 @@ fn finish_landscape_setup(
         source_textures: texture_handle,
         alpha_map_array: alpha_texture_array_h,
         params: TerrainMaterialParams {
-            num_textures_in_array: image_handles_array_len as u32, // Example: The number of unique textures you put in the array
+            num_textures_in_array: image_handles_array_len as u32, // The number of unique textures
             diffuse_tiling_factor: 16.0,
             base_vtex_grid_dim,
         },
@@ -244,8 +237,18 @@ fn finish_landscape_setup(
         Mesh3d(mesh_h),
         MeshMaterial3d(material_handle),
         //Collider::trimesh(positions_vec3_for_collider, indices_vec3_for_collider).unwrap(),
-        Transform::from_xyz(2.0, 2.0, -2.0),
+        RigidBody::Fixed,
+        heightfield_collider,
     ));
+    let cell_translation = Vec3::new(
+        -cell_position.0 as f32 * MORROWIND_CELL_SIZE,
+        0.0,
+        cell_position.1 as f32 * MORROWIND_CELL_SIZE,
+    );
+
+    commands
+        .entity(landscape_entity)
+        .insert(Transform::from_translation(cell_translation));
 }
 pub fn construct_landscape_mesh(
     cell_grid_x: i32,
@@ -324,8 +327,6 @@ pub fn construct_landscape_mesh(
     let mut final_normals_bevy: Vec<[f32; 3]> = vec![[0.0, 1.0, 0.0]; LAND_NUM_VERTS];
     let mut final_vclr_bevy: Vec<[f32; 4]> = vec![[1.0, 1.0, 1.0, 1.0]; LAND_NUM_VERTS];
 
-    let cell_mw_origin_x = cell_grid_x as f32 * MORROWIND_CELL_SIZE;
-    let cell_mw_origin_y = cell_grid_y as f32 * MORROWIND_CELL_SIZE;
     let lx_max_idx = LAND_SIDE_VERTICES - 1;
 
     for y_idx_mesh in 0..LAND_SIDE_VERTICES {
@@ -333,12 +334,14 @@ pub fn construct_landscape_mesh(
             let vertex_index_flat = y_idx_mesh * LAND_SIDE_VERTICES + x_idx_mesh;
 
             // Positions and UVs (from Pass 1 data or calculated here)
-            let mw_x_pos =
-                cell_mw_origin_x + (x_idx_mesh as f32 / lx_max_idx as f32 * MORROWIND_CELL_SIZE);
-            let mw_y_pos =
-                cell_mw_origin_y + (y_idx_mesh as f32 / lx_max_idx as f32 * MORROWIND_CELL_SIZE);
+            let half_cell = MORROWIND_CELL_SIZE / 2.0;
+
+            let mw_x_pos_relative =
+                (x_idx_mesh as f32 / lx_max_idx as f32 * MORROWIND_CELL_SIZE) - half_cell;
+            let mw_y_pos_relative =
+                (y_idx_mesh as f32 / lx_max_idx as f32 * MORROWIND_CELL_SIZE) - half_cell;
             let mw_z_pos = morrowind_vertex_z_values[vertex_index_flat];
-            positions_bevy.push([-mw_x_pos, mw_z_pos, mw_y_pos]);
+            positions_bevy.push([-mw_x_pos_relative, mw_z_pos, mw_y_pos_relative]);
 
             let norm_u_mesh = x_idx_mesh as f32 / lx_max_idx as f32;
             let norm_v_mesh = y_idx_mesh as f32 / lx_max_idx as f32;
@@ -475,7 +478,6 @@ pub fn construct_landscape_mesh(
             }
         }
     }
-
     Some((
         positions_bevy,
         final_normals_bevy,
@@ -510,6 +512,28 @@ fn setup_terrain_2d_array(
         ..Default::default()
     });
     texture_array_image
+}
+fn create_heightfield_collider(positions: &[[f32; 3]]) -> Collider {
+    let mut heights = Vec::with_capacity(LAND_SIDE_VERTICES * LAND_SIDE_VERTICES);
+    for x in (0..LAND_SIDE_VERTICES).rev() {
+        for y in (0..LAND_SIDE_VERTICES) {
+            let vertex_index = y * LAND_SIDE_VERTICES + x;
+            if vertex_index < positions.len() {
+                heights.push(positions[vertex_index][1]); // Use Y as height
+            } else {
+                heights.push(0.0);
+            }
+        }
+    }
+    let scale_xz = MORROWIND_CELL_SIZE;
+    let scale = Vec3::new(scale_xz, 1.0, scale_xz);
+
+    Collider::heightfield(
+        heights,
+        LAND_SIDE_VERTICES, // num_rows
+        LAND_SIDE_VERTICES, // num_cols
+        scale,
+    )
 }
 fn setup_2d_image_array(mut len: u32, image_array: Vec<Image>) -> Image {
     //concat all images into 1 u8 vec
@@ -1052,6 +1076,9 @@ mod tests {
         assert_eq!(ids.len(), 4, "Expected 4 unique texture IDs");
     }
 
+    use std::marker::PhantomData;
+
+    use bevy::asset::uuid::Uuid;
     use esm_parser_lib::Landscape;
 
     use crate::initial_esm_parse::run_initial_parse;
@@ -1143,11 +1170,19 @@ mod tests {
         id: u32,
         _marker: std::marker::PhantomData<T>,
     }
-    impl<T> MockHandle<T> {
-        fn new_dummy(id: u32) -> Handle<Image> {
-            // Assuming Handle<Image> is the target type
-            // For testing, we often use weak handles if we don't have a full App/AssetServer
-            Handle::weak_from_u128(id as u128)
+    impl<T> MockHandle<T>
+    where
+        T: Asset,
+    {
+        fn new_dummy(id: u32) -> Handle<T> {
+            // Create a deterministic UUID from the u32 for testing
+            let uuid = Uuid::from_u128(id as u128);
+
+            // Construct a Handle::Uuid for type T
+            Handle::Uuid {
+                0: uuid,
+                1: PhantomData::<fn() -> T>, // <- PhantomData tells Rust this handle is for T
+            }
         }
     }
 
@@ -1969,7 +2004,7 @@ mod tests {
     }
     #[test]
     fn test_outputting_blendmaps() {
-        let (_reader, all_landscapes, _land_textures) = run_initial_parse().unwrap();
+        let (_reader, all_landscapes, _land_textures, _weapon) = run_initial_parse().unwrap();
         let mut all_landscapes = AllLandscapes(all_landscapes);
         for ((current_cell_x, current_cell_y), landscape) in all_landscapes.0.iter_mut() {
             //AS A TEST, SET ALL CHUNKS THAT ARE NOT 0,0 TO A CERTAIN TEXTURE

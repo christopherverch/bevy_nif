@@ -1,22 +1,38 @@
-use std::collections::HashMap;
+use std::collections::LinkedList;
 
-use crate::{EsmError, EsmReader, Load, RefId, StringRefId, esm_reader::ConsumptionType};
-
-use super::{
-    flags::{CellFlags, ObjectFlags},
-    reference::Reference,
+use crate::{
+    ESM3ExteriorCellRefId, EsmContext, EsmError, EsmReader, FormId, Load, RefId, StringRefId,
+    esm_reader::ConsumptionType, name32, refid_types::INTERNER,
 };
 
+use super::{
+    cell_ref::{CellRef, skip_load_cell_ref},
+    flags::{CellFlags, ObjectFlags},
+};
+pub type MovedCellRefTracker = LinkedList<MovedCellRef>;
+pub type CellRefTracker = LinkedList<(CellRef, bool)>;
+const FALSE_WIDE_REF_NUM: bool = false;
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Cell {
     pub flags: ObjectFlags,
-    pub name: Option<StringRefId>,
-    pub data: Option<CellData>,
-    pub region: Option<String>,
+    pub name: String,
+    pub data: CellData,
+    pub region: Option<RefId>,
+    pub id: RefId,
     pub map_color: Option<[u8; 4]>,
     pub water_height: Option<f32>,
     pub atmosphere_data: Option<AtmosphereData>,
-    pub references: HashMap<(u32, u32), Reference>,
+    pub num_temp_refs: i32,
+    pub leased_refs: LinkedList<(CellRef, bool)>,
+    pub moved_refs: LinkedList<MovedCellRef>,
+    pub context_list: Vec<EsmContext>,
+}
+pub type RefNum = FormId;
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct MovedCellRef {
+    pub ref_num: RefNum,
+    // Coordinates of target exterior cell
+    pub target: [i32; 2],
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -35,9 +51,9 @@ pub struct AtmosphereData {
 
 impl Load for CellData {
     fn load(reader: &mut EsmReader) -> Result<Self, EsmError> {
-        let flags = reader.get_u32_le(ConsumptionType::SubrecordPayload)?;
-        let grid_x = reader.get_i32_le(ConsumptionType::SubrecordPayload)?;
-        let grid_y = reader.get_i32_le(ConsumptionType::SubrecordPayload)?;
+        let flags = reader.read_typed(ConsumptionType::SubrecordPayload)?;
+        let grid_x = reader.read_typed(ConsumptionType::SubrecordPayload)?;
+        let grid_y = reader.read_typed(ConsumptionType::SubrecordPayload)?;
 
         Ok(CellData {
             flags: CellFlags::from_bits_truncate(flags),
@@ -62,203 +78,336 @@ impl Load for AtmosphereData {
 }
 
 // Helper function to unpack packed indices
-// This is a free function as in the reference, since it doesn't need 'self'
 const fn unpack(packed_indices: u32) -> (u32, u32) {
     let mast_index = packed_indices >> 24;
     let refr_index = packed_indices & 0xFFFFFF;
     (mast_index, refr_index)
 }
+/// Identifies references belonging to a parent file and adapts the ID accordingly
+/// by translating the temporary 8-bit plugin index into the permanent content_file index.
+pub fn adjust_ref_num(reader: &mut EsmReader, ref_num: &mut FormId) {
+    // Extract the highest 8 bits (the temporary plugin index).
+    let local = (ref_num.index & 0xff000000) >> 24;
 
-impl Load for Cell {
-    fn load(reader: &mut EsmReader) -> Result<Self, EsmError> {
-        let mut cell = Cell::default();
-        let mut num_temp_refs: i32 = 0;
-        let mut moved_refs = Vec::<(u32, u32, (i32, i32))>::new();
+    let parent_file_count = reader.get_parent_file_indices().len() as u32;
 
-        // The top-level record flags are part of the record header, not a subrecord.
-        let rec_flags = reader.get_record_flags();
-        if rec_flags.contains(ObjectFlags::DELETED) {
-            cell.flags.insert(ObjectFlags::DELETED);
-        }
+    // Check if the 8-bit index is valid and refers to a parent file.
+    if local != 0 && local <= parent_file_count {
+        // Case 1: The reference was added by a parent file.
 
-        while reader.has_more_subs() {
-            let current_sub_name = reader.get_sub_name()?;
-            reader.get_sub_header()?; // This sets the remaining_subrec_data in the context
-            let payload_size = reader.context.remaining_subrec_data;
+        // Strip the temporary 8-bit plugin index from the u32 ID.
+        ref_num.index &= 0x00ffffff;
 
-            match current_sub_name.as_bytes() {
+        // Set the permanent content file index using the parent file's ID.
+        // The index is 1-based, so subtract 1 for 0-based array access.
+        let parent_file_index = reader.get_parent_file_indices()[(local - 1) as usize];
+
+        // Cast the usize index to the persistent i16 type. This is safe
+        // because the number of master files is guaranteed to be less than 256.
+        ref_num.content_file = Some(parent_file_index as i16);
+    } else {
+        // Case 2: The reference is an addition by the present plugin (or an invalid ID).
+
+        // Set the permanent content file index to that of the currently loading plugin.
+        ref_num.content_file = Some(reader.get_index());
+    }
+}
+impl PartialEq<RefNum> for MovedCellRef {
+    fn eq(&self, other: &RefNum) -> bool {
+        &self.ref_num == other
+    }
+}
+impl PartialEq<RefNum> for CellRef {
+    fn eq(&self, other: &RefNum) -> bool {
+        &self.ref_num == other
+    }
+}
+#[derive(Debug, PartialEq)]
+pub enum GetNextRefMode {
+    LoadAll,
+    LoadOnlyMoved,
+    LoadOnlyNotMoved,
+}
+
+impl Cell {
+    pub fn load(
+        &mut self,
+        reader: &mut EsmReader,
+        is_deleted: &mut bool,
+        save_context: bool,
+    ) -> Result<(), EsmError> {
+        self.load_name_and_data(reader, is_deleted)?;
+        self.load_cell(reader, save_context)?;
+        return Ok(());
+    }
+
+    fn load_name_and_data(
+        &mut self,
+        reader: &mut EsmReader,
+        is_deleted: &mut bool,
+    ) -> Result<(), EsmError> {
+        *is_deleted = false;
+        self.blank();
+        let mut has_data = false;
+        let mut is_loaded = false;
+
+        while !is_loaded && reader.has_more_subs() {
+            let sub_name = reader.get_or_read_sub_name()?;
+            match sub_name.as_bytes() {
                 b"NAME" => {
-                    let s = reader.get_string_with_size(payload_size as usize)?;
-                    cell.name = Some(StringRefId::new(&s));
+                    self.name = reader.read_header_decode_str()?.to_string();
                 }
                 b"DATA" => {
-                    const EXPECTED_SIZE: usize = 12;
-                    if payload_size as usize != EXPECTED_SIZE {
-                        return Err(reader.report_sub_size_mismatch_custom(
-                            payload_size as usize,
-                            EXPECTED_SIZE,
-                            "DATA",
-                        ));
-                    }
-                    cell.data = Some(CellData::load(reader)?);
-                }
-                b"RGNN" => {
-                    cell.region = Some(reader.get_string_with_size(payload_size as usize)?);
-                }
-                b"NAM5" => {
-                    const EXPECTED_SIZE: usize = 4;
-                    if payload_size as usize != EXPECTED_SIZE {
-                        return Err(reader.report_sub_size_mismatch_custom(
-                            payload_size as usize,
-                            EXPECTED_SIZE,
-                            "NAM5",
-                        ));
-                    }
-                    let mut color_data = [0u8; 4];
-                    reader.get_exact(&mut color_data, ConsumptionType::SubrecordPayload)?;
-                    cell.map_color = Some(color_data);
-                }
-                b"WHGT" => {
-                    const EXPECTED_SIZE: usize = 4;
-                    if payload_size as usize != EXPECTED_SIZE {
-                        return Err(reader.report_sub_size_mismatch_custom(
-                            payload_size as usize,
-                            EXPECTED_SIZE,
-                            "WHGT",
-                        ));
-                    }
-                    let water_height: i32 = reader.get_i32_le(ConsumptionType::SubrecordPayload)?;
-                    // The reference code converts i32 to f32.
-                    cell.water_height = Some(water_height as f32);
-                }
-                b"AMBI" => {
-                    const EXPECTED_SIZE: usize = 16;
-                    if (payload_size as usize) < EXPECTED_SIZE {
-                        return Err(reader.report_sub_size_mismatch_custom(
-                            payload_size as usize,
-                            EXPECTED_SIZE,
-                            "AMBI",
-                        ));
-                    }
-                    cell.atmosphere_data = Some(AtmosphereData::load(reader)?);
-                    // Handle potential padding by skipping remaining bytes
-                    if payload_size as usize > EXPECTED_SIZE {
-                        reader.skip_raw_bytes(
-                            (payload_size as usize - EXPECTED_SIZE) as i64,
-                            ConsumptionType::SubrecordPayload,
-                        )?;
-                    }
-                }
-                b"NAM0" => {
-                    const EXPECTED_SIZE: usize = 4;
-                    if payload_size as usize != EXPECTED_SIZE {
-                        return Err(reader.report_sub_size_mismatch_custom(
-                            payload_size as usize,
-                            EXPECTED_SIZE,
-                            "NAM0",
-                        ));
-                    }
-                    num_temp_refs = reader.get_i32_le(ConsumptionType::SubrecordPayload)?;
-                }
-                b"MVRF" => {
-                    const EXPECTED_SIZE: usize = 4;
-                    if payload_size as usize != EXPECTED_SIZE {
-                        return Err(reader.report_sub_size_mismatch_custom(
-                            payload_size as usize,
-                            EXPECTED_SIZE,
-                            "MVRF",
-                        ));
-                    }
-                    let packed_indices = reader.get_u32_le(ConsumptionType::SubrecordPayload)?;
-
-                    // "MVRF" is always followed by "CNDT"
-                    let cndt_name = reader.get_sub_name()?;
-                    if cndt_name.as_bytes() != b"CNDT" {
-                        return Err(reader.fail("Expected CNDT subrecord after MVRF"));
-                    }
-                    const CNDT_SIZE: usize = 8;
-                    reader.get_sub_header()?;
-                    let cndt_size = reader.context.remaining_subrec_data;
-                    if cndt_size as usize != CNDT_SIZE {
-                        return Err(reader.report_sub_size_mismatch_custom(
-                            cndt_size as usize,
-                            CNDT_SIZE,
-                            "CNDT",
-                        ));
-                    } // Correctly load the moved cell coordinates as two i32s
-                    let moved_cell_x = reader.get_i32_le(ConsumptionType::SubrecordPayload)?;
-                    let moved_cell_y = reader.get_i32_le(ConsumptionType::SubrecordPayload)?;
-                    moved_refs.push((
-                        unpack(packed_indices).0,
-                        unpack(packed_indices).1,
-                        (moved_cell_x, moved_cell_y),
-                    ));
-                }
-                b"FRMR" => {
-                    const EXPECTED_SIZE: usize = 4;
-                    if payload_size as usize != EXPECTED_SIZE {
-                        return Err(reader.report_sub_size_mismatch_custom(
-                            payload_size as usize,
-                            EXPECTED_SIZE,
-                            "FRMR",
-                        ));
-                    }
-                    let packed_indices = reader.get_u32_le(ConsumptionType::SubrecordPayload)?;
-                    let indices = unpack(packed_indices);
-
-                    // FRMR is followed by a nested REFR record's data
-                    dbg!(reader.context.file_pos);
-                    let mut reference: Reference = reader.load().unwrap();
-                    reference.mast_index = indices.0;
-                    reference.refr_index = indices.1;
-                    reference.temporary = num_temp_refs > 0;
-                    num_temp_refs -= 1;
-
-                    // Check if this FRMR should override a moved reference
-                    if let Some(moved_ref) = moved_refs.last_mut() {
-                        if moved_ref.0 == 0 {
-                            // Check the master index
-                            moved_ref.0 = indices.0;
-                            moved_ref.1 = indices.1;
-                        }
-                    }
-
-                    cell.references.insert(indices, reference);
-                }
-                b"INTV" => {
-                    let water_height: i32 = reader.load()?;
-                    #[allow(clippy::cast_precision_loss)]
-                    {
-                        // esp version 1.3 uses float rather than int
-                        cell.water_height = Some(water_height as f32);
-                    }
+                    self.data = reader.read_typed_header_load()?;
+                    has_data = true;
                 }
                 b"DELE" => {
-                    reader.skip_sub_data()?;
-                    cell.flags.insert(ObjectFlags::DELETED);
+                    reader.skip_sub_header()?;
+                    *is_deleted = true;
                 }
                 _ => {
-                    // Unknown or unexpected subrecord, skip it.
-                    reader.skip_sub_data()?;
+                    reader.cache_sub_name();
+                    is_loaded = true;
                 }
             }
         }
 
-        // Assign moved references after the main loop to ensure all are loaded
-        for (mast_idx, refr_idx, moved_cell) in moved_refs {
-            if let Some(reference) = cell.references.get_mut(&(mast_idx, refr_idx)) {
-                // This will now correctly work because moved_cell is a (i32, i32) tuple
-                reference.moved_cell = Some(moved_cell);
-            } else {
-                return Err(reader.fail(&format!(
-                    "Unable to resolve moved reference ({}, {}) for cell {:?}",
-                    mast_idx,
-                    refr_idx,
-                    cell.name.as_ref().map(|s| &s.value)
-                )));
+        if !has_data {
+            return Err(reader.fail("Missing DATA subrecord"));
+        }
+        self.update_id();
+
+        Ok(())
+    }
+
+    fn load_cell(&mut self, reader: &mut EsmReader, save_context: bool) -> Result<(), EsmError> {
+        let mut is_loaded = false;
+        let overriding = !self.name.is_empty();
+        self.atmosphere_data = None;
+        self.water_height = None;
+
+        while !is_loaded && reader.has_more_subs() {
+            let sub_name = reader.get_or_read_sub_name()?;
+            match sub_name.as_bytes() {
+                b"INTV" => {
+                    let water_level_i32: i32 = reader.read_typed_header()?;
+                    self.water_height = Some(water_level_i32 as f32);
+                }
+                b"WHGT" => {
+                    let water_level: f32 = reader.read_typed_header()?;
+                    if !water_level.is_finite() {
+                        eprint!(
+                            "Warning: Encountered invalid water level in cell {} defined in {:?}",
+                            self.name, reader.context.filename
+                        );
+
+                        if !overriding {
+                            self.water_height = Some(f32::MAX);
+                        }
+                    } else {
+                        self.water_height = Some(water_level);
+                    }
+                }
+                b"AMBI" => {
+                    reader.read_sub_header()?;
+                    self.atmosphere_data = Some(reader.load()?);
+                }
+                b"RGNN" => self.region = Some(reader.read_ref_id()?),
+                b"NAM5" => self.map_color = Some(reader.read_typed_header()?),
+                b"NAM0" => {
+                    self.num_temp_refs = reader.read_typed_header()?;
+                }
+                _ => {
+                    reader.cache_sub_name();
+                    is_loaded = true;
+                }
+            }
+        }
+        if save_context {
+            self.context_list.push(reader.get_cloned_context()?);
+            reader.skip_record()?;
+        }
+        Ok(())
+    }
+    fn update_id(&mut self) -> RefId {
+        // Call the generation function with the resolved &str
+        self.id = Self::generate_id_for_cell(
+            self.is_exterior(),
+            &self.name,
+            self.data.grid.0,
+            self.data.grid.1,
+        );
+        self.id.clone()
+    }
+    pub fn generate_id_for_cell(exterior: bool, cell_name: &str, x: i32, y: i32) -> RefId {
+        if !exterior {
+            // Intern the string
+            let mut interner_guard = INTERNER.lock().unwrap();
+            let symbol = interner_guard.get_or_intern(cell_name);
+            RefId::SizedString(StringRefId(symbol))
+        } else {
+            RefId::ESM3ExteriorCell(ESM3ExteriorCellRefId::new(x, y))
+        }
+    }
+
+    fn post_load(&mut self, reader: &mut EsmReader) -> Result<(), EsmError> {
+        // Save position of the cell references and move on
+        self.context_list.push(reader.get_cloned_context()?);
+        reader.skip_record()?;
+        Ok(())
+    }
+    fn restore(&self, reader: &mut EsmReader, context_index: usize) -> Result<(), EsmError> {
+        let context = self
+            .context_list
+            .get(context_index)
+            .ok_or(reader.fail(&format!(
+                "Cell tried to restore invalid context! {}",
+                context_index
+            )))?;
+
+        reader.restore_context(context)
+    }
+    pub fn get_description(&self) -> String {
+        // C++: if (mData.mFlags & Interior)
+        if self.data.flags.contains(CellFlags::IS_INTERIOR) {
+            // C++: return nameString;
+            return self.name.clone();
+        }
+
+        let cell_grid = format!("({}, {})", self.data.grid.0, self.data.grid.1);
+
+        if !self.name.is_empty() {
+            // C++: return nameString + ' ' + cellGrid;
+            return format!("{} {}", self.name, cell_grid);
+        }
+
+        // 1. Get the region name string from the Option<RefId>
+        let region_ref_name = self
+            .region
+            .as_ref()
+            // If the RefId exists, resolve its string value using the interner
+            .map(|r| r.resolve_string())
+            // If region is None, default to an empty string.
+            .unwrap_or_default();
+
+        // 2. Check if the resolved region name is empty.
+        let region_output = if region_ref_name.is_empty() {
+            // TODO::
+            // sDefaultCellname GMST should be used, but isn't available since
+            // it's part of the actual usage of the esm reader
+            "Wilderness".to_string()
+        } else {
+            // Use the string resolved from the RefId
+            region_ref_name
+        };
+
+        format!("{} {}", region_output, cell_grid)
+    }
+    pub fn get_next_ref(
+        reader: &mut EsmReader,
+        cell_ref: &mut CellRef,
+        is_deleted: &mut bool,
+    ) -> Result<bool, EsmError> {
+        *is_deleted = false;
+        // TODO: Try and document reference numbering, I don't think this has been done anywhere else.
+        if !reader.has_more_subs() {
+            return Ok(false);
+        }
+        while reader.is_next_sub(name32!("MVRF"))? {
+            let mut moved_cell_ref = MovedCellRef::default();
+            moved_cell_ref.ref_num.index = reader.read_typed_header()?;
+            if let Some(val) = reader.read_typed_named_header(name32!("CNDT"))? {
+                moved_cell_ref.target = val;
+            }
+            let mut skipped_cell_ref = CellRef::default();
+            if reader.peek_next_sub(name32!("FRMR"))? {
+                return Ok(false);
+            }
+            let mut skipped_deleted = false;
+            skipped_cell_ref.load(reader, &mut skipped_deleted, FALSE_WIDE_REF_NUM)?;
+        }
+        if reader.peek_next_sub(name32!("FRMR"))? {
+            cell_ref.load(reader, is_deleted, FALSE_WIDE_REF_NUM)?;
+            // TODO: should count the number of temp refs and validate the number
+            adjust_ref_num(reader, &mut cell_ref.ref_num);
+            return Ok(true);
+            // Identify references belonging to a parent file and adapt the ID accordingly.
+        }
+        Ok(false)
+        // MVRF loop: Skip all moved CellRefs.
+    }
+    pub fn get_next_ref_full(
+        reader: &mut EsmReader,
+        // Output: The loaded reference data (only filled if not skipped)
+        cell_ref: &mut CellRef,
+        // Output: Flag indicating if the reference was deleted
+        is_deleted: &mut bool,
+        // Output: The loaded MovedCellRef data (only filled if MVRF was present)
+        moved_cell_ref: &mut MovedCellRef,
+        // Output: Flag indicating if an MVRF subrecord was encountered before the FRMR
+        moved: &mut bool,
+        // Input: The filtering mode
+        mode: GetNextRefMode,
+    ) -> Result<bool, EsmError> {
+        *is_deleted = false;
+        *moved = false;
+
+        if !reader.has_more_subs() {
+            return Ok(false);
+        }
+
+        if reader.is_next_sub(name32!("MVRF"))? {
+            *moved = true;
+
+            moved_cell_ref.ref_num.index = reader.read_typed_header()?;
+            if let Some(val) = reader.read_typed_named_header(name32!("CNDT"))? {
+                moved_cell_ref.target = val;
             }
         }
 
-        Ok(cell)
+        // The FRMR subrecord must immediately follow the MVRF (or be the next subrecord).
+        if !reader.peek_next_sub(name32!("FRMR"))? {
+            return Ok(false);
+        }
+
+        let should_skip = (!*moved && mode == GetNextRefMode::LoadOnlyMoved)
+            || (*moved && mode == GetNextRefMode::LoadOnlyNotMoved);
+
+        if should_skip {
+            skip_load_cell_ref(reader, FALSE_WIDE_REF_NUM)?;
+
+            return Ok(true);
+        }
+
+        // --- Execution reaches here only if the record is NOT skipped ---
+
+        cell_ref.load(reader, is_deleted, FALSE_WIDE_REF_NUM)?;
+
+        adjust_ref_num(reader, &mut cell_ref.ref_num);
+
+        Ok(true)
+    }
+    fn blank(&mut self) {
+        self.name.clear();
+        self.region = None;
+        self.water_height = Some(0.0);
+        self.map_color = None;
+        self.num_temp_refs = 0;
+        self.flags = ObjectFlags::empty();
+        self.data.grid.0 = 0;
+        self.data.grid.1 = 0;
+        self.atmosphere_data = Some(AtmosphereData {
+            ambient_color: [0, 0, 0, 0],
+            sunlight_color: [0, 0, 0, 0],
+            fog_color: [0, 0, 0, 0],
+            fog_density: 0.0,
+        });
+    }
+    pub const fn is_interior(&self) -> bool {
+        self.data.flags.contains(CellFlags::IS_INTERIOR)
+    }
+
+    pub const fn is_exterior(&self) -> bool {
+        !self.is_interior()
     }
 }

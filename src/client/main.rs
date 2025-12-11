@@ -3,15 +3,12 @@ use actor::{
     controller::{character_controller_system, resolve_final_animation_state_system},
 };
 use animation::actor_animator::animate_actors_using_state;
-use bevy::{
-    pbr::{DefaultOpaqueRendererMethod, DirectionalLightShadowMap},
-    prelude::*,
-};
+use bevy::{light::DirectionalLightShadowMap, pbr::DefaultOpaqueRendererMethod, prelude::*};
 use tes3mp_rust::defs::{GameState, IdToEntityMap, Pause, PlayerInput};
 mod networking;
 mod setup_scene;
 pub mod ui;
-use crate::setup_scene::setup_scene;
+use crate::{handle_nif_events::handle_nif_event, setup_scene::setup_scene};
 use bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_kira_audio::{AudioPlugin, SpatialAudioPlugin};
@@ -21,7 +18,6 @@ use bevy_rapier3d::prelude::*;
 use bevy_renet::RenetClientPlugin;
 use camera::MWCameraPlugin;
 use equipment::on_player_ready_weapon;
-use handle_nif_events::handle_nif_trigger;
 use landscape::LandscapePlugin;
 mod animation;
 mod const_defs;
@@ -77,9 +73,7 @@ fn main() {
                 .with_length_unit(1.0),
             RapierDebugRenderPlugin::default(),
             RenetClientPlugin,
-            EguiPlugin {
-                enable_multipass_for_primary_context: true,
-            },
+            EguiPlugin::default(),
             WorldInspectorPlugin::default(),
             AudioPlugin,
             SpatialAudioPlugin,
@@ -105,7 +99,7 @@ fn main() {
         .add_systems(Update, setup_player)
         .add_systems(Startup, populate_esm_resources)
         .add_observer(generate_sound)
-        .add_observer(handle_nif_trigger)
+        .add_observer(handle_nif_event)
         .add_observer(apply_hit)
         .add_observer(on_player_ready_weapon)
         .add_observer(insert_nif_animator_links)
@@ -128,7 +122,6 @@ fn main() {
         .add_systems(
             Update,
             (
-                // This is the new, correct chain for all animation state logic.
                 character_controller_system,
                 resolve_final_animation_state_system,
                 animate_actors_using_state,

@@ -1,6 +1,4 @@
-#![allow(dead_code)]
-
-use bevy::{asset::RenderAssetUsages, prelude::*, render::mesh::PrimitiveTopology};
+use bevy::{asset::RenderAssetUsages, mesh::PrimitiveTopology, prelude::*};
 pub fn create_line_mesh(start: Vec3, end: Vec3) -> Mesh {
     let mut mesh = Mesh::new(PrimitiveTopology::LineList, RenderAssetUsages::default());
     mesh.insert_attribute(

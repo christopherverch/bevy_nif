@@ -1,10 +1,10 @@
 use crate::serializer::SerializableTransform;
 use crate::{AnimationConfig, EntityId, NetworkEvent};
+use bevy::ecs::lifecycle::HookContext;
+use bevy::ecs::world::DeferredWorld;
 use bevy::prelude::*;
-use bevy_ecs::component::HookContext;
-use bevy_ecs::world::DeferredWorld;
 use bevy_nif::nif_animation::NifEventType;
-use esm_parser_lib::loadweap::Weapon;
+use esm_parser_lib::Weapon;
 use esm_parser_lib::{EsmReader, LandTexture, Landscape, RefId};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -119,7 +119,7 @@ pub enum Direction {
 #[derive(Component)]
 pub struct AnimateableEntity;
 #[derive(Resource)]
-pub struct EsmReaderResource(pub EsmReader<'static>);
+pub struct EsmReaderResource(pub EsmReader);
 
 #[derive(Resource)]
 pub struct AllLandscapes(pub HashMap<(i32, i32), Landscape>);

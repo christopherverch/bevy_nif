@@ -1,8 +1,8 @@
 // src/loadltex.rs
 
+use crate::Load;
 use crate::esm_reader::{ConsumptionType, EsmError, EsmReader};
 use crate::refid_types::RefId;
-use crate::{Load, load_subrecords};
 
 use super::flags::ObjectFlags;
 
@@ -25,7 +25,7 @@ impl LandTexture {
 
     /// Sets the record to a default state.
     pub fn blank(&mut self) {
-        self.id = RefId::new(); // Or RefId::default()
+        self.id = RefId::default(); // Or RefId::default()
         self.texture_file.clear();
         // mIndex is explicitly not cleared in the OpenMW C++ `blank` method.
         // self.index = 0; // If you prefer to reset it.
@@ -41,32 +41,53 @@ impl Load for LandTexture {
         let mut has_name = false;
         let mut has_index = false;
 
-        load_subrecords! {
-            esm_reader,
-            b"NAME" => {
-                // get_ref_id handles its own header
-                ltex.id = esm_reader.load()?;
-                has_name = true;
-            },
-            b"INTV" => {
-                // Manual header read is required here
-                esm_reader.get_sub_header()?;
-                let expected_size = std::mem::size_of::<u32>() as u32;
-                if esm_reader.get_sub_size() != expected_size {
-                    return Err(esm_reader.report_sub_size_mismatch(expected_size, esm_reader.get_sub_size()));
+        while esm_reader.has_more_subs() {
+            let sub_name = esm_reader.get_or_read_sub_name()?; // Consumes subrecord name
+
+            // Compare by creating Name32 structs or by their u32 representation if available
+            match sub_name.as_bytes() {
+                b"NAME" => {
+                    // read_ref_id should handle its own subrecord header reading (NAME + size)
+                    // and then read its specific payload format.
+                    ltex.id = esm_reader.read_ref_id()?;
+                    has_name = true;
                 }
-                ltex.index = esm_reader.get_u32_le(ConsumptionType::SubrecordPayload)?;
-                has_index = true;
-            },
-            b"DATA" => {
-                // get_h_string handles its own header
-                ltex.texture_file = esm_reader.load()?;
-            },
-            b"DELE" => {
-                // skip_sub_data handles its own header
-                esm_reader.skip_sub_data()?;
-                ltex.flags.insert(ObjectFlags::DELETED);
-            },
+                b"INTV" => {
+                    esm_reader.read_sub_header()?; // Read "INTV" subrecord size
+                    if esm_reader.get_sub_size() != std::mem::size_of::<u32>() as u32 {
+                        return Err(EsmReader::report_sub_size_mismatch(
+                            std::mem::size_of::<u32>() as u32,
+                            esm_reader.get_sub_size(),
+                            &esm_reader.context,
+                            esm_reader.file_pos,
+                        ));
+                    }
+                    ltex.index = esm_reader.read_typed(ConsumptionType::SubrecordPayload)?;
+                    has_index = true;
+                }
+                b"DATA" => {
+                    // get_header_string should handle its own subrecord header reading (DATA + size)
+                    ltex.texture_file = esm_reader.read_header_decode_str()?.to_string();
+                }
+                b"DELE" => {
+                    // skip_sub_data should handle its own subrecord header reading (DELE + size)
+                    // and skip its payload.
+                    esm_reader.skip_sub_data()?;
+                }
+                _ => {
+                    // Unknown subrecord, fail or skip
+                    let msg = format!(
+                        "Unknown LTEX subrecord: {} in record {}",
+                        sub_name.to_string_lossy(),
+                        esm_reader.context.rec_name.to_string_lossy()
+                    );
+                    // Option 1: Fail
+                    return Err(esm_reader.fail(&msg));
+                    // Option 2: Skip and log (if you want to be more lenient)
+                    // eprintln!("{}", msg);
+                    // esm_reader.skip_sub_data()?;
+                }
+            }
         }
 
         if !has_name {

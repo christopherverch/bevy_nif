@@ -1,16 +1,14 @@
-use std::f32::consts::{FRAC_PI_4, FRAC_PI_8, PI};
-
-use bevy::render::mesh::Mesh;
 use bevy::{
-    core_pipeline::{
-        fxaa::Fxaa,
-        prepass::{DeferredPrepass, DepthPrepass, MotionVectorPrepass},
-    },
-    pbr::{CascadeShadowConfigBuilder, NotShadowCaster, NotShadowReceiver, OpaqueRendererMethod},
+    core_pipeline::prepass::{DeferredPrepass, DepthPrepass, MotionVectorPrepass},
+    light::{CascadeShadowConfigBuilder, NotShadowCaster, NotShadowReceiver},
+    pbr::OpaqueRendererMethod,
     prelude::*,
+    render::view::Hdr,
 };
-use bevy_nif::nif::spawner::NifScene;
+use bevy_anti_alias::fxaa::Fxaa;
+use bevy_nif::spawner::NifScene;
 use bevy_rapier3d::prelude::{Collider, RigidBody, Sleeping};
+use std::f32::consts::{FRAC_PI_4, FRAC_PI_8, PI};
 use tes3mp_rust::defs::{PlayerCamera, TestingComponent};
 
 #[derive(Component)]
@@ -23,15 +21,12 @@ pub fn setup_scene(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    spawn_nif_unattached(commands.reborrow(), &asset_server);
+    spawn_nif_unattached(&mut commands, &asset_server);
 
     commands.spawn((
         Camera3d::default(),
-        Camera {
-            // Deferred both supports both hdr: true and hdr: false
-            hdr: true,
-            ..default()
-        },
+        Camera::default(),
+        Hdr,
         Projection::Perspective(PerspectiveProjection {
             fov: PI / 3.6,
             aspect_ratio: 1.0,
@@ -65,7 +60,10 @@ pub fn setup_scene(
         DepthPrepass,
         MotionVectorPrepass,
         DeferredPrepass,
-        Fxaa::default(),
+        Fxaa {
+            enabled: true,
+            ..default()
+        },
     ));
     commands.spawn((TestingComponent, Transform::default()));
     let font = asset_server.load("fonts/FiraMono-Medium.ttf");
@@ -271,7 +269,7 @@ pub fn setup_scene(
             ..default()
         },
         // Set the justification of the Text
-        TextLayout::new_with_justify(JustifyText::Left),
+        TextLayout::new_with_justify(Justify::Left),
         // Set the style of the Node itself.
         Node {
             position_type: PositionType::Absolute,
@@ -283,7 +281,7 @@ pub fn setup_scene(
     ));
 }
 
-fn spawn_nif_unattached(mut commands: Commands, asset_server: &Res<AssetServer>) {
+fn spawn_nif_unattached(commands: &mut Commands, asset_server: &Res<AssetServer>) {
     let head_handle = asset_server.load("data/A_Glass_Helmet.nif");
     commands.spawn((
         NifScene(head_handle),

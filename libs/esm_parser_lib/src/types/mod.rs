@@ -1,9 +1,10 @@
-pub mod flags;
-pub mod reference;
-
 pub mod aipackage;
 pub mod cell;
 pub mod cell_id;
+pub mod cell_ref;
+pub mod flags;
 pub mod landscape;
 pub mod landscape_textures;
+pub mod reference;
+pub mod static_object;
 pub mod weapon;

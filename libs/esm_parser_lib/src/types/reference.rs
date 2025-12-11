@@ -1,14 +1,9 @@
 use super::aipackage::TravelDestination;
 use crate::{
-    Load,
-    common_types::{Name, Name32},
-    esm_reader::{ConsumptionType, EsmError, EsmReader},
-    load_subrecords,
-    refid_types::RefId,
+    Load, Name32,
+    esm_reader::{EsmError, EsmReader},
 };
-use bytemuck::{Pod, Zeroable};
 use glam::Vec3;
-use std::io;
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Reference {
     pub mast_index: u32,
@@ -40,14 +35,13 @@ impl Load for Reference {
         dbg!(reader.get_sub_size());
 
         while reader.has_more_subs()
-            && !reader.peek_next_sub(Name::new("FRMR"))?
-            && !reader.peek_next_sub(Name::new("MVRF"))?
-            && !reader.peek_next_sub(Name::new("DELE"))?
-            && !reader.peek_next_sub(Name::new("NAM0"))?
+            && !reader.peek_next_sub(Name32::new("FRMR"))?
+            && !reader.peek_next_sub(Name32::new("MVRF"))?
+            && !reader.peek_next_sub(Name32::new("DELE"))?
+            && !reader.peek_next_sub(Name32::new("NAM0"))?
         {
-            let sub_name = reader.get_sub_name()?;
-            reader.get_sub_header()?;
-            let sub_size = reader.get_sub_size();
+            let sub_name = reader.get_or_read_sub_name()?;
+            reader.read_sub_header()?;
 
             dbg!(sub_name.to_string_lossy());
             dbg!(reader.get_sub_size());
@@ -119,7 +113,6 @@ impl Load for Reference {
                     this.deleted = Some(true);
                 }
                 _ => {
-                    panic!("failed");
                     reader.fail(&format!(
                         "Unexpected Tag: REFR::{}",
                         sub_name.to_string_lossy()

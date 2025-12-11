@@ -1,6 +1,6 @@
+use crate::Load;
 use crate::esm_reader::{ConsumptionType, EsmError, EsmReader};
 use crate::refid_types::RefId;
-use crate::{Load, load_subrecords};
 use bitflags::bitflags;
 
 use super::flags::ObjectFlags;
@@ -49,36 +49,36 @@ pub struct WeaponData {
     pub chop_damage: [u8; 2],   // min, max
     pub slash_damage: [u8; 2],  // min, max
     pub thrust_damage: [u8; 2], // min, max
-    pub flags: WeaponFlags,     // <-- Type changed from i32 to WeaponFlags
+    pub flags: WeaponFlags,
 }
 
-impl WeaponData {
-    /// Reads the contents of a WPDT subrecord into a WeaponData struct.
-    pub fn from_reader(reader: &mut EsmReader) -> Result<Self, EsmError> {
+/// Reads the contents of a WPDT subrecord into a WeaponData struct.
+impl Load for WeaponData {
+    fn load(reader: &mut EsmReader) -> Result<Self, EsmError> {
         Ok(Self {
-            weight: reader.get_f32_le(ConsumptionType::SubrecordPayload)?,
-            value: reader.get_i32_le(ConsumptionType::SubrecordPayload)?,
-            weapon_type: reader.get_i16_le(ConsumptionType::SubrecordPayload)?,
-            health: reader.get_u16_le(ConsumptionType::SubrecordPayload)?,
-            speed: reader.get_f32_le(ConsumptionType::SubrecordPayload)?,
-            reach: reader.get_f32_le(ConsumptionType::SubrecordPayload)?,
-            enchantment_points: reader.get_u16_le(ConsumptionType::SubrecordPayload)?,
+            weight: reader.read_typed(ConsumptionType::SubrecordPayload)?,
+            value: reader.read_typed(ConsumptionType::SubrecordPayload)?,
+            weapon_type: reader.read_typed(ConsumptionType::SubrecordPayload)?,
+            health: reader.read_typed(ConsumptionType::SubrecordPayload)?,
+            speed: reader.read_typed(ConsumptionType::SubrecordPayload)?,
+            reach: reader.read_typed(ConsumptionType::SubrecordPayload)?,
+            enchantment_points: reader.read_typed(ConsumptionType::SubrecordPayload)?,
             chop_damage: [
-                reader.get_u8_le(ConsumptionType::SubrecordPayload)?,
-                reader.get_u8_le(ConsumptionType::SubrecordPayload)?,
+                reader.read_typed(ConsumptionType::SubrecordPayload)?,
+                reader.read_typed(ConsumptionType::SubrecordPayload)?,
             ],
             slash_damage: [
-                reader.get_u8_le(ConsumptionType::SubrecordPayload)?,
-                reader.get_u8_le(ConsumptionType::SubrecordPayload)?,
+                reader.read_typed(ConsumptionType::SubrecordPayload)?,
+                reader.read_typed(ConsumptionType::SubrecordPayload)?,
             ],
             thrust_damage: [
-                reader.get_u8_le(ConsumptionType::SubrecordPayload)?,
-                reader.get_u8_le(ConsumptionType::SubrecordPayload)?,
+                reader.read_typed(ConsumptionType::SubrecordPayload)?,
+                reader.read_typed(ConsumptionType::SubrecordPayload)?,
             ],
             // Read the raw i32 and convert it into the WeaponFlags type.
             // from_bits_truncate is used to safely ignore any unknown flags from the file.
             flags: WeaponFlags::from_bits_truncate(
-                reader.get_i32_le(ConsumptionType::SubrecordPayload)?,
+                reader.read_typed(ConsumptionType::SubrecordPayload)?,
             ),
         })
     }
@@ -125,42 +125,51 @@ impl Load for Weapon {
         let mut has_name = false;
         let mut has_data = false;
 
-        load_subrecords!(esm_reader,
-            b"NAME" => {
-                weapon.id = esm_reader.get_ref_id()?;
-                has_name = true;
-            },
-            b"MODL" => {
-                weapon.model = esm_reader.get_normalized_path_string()?;
-            },
-            b"FNAM" => {
-                weapon.name = esm_reader.get_h_string()?;
-            },
-            b"WPDT" => {
-                esm_reader.get_sub_header()?;
-                let expected_size = 32; // WPDT is fixed at 32 bytes
-                if esm_reader.get_sub_size() != expected_size {
-                    return Err(esm_reader
-                        .report_sub_size_mismatch(expected_size, esm_reader.get_sub_size()));
+        while esm_reader.has_more_subs() {
+            let sub_name = esm_reader.get_or_read_sub_name()?;
+            match sub_name.as_bytes() {
+                b"NAME" => {
+                    weapon.id = esm_reader.read_ref_id()?;
+                    has_name = true;
                 }
-                weapon.data = WeaponData::from_reader(esm_reader)?;
-                has_data = true;
-            },
-            b"SCRI" => {
-                weapon.script = esm_reader.get_ref_id()?;
-            },
-            b"ITEX" => {
-                weapon.icon = esm_reader.get_normalized_path_string()?;
-            },
-            b"ENAM" => {
-                weapon.enchantment = esm_reader.get_ref_id()?;
-            },
-            b"DELE" => {
-                esm_reader.skip_sub_data()?;
-                weapon.flags.insert(ObjectFlags::DELETED);
+                b"MODL" => {
+                    weapon.model = esm_reader.read_normalized_path_string()?;
+                }
+                b"FNAM" => {
+                    weapon.name = esm_reader.read_header_decode_str()?.to_string();
+                }
+                b"WPDT" => {
+                    esm_reader.read_sub_header()?;
+                    let expected_size = 32; // WPDT is fixed at 32 bytes
+                    if esm_reader.get_sub_size() != expected_size {
+                        return Err(EsmReader::report_sub_size_mismatch(
+                            expected_size,
+                            esm_reader.get_sub_size(),
+                            &esm_reader.context,
+                            esm_reader.file_pos,
+                        ));
+                    }
+                    weapon.data = esm_reader.load()?;
+                    has_data = true;
+                }
+                b"SCRI" => {
+                    weapon.script = esm_reader.read_ref_id()?;
+                }
+                b"ITEX" => {
+                    weapon.icon = esm_reader.read_normalized_path_string()?;
+                }
+                b"ENAM" => {
+                    weapon.enchantment = esm_reader.read_ref_id()?;
+                }
+                b"DELE" => {
+                    esm_reader.skip_sub_data()?;
+                    weapon.flags.insert(ObjectFlags::DELETED);
+                }
+                _ => {
+                    return Err(EsmError::UnknownRecName(u32::from_le_bytes(sub_name.data)));
+                }
             }
-
-        );
+        }
 
         if !has_name {
             return Err(esm_reader.fail("Missing NAME subrecord in WEAP"));

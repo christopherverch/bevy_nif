@@ -38,10 +38,10 @@ fn query_potential_position(
     let character_iso: Isometry<f32> = (test_pos, test_rot).into();
 
     // Broad-phase: Find all shapes we are potentially overlapping with.
-    context.intersections_with_shape(
+    context.intersect_shape(
         test_pos,
         test_rot,
-        character_shape,
+        character_shape.into(),
         QueryFilter::new().exclude_rigid_body(root_entity),
         |hit_entity| {
             // Narrow-phase: For each potential overlap, get its shape and transform.

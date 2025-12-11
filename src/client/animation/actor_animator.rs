@@ -1,12 +1,4 @@
-use bevy::{
-    animation::{
-        AnimationClip, AnimationPlayer,
-        graph::{AnimationGraph, AnimationGraphHandle},
-    },
-    asset::Assets,
-    log::warn,
-};
-use bevy_ecs::system::{Query, Res, ResMut};
+use bevy::prelude::*;
 use bevy_nif::nif_animation::{
     AnimationDefinition, BlendMask, NUM_DISCRETE_REGIONS, NifAnimator,
     bevy_types::{ActiveAnimation, Priority},
@@ -421,7 +413,6 @@ fn handle_actor_ground_movement(animation_context: &mut AnimationContext) {
         .current_animation_group
         .clone();
 
-    dbg!(animation_context.actor_state.movement.raw_state);
     if current_name.starts_with("jump") && current_name.ends_with("_outro") {
         let wants_to_interrupt_with_movement = matches!(
             animation_context.actor_state.movement.raw_state, // <-- Use the new raw_state
@@ -462,7 +453,6 @@ fn handle_actor_ground_movement(animation_context: &mut AnimationContext) {
             false
         }
     };
-    dbg!(is_stable_state);
     if is_stable_state && !new_name.is_empty() {
         animation_context.actor_state.movement.last_state = effective_move_state;
         return; // No change needed, let the current animation continue.

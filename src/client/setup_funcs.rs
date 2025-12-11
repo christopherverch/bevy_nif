@@ -1,20 +1,19 @@
 use bevy::prelude::*;
-use bevy_kira_audio::{EmitterSettings, SpatialAudioEmitter, SpatialAudioReceiver};
-use bevy_nif::nif::attach_parts::AttachmentType;
-use bevy_nif::nif::spawner::NifScene;
+use bevy_kira_audio::{SpatialAudioEmitter, SpatialAudioReceiver, SpatialRadius};
+use bevy_nif::attach_parts::AttachmentType;
 use bevy_nif::nif_animation::{NifAnimator, NifAnimatorAdded};
+use bevy_nif::spawner::NifScene;
 use bevy_rapier3d::prelude::*;
-use kira::Easing;
 use std::time::Instant;
 use tes3mp_rust::defs::{
-    AnimateableEntity, ClientEntityId, CreatureStats, LocalPlayer, LocalPlayerMesh, MeshEntityLink,
-    NeedsSetup, NetworkedEntity, Player, RootEntityLink,
+    AnimateableEntity, ClientEntityId, CreatureStats, LandscapeCell, LandscapeLoader, LocalPlayer,
+    LocalPlayerMesh, MeshEntityLink, NeedsSetup, NetworkedEntity, Player, RootEntityLink,
 };
 use tes3mp_rust::serializer::SerializableTransform;
 
 use crate::camera::MWCameraTarget;
 use crate::const_defs::NIF_SCALE_MULTIPLIER;
-use crate::physics::physics_setup::NeedsNifPhysics;
+use crate::physics::CreatureControllerLink;
 use tes3mp_rust::actor_defs::{
     ActorState, AnimationDisplacement, CharacterState, CombatState, JumpingState, MovementState,
     RootMotionState, VitalsState,
@@ -75,12 +74,7 @@ pub fn setup_player(
             RigidBody::KinematicPositionBased,
             // Audio
             SpatialAudioEmitter::default(),
-            EmitterSettings {
-                distances: (2.0..=14.0).into(),
-                // We will fully hear this entity within a distance of 2 units, and not hear it at
-                // all by 14 units.
-                attenuation_function: Easing::Linear,
-            },
+            SpatialRadius { radius: 12.0 },
         ));
 
         //spawn the player's mesh
@@ -122,6 +116,18 @@ pub fn setup_player(
         }
         commands.entity(player_entity).add_child(player_mesh);
         commands.entity(player_entity).remove::<NeedsSetup>();
+        commands.spawn((
+            LandscapeLoader {
+                cell_x: 0,
+                cell_y: 0,
+            },
+            LandscapeCell {
+                // Add this immediately for next frame's query
+                x: 0,
+                y: 0,
+            },
+            Visibility::Visible,
+        ));
     }
 }
 pub fn spawn_player_offline(mut commands: Commands) {
@@ -132,11 +138,11 @@ pub fn spawn_player_offline(mut commands: Commands) {
     });
 }
 pub fn insert_nif_animator_links(
-    trigger: Trigger<NifAnimatorAdded>,
+    event: On<NifAnimatorAdded>,
     nif_animator_q: Query<(Entity, &mut NifAnimator)>,
     mut creature_q: Query<&mut CreatureStats>,
 ) {
-    let Ok((nif_animator_entity, nif_animator)) = nif_animator_q.get(trigger.0) else {
+    let Ok((nif_animator_entity, nif_animator)) = nif_animator_q.get(event.0) else {
         return;
     };
     for mut creature_stats in creature_q.iter_mut() {
@@ -158,9 +164,8 @@ fn spawn_player_mesh(
         .spawn((
             NifScene(asset_handle),
             AttachmentType::MainSkeleton { skeleton_id },
+            CreatureControllerLink(player_entity),
             transform,
-            InheritedVisibility::VISIBLE,
-            NeedsNifPhysics(player_entity),
         ))
         .id();
     commands.entity(player_entity).add_child(child);
@@ -265,7 +270,7 @@ fn spawn_nifs(
     transform: Transform,
 ) {
     for (path, mut attachment_type) in paths_with_target_bone {
-        let asset_handle = asset_server.load(path);
+        let asset_handle = asset_server.load(path.to_string());
         if let AttachmentType::DoubleSidedRigid {
             target_bone,
             skeleton_id,

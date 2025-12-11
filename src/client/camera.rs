@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy::window::{CursorGrabMode, PrimaryWindow, Window};
+use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use tes3mp_rust::defs::{IsThirdPerson, LocalPlayerMesh, TestingComponent};
 
 use crate::const_defs::FIRST_PERSON_CAMERA_HEIGHT_OFFSET;
@@ -7,19 +7,16 @@ use crate::const_defs::FIRST_PERSON_CAMERA_HEIGHT_OFFSET;
 pub struct MWCameraPlugin;
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CameraSyncSet;
-#[derive(Event)]
-pub struct ToggleCameraMode;
 
 impl Plugin for MWCameraPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(IsThirdPerson::default())
-            .add_event::<ToggleCameraMode>()
             .configure_sets(PostUpdate, CameraSyncSet) // DO THIS!
             .add_systems(Update, (toggle_cursor.run_if(toggle_cursor_condition),))
             .add_systems(
                 PostUpdate,
                 sync_camera_and_player
-                    .before(TransformSystem::TransformPropagate)
+                    .before(TransformSystems::Propagate)
                     .in_set(CameraSyncSet),
             );
     }
@@ -152,7 +149,7 @@ fn sync_camera_and_player(
 fn toggle_cursor(
     mut cam_q: Query<&mut MWCamera>,
     keys: Res<ButtonInput<KeyCode>>,
-    mut window_q: Query<&mut Window, With<PrimaryWindow>>,
+    mut cursor_options_q: Query<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
     let Ok(mut cam) = cam_q.single_mut() else {
         return;
@@ -162,13 +159,13 @@ fn toggle_cursor(
         cam.cursor_lock_active = !cam.cursor_lock_active;
     }
 
-    if let Ok(mut window) = window_q.single_mut() {
+    if let Ok(mut cursor_options) = cursor_options_q.single_mut() {
         if cam.cursor_lock_active {
-            window.cursor_options.grab_mode = CursorGrabMode::Locked;
-            window.cursor_options.visible = false;
+            cursor_options.grab_mode = CursorGrabMode::Locked;
+            cursor_options.visible = false;
         } else {
-            window.cursor_options.grab_mode = CursorGrabMode::None;
-            window.cursor_options.visible = true;
+            cursor_options.grab_mode = CursorGrabMode::None;
+            cursor_options.visible = true;
         }
     }
 }

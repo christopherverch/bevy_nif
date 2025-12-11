@@ -13,6 +13,8 @@ pub use apply_animation_motion::calculate_animation_displacement_system;
 use bevy::prelude::*;
 pub use components::CreaturePhysicsState;
 use physics_setup::setup_nif_physics;
+#[derive(Component)]
+pub struct CreatureControllerLink(pub Entity);
 impl Plugin for CharacterMotionPlugin {
     fn build(&self, app: &mut bevy::app::App) {
         app.add_systems(Update, setup_nif_physics);

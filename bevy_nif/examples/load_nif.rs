@@ -6,9 +6,10 @@ use bevy_nif::nif_animation::{BlendMask, NifAnimator, SkeletonMap};
 use bevy_nif::*;
 use bevy_rapier3d::plugin::{NoUserData, RapierPhysicsPlugin};
 use bevy_rapier3d::render::RapierDebugRenderPlugin;
-use bevy_third_person_camera::*;
 use setup::setup_nif_physics;
+use third_person_camera::*;
 mod setup;
+mod third_person_camera;
 
 fn main() {
     App::new()
@@ -28,9 +29,7 @@ fn main() {
         .add_systems(Update, test_animations)
         .add_systems(Update, test_loop_anims)
         .add_systems(Update, setup_nif_physics)
-        .add_plugins(EguiPlugin {
-            enable_multipass_for_primary_context: false,
-        })
+        .add_plugins(EguiPlugin::default())
         .add_plugins(WorldInspectorPlugin::new())
         .run();
 }

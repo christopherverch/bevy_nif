@@ -8,19 +8,17 @@ edition.workspace = true
 path = "src/lib.rs"
 
 [dependencies]
-bevy = { version = "0.16", default-features = false, features = ["bevy_asset", "bevy_core_pipeline", "bevy_pbr", "bevy_scene", "animation", "bevy_log"] }
 nif = { path = "../libs/nif" }
-bevy_animation = "0.16"
 bitflags = "2.9.0"
 bmp = "0.5.0"
 byteorder = "1.5" # For reading binary data easily
 serde = "1.0.219"
 slotmap = "1.0.7"
-bevy_rapier3d = "0.30.0"
+bevy_rapier3d = "0.32.0"
+bevy = {workspace = true}
 
 
 [dev-dependencies]
-bevy = { version = "0.16", default-features = false, features = ["x11", "tonemapping_luts","dynamic_linking"] }
-bevy-inspector-egui = "0.31.0"
-bevy_third_person_camera = "0.3.0"
-bevy_rapier3d = "0.30.0"
+bevy = { version = "0.17", default-features = false, features = ["x11", "tonemapping_luts","dynamic_linking", "reflect_auto_register",] }
+bevy-inspector-egui = "0.35.0"
+bevy_rapier3d = "0.32.0"

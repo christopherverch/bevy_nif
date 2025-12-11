@@ -139,9 +139,8 @@ pub trait LoadFn: Iterator {
 impl LoadFn for std::ops::Range<u16> {}
 impl LoadFn for std::ops::Range<u32> {}
 
-#[cfg(feature = "glam")]
 const _: () = {
-    use glam::{Mat2, Mat3, Mat4, Quat, Vec2, Vec3, Vec4, Vec4Swizzles};
+    use bevy::math::{Mat2, Mat3, Mat4, Quat, Vec2, Vec3, Vec4, Vec4Swizzles};
 
     macro_rules! impl_load {
         ($($T:ty)*) => {

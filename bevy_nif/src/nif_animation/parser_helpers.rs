@@ -1,9 +1,8 @@
 // src/nif_animation/parser_helpers.rs
 
-use bevy::log::warn;
+use bevy::animation::animation_curves::AnimatableKeyframeCurve;
 use bevy::math::Vec3;
-use bevy_animation::animatable::Animatable;
-use bevy_animation::animation_curves::AnimatableKeyframeCurve;
+use bevy::{animation::animatable::Animatable, log::warn};
 
 use super::bevy_types::{
     REGION_INDEX_LEFT_ARM, REGION_INDEX_LOWER_BODY, REGION_INDEX_RIGHT_ARM, REGION_INDEX_TORSO,

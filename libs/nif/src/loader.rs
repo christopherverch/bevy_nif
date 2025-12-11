@@ -4,8 +4,8 @@ use std::path::Path;
 
 use bevy::asset::{Asset, Handle, LoadContext, RenderAssetUsages};
 use bevy::log::{error, info, warn};
+use bevy::mesh::{Indices, Mesh, PrimitiveTopology};
 use bevy::reflect::TypePath;
-use bevy::render::mesh::{Indices, Mesh, PrimitiveTopology};
 // external imports
 use slotmap::{DenseSlotMap, Key, new_key_type};
 

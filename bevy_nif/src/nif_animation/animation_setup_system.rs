@@ -11,8 +11,10 @@ use crate::{
     },
     spawner::NeedsNifAnimator,
 };
-use bevy::prelude::*;
-use bevy_animation::{AnimationTarget, AnimationTargetId, animated_field};
+use bevy::{
+    animation::{AnimationTarget, AnimationTargetId, animated_field},
+    prelude::*,
+};
 use nif::{NiKeyframeController, NiTextKey, loader::NiKey};
 use slotmap::Key;
 use std::collections::{HashMap, HashSet};

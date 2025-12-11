@@ -2,8 +2,8 @@
 
 use std::collections::HashMap;
 
-use bevy::ecs::entity::Entity;
 use bevy::prelude::*;
+use bevy::{animation::AnimationEvent, ecs::entity::Entity};
 use bitflags::bitflags;
 use serde::{Deserialize, Serialize};
 
@@ -101,7 +101,7 @@ pub struct NifAnimator {
 pub enum NifEventType {
     SoundGen { sound_name: String },
 }
-#[derive(Clone, Debug, Event, Serialize, Deserialize)]
+#[derive(Clone, Debug, AnimationEvent, Serialize, Deserialize)]
 pub struct NifEvent {
     pub entity: Entity,
     pub event_type: NifEventType,

@@ -125,9 +125,8 @@ macro_rules! impl_save {
 }
 impl_save! { i8 u8 i16 u16 f32 i32 u32 f64 i64 u64 }
 
-#[cfg(feature = "glam")]
 const _: () = {
-    use glam::{Mat2, Mat3, Mat4, Quat, Vec2, Vec3, Vec4, Vec4Swizzles};
+    use bevy::math::{Mat2, Mat3, Mat4, Quat, Vec2, Vec3, Vec4, Vec4Swizzles};
 
     macro_rules! impl_save {
         ($($T:ty)*) => {

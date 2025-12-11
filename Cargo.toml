@@ -10,7 +10,8 @@ version = "0.1.0"
 authors = ["Your Name <you@example.com>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/christopherverch/bevy_nif"
-
+[workspace.dependencies]
+bevy = { version = "0.17", default-features = false, features = ["bevy_asset", "bevy_core_pipeline", "bevy_pbr", "bevy_scene", "animation", "bevy_log"] }
 
 [workspace.lints.rust]
 #

@@ -96,7 +96,7 @@ impl NiGeometryData {
         }
 
         let center = 0.5 * (min + max);
-        let mut radius = 0.0;
+        let mut radius: f32 = 0.0;
 
         // Second pass to calculate radius
         for v_array in &self.vertices {

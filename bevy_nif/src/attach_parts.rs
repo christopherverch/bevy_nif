@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use crate::{nif_animation::SkeletonMap, spawner::NifInstantiated};
 
-use bevy::{prelude::*, render::render_resource::Face};
+use bevy::{mesh::VertexAttributeValues, prelude::*, render::render_resource::Face};
 
 #[derive(Component, PartialEq, Clone, Debug)]
 pub enum AttachmentType {
@@ -35,7 +35,7 @@ impl AttachmentType {
     }
 }
 pub fn attach_parts(
-    trigger: Trigger<NifInstantiated>,
+    event: On<NifInstantiated>,
     all_entities_with_children: Query<&Children>,
     names: Query<&Name>,
     attach_query: Query<(Entity, &AttachmentType)>,
@@ -47,7 +47,7 @@ pub fn attach_parts(
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     //make sure this is a nif that has a target skeleton
-    let Some(skeleton_id) = trigger.skeleton_id_opt else {
+    let Some(skeleton_id) = event.skeleton_id_opt else {
         return;
     };
     //make sure the target skeleton exists
@@ -92,11 +92,8 @@ pub fn attach_parts(
                                 if let Ok((mesh3d, material)) = materials_query.get(trishape) {
                                     if let Some(mesh) = meshes.get_mut(&mesh3d.0) {
                                         let mut clone_mesh = mesh.clone();
-                                        if let Some(
-                                            bevy::render::mesh::VertexAttributeValues::Float32x3(
-                                                normals,
-                                            ),
-                                        ) = clone_mesh.attribute_mut(Mesh::ATTRIBUTE_NORMAL)
+                                        if let Some(VertexAttributeValues::Float32x3(normals)) =
+                                            clone_mesh.attribute_mut(Mesh::ATTRIBUTE_NORMAL)
                                         {
                                             for normal in normals {
                                                 normal[0] *= -1.0;

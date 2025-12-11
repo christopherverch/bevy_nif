@@ -8,11 +8,13 @@ pub mod spawner;
 pub mod spawning_ni_helpers;
 use attach_parts::attach_parts;
 use loader::{BMPLoader, Nif, NifAssetLoader};
+use nif::loader::NiKey;
 pub use nif::types::*;
 use nif_animation::SkeletonMap;
 use nif_animation::animation_setup_system::setup_animations;
 use spawner::spawn_nif_scenes;
-
+#[derive(Component)]
+pub struct NeedsNifPhysics(pub Vec<(Entity, NiKey)>);
 pub struct BevyNifPlugin;
 impl Plugin for BevyNifPlugin {
     fn build(&self, app: &mut App) {

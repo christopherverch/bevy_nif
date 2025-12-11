@@ -1,10 +1,11 @@
-use bevy::pbr::OpaqueRendererMethod;
+use bevy::light::{CascadeShadowConfigBuilder, NotShadowCaster, NotShadowReceiver};
 use bevy::prelude::*;
+use bevy::{pbr::OpaqueRendererMethod, render::view::Hdr};
+use bevy_nif::NeedsNifPhysics;
 use bevy_nif::attach_parts::AttachmentType;
 use bevy_nif::loader::Nif;
 use bevy_nif::spawner::NifScene;
 use bevy_rapier3d::prelude::RigidBody;
-use bevy_third_person_camera::*;
 
 pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     spawn_nif_unattached(commands.reborrow(), &asset_server);
@@ -25,14 +26,9 @@ pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 }
 use std::f32::consts::{FRAC_PI_4, PI};
 
-use bevy::render::mesh::Mesh;
-use bevy::{
-    core_pipeline::{
-        fxaa::Fxaa,
-        prepass::{DeferredPrepass, DepthPrepass, MotionVectorPrepass},
-    },
-    pbr::{CascadeShadowConfigBuilder, NotShadowCaster, NotShadowReceiver},
-};
+use bevy::core_pipeline::prepass::{DeferredPrepass, DepthPrepass, MotionVectorPrepass};
+
+use crate::third_person_camera::ThirdPersonCamera;
 
 fn spawn_nifs(
     paths_with_target_bone: Vec<(&str, AttachmentType)>,
@@ -42,7 +38,7 @@ fn spawn_nifs(
     transform: Transform,
 ) {
     for (path, mut attachment_type) in paths_with_target_bone {
-        let asset_handle = asset_server.load(path);
+        let asset_handle = asset_server.load(path.to_string());
         if let AttachmentType::DoubleSidedRigid {
             target_bone,
             skeleton_id,
@@ -87,9 +83,9 @@ pub fn setup_scene(
         Camera3d::default(),
         Camera {
             // Deferred both supports both hdr: true and hdr: false
-            hdr: true,
             ..default()
         },
+        Hdr,
         Projection::Perspective(PerspectiveProjection {
             fov: PI / 3.6,
             aspect_ratio: 1.0,
@@ -103,7 +99,6 @@ pub fn setup_scene(
         DepthPrepass,
         MotionVectorPrepass,
         DeferredPrepass,
-        Fxaa::default(),
     ));
 
     let transform_almost_down = Transform::from_rotation(Quat::from_axis_angle(
@@ -178,8 +173,6 @@ fn spawn_nif_unattached(mut commands: Commands, asset_server: &Res<AssetServer>)
     ));
 }
 
-#[derive(Component)]
-pub struct NeedsNifPhysics(pub Entity);
 /// This system runs once for each newly spawned `NifScene` entity which
 /// also has a NeedsNifPhysic component.
 /// It creates and attaches the appropriate Rapier physics components, handling
@@ -204,8 +197,6 @@ pub fn setup_nif_physics(
             continue;
         };
 
-        commands.entity(needs_physics.0).insert(Name::new("test"));
-
         // --- Determine RigidBody Type
         let rigid_body_type = if nif_scene.0.path().map_or(false, |p| {
             p.path().to_str().unwrap_or("").contains("base_anim")
@@ -216,7 +207,6 @@ pub fn setup_nif_physics(
         };
 
         // Add the RigidBody component to the root.
-        commands.entity(needs_physics.0).insert(rigid_body_type);
         // --- Process each collision shape and spawn it as a child ---
     }
 }

@@ -1,26 +1,106 @@
-[package]
-name = "bevy_nif"
-version = "0.1.0"
+
+
+[workspace]
+members = ["bevy_nif", "libs/*"]
+resolver="3"
+
+[workspace.package]
 edition = "2024"
+version = "0.1.0"
+authors = ["Your Name <you@example.com>"]
 license = "MIT OR Apache-2.0"
-description = "A very basic loader for bevy nifs, currently only supports models and animations"
 repository = "https://github.com/christopherverch/bevy_nif"
-readme = "readme.md"
-[dependencies]
-anyhow = "1.0.98"
-bevy = { version = "0.16", default-features = false, features = ["bevy_asset", "bevy_core_pipeline", "bevy_pbr", "bevy_scene","animation", "bevy_log", "dynamic_linking","x11", "tonemapping_luts"] }
-bevy-inspector-egui = "0.31.0"
-bevy_animation = "0.16"
-bevy_third_person_camera = "0.3.0"
-binrw = "0.14.1"
-bitflags = "2.9.0"
-bmp = "0.5.0"
-byteorder = "1.5" # For reading binary data easily
-encoding_rs = "0.8" # Optional: For handling non-UTF8 strings if needed
-serde = "1.0.219"
-thiserror = "2.0.12"
-[lib]
-path = "src/lib.rs"
 
 
+[workspace.lints.rust]
+#
+# Lint Groups
+# https://doc.rust-lang.org/rustc/lints/groups.html
+#
+future_incompatible = { level = "warn", priority = -1 }
+let_underscore = { level = "warn", priority = -1 }
+nonstandard_style = { level = "warn", priority = -1 }
+rust_2018_compatibility = { level = "warn", priority = -1 }
+rust_2018_idioms = { level = "warn", priority = -1 }
+rust_2021_compatibility = { level = "warn", priority = -1 }
+unused = { level = "warn", priority = -1 }
+stable_features = "allow" # extract_if
+#
+# Allowed-by-default Lints
+# https://doc.rust-lang.org/rustc/lints/listing/allowed-by-default.html
+#
+absolute_paths_not_starting_with_crate = "warn"
+elided_lifetimes_in_paths = "warn"
+explicit_outlives_requirements = "warn"
+ffi_unwind_calls = "warn"
+let_underscore_drop = "warn"
+macro_use_extern_crate = "warn"
+meta_variable_misuse = "warn"
+missing_abi = "warn"
+missing_debug_implementations = "warn"
+# missing_docs = "warn"
+non_ascii_idents = "warn"
+rust_2021_incompatible_closure_captures = "warn"
+rust_2021_incompatible_or_patterns = "warn"
+rust_2021_prefixes_incompatible_syntax = "warn"
+rust_2021_prelude_collisions = "warn"
+single_use_lifetimes = "warn"
+trivial_casts = "warn"
+trivial_numeric_casts = "warn"
+unit_bindings = "warn"
+# unreachable_pub = "warn"
+# unsafe_code = "warn"
+# unsafe_op_in_unsafe_fn = "warn"
+# unstable_features = "warn"
+# unused_crate_dependencies = "warn"
+unused_extern_crates = "warn"
+unused_import_braces = "warn"
+unused_lifetimes = "warn"
+unused_macro_rules = "warn"
+unused_qualifications = "warn"
+# unused_results = "warn"
+dead_code = "warn"
+variant_size_differences = "warn"
 
+[workspace.lints.clippy]
+#
+# Clippy Group: Cargo
+# https://rust-lang.github.io/rust-clippy/master/index.html#?groups=cargo
+#
+cargo = { level = "warn", priority = -1 }
+cargo_common_metadata = "allow"
+#
+# Clippy Group: Pedantic
+# https://rust-lang.github.io/rust-clippy/master/index.html#?groups=pedantic
+#
+pedantic = { level = "warn", priority = -1 }
+inline_always = "allow"
+unreadable_literal = "allow"
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+must_use_candidate = "allow"
+ignored_unit_patterns = "allow"
+match_wildcard_for_single_variants = "allow"
+unsafe_derive_deserialize = "allow"
+multiple_crate_versions = "allow"
+wildcard_imports = "allow"
+needless_continue = "allow"
+cast_lossless = "allow"
+cast_possible_wrap = "allow"
+#
+# Clippy Group: Nursery
+# https://rust-lang.github.io/rust-clippy/master/index.html#?groups=nursery
+#
+nursery = { level = "warn", priority = -1 }
+use_self = "allow"
+missing-const-for-fn = "allow"
+#
+# Clippy Group: Restriction
+# https://rust-lang.github.io/rust-clippy/master/index.html#?groups=restriction
+#
+# restriction = { level = "warn", priority = -1 }
+separated_literal_suffix = "warn"
+# panic = "warn"
+# expect_used = "warn"
+# unwrap_used = "warn"
+# as_conversions = "warn"

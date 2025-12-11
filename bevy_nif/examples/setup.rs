@@ -225,7 +225,6 @@ fn spawn_nif_attached(
             AttachmentType::MainSkeleton { skeleton_id },
             transform.with_scale(Vec3::splat(0.03)),
             InheritedVisibility::VISIBLE,
-            NeedsNifPhysics(player_entity),
         ))
         .id();
     commands.entity(player_entity).add_child(child);

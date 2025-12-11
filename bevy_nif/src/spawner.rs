@@ -148,9 +148,11 @@ pub fn spawn_nif_scenes(
         root_entity: entity,
         skeleton_id_opt: target_skeleton_id_opt,
     });
-    commands
-        .entity(entity)
-        .insert(NeedsNifPhysics(spawn_context.ninodes_with_bvs));
+    if spawn_context.ninodes_with_bvs.len() > 0 {
+        commands
+            .entity(entity)
+            .insert(NeedsNifPhysics(spawn_context.ninodes_with_bvs));
+    }
     commands
         .entity(entity)
         .insert(LoadedNifScene(asset_handle.clone()));
@@ -231,27 +233,11 @@ fn new_spawn_nif_node_recursive<'a>(
             let new_ninode_entity = commands
                 .spawn((bevy_transform, Name::new(ni_node.name.clone())))
                 .id();
-            if let Some(bounding_volume) = &ni_node.bounding_volume {
+            if let Some(_bounding_volume) = &ni_node.bounding_volume {
+                dbg!("pushing bv to", new_ninode_entity);
                 spawn_context
                     .ninodes_with_bvs
                     .push((new_ninode_entity, current_key));
-                match &bounding_volume.bound_data {
-                    BoundData::NiBoxBV(box_bv) => {
-                        let rigid_body_type = RigidBody::KinematicPositionBased;
-                        commands.entity(new_ninode_entity).insert((
-                            rigid_body_type,
-                            Collider::cuboid(box_bv.extents.x, box_bv.extents.y, box_bv.extents.z),
-                            Transform::from_translation(box_bv.center), // The local offset
-                        ));
-                    }
-
-                    BoundData::NiSphereBV(sphere_bv) => {
-                        todo!()
-                    }
-                    BoundData::NiUnionBV(sphere_bv) => {
-                        todo!()
-                    }
-                }
             }
 
             spawn_context

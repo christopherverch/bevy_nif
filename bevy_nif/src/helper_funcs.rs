@@ -1,9 +1,16 @@
 pub fn resolve_nif_path(nif_path: &str) -> String {
-    // Basic cleanup - Needs proper implementation!
     let cleaned = nif_path.trim().replace('\\', "/");
-    if !cleaned.starts_with("textures/") && !cleaned.is_empty() {
-        format!("textures/{}", cleaned)
+
+    if cleaned.is_empty() {
+        return cleaned;
+    }
+
+    // Case-insensitive check for "textures/"
+    if cleaned.len() >= 9 && cleaned[..9].eq_ignore_ascii_case("textures/") {
+        // Replace the prefix with proper casing
+        format!("Textures/{}", &cleaned[9..])
     } else {
-        cleaned
+        // Prepend if missing
+        format!("Textures/{}", cleaned)
     }
 }

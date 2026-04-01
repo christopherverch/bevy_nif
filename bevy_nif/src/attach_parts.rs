@@ -48,6 +48,7 @@ pub fn attach_parts(
 ) {
     //make sure this is a nif that has a target skeleton
     let Some(skeleton_id) = event.skeleton_id_opt else {
+        dbg!("no skeleton id");
         return;
     };
     //make sure the target skeleton exists
@@ -56,9 +57,10 @@ pub fn attach_parts(
         .get(&skeleton_id)
         .is_none()
     {
+        error!("nif tried to attach to skeleton but is missing a skeleton to attach to!");
         return;
     }
-
+    dbg!(&skeleton_map.root_skeleton_entity_map);
     for (nifscene_root, attach_type) in attach_query.iter() {
         if let Some(bodypart_mesh) = find_child_of_child_with_name_containing(
             &all_entities_with_children,
@@ -71,53 +73,65 @@ pub fn attach_parts(
                 target_bone,
             } = attach_type
             {
-                if let Some(skeleton) = skeleton_map.skeletons.get(skeleton_id) {
-                    if let Some(skeleton_bone) = skeleton.get_bone_by_name(target_bone) {
-                        if target_bone.contains("Left") {
-                            //find the child of the ninode(should be trimesh), so we can get the mesh and material of
-                            //the trimesh
-                            let entities = find_descendants_with_name_containing(
-                                &all_entities_with_children,
-                                &names,
-                                bodypart_mesh,
-                                "NiTriShape",
-                            );
-                            for trishape in entities {
-                                if let Ok(mut transform) = transforms.get_mut(trishape) {
-                                    transform.translation.x = -transform.translation.x;
-                                    transform.rotation.y = -transform.rotation.y;
-                                    transform.rotation.z = -transform.rotation.z;
-                                    transform.scale.x = -1.0;
-                                }
-                                if let Ok((mesh3d, material)) = materials_query.get(trishape) {
-                                    if let Some(mesh) = meshes.get_mut(&mesh3d.0) {
-                                        let mut clone_mesh = mesh.clone();
-                                        if let Some(VertexAttributeValues::Float32x3(normals)) =
-                                            clone_mesh.attribute_mut(Mesh::ATTRIBUTE_NORMAL)
-                                        {
-                                            for normal in normals {
-                                                normal[0] *= -1.0;
-                                                normal[1] *= -1.0;
-                                                normal[2] *= -1.0;
-                                            }
-                                        }
-                                        let mesh_handle = meshes.add(clone_mesh);
-                                        commands.entity(trishape).insert(Mesh3d(mesh_handle));
+                dbg!(skeleton_id);
+                let Some(skeleton) = skeleton_map.skeletons.get(skeleton_id) else {
+                    error!(
+                        "nif tried to attach to skeleton but is missing a skeleton to attach to!"
+                    );
+                    return;
+                };
+                let Some(skeleton_bone) = skeleton.get_bone_by_name(target_bone) else {
+                    error!("nif tried to attach to nonexistant bone!");
+                    return;
+                };
+                // Flip rotations and translations for attachments to Left bones
+                if target_bone.contains("Left") {
+                    //find the child of the ninode(should be trimesh), so we can get the mesh and material of
+                    //the trimesh
+                    let entities = find_descendants_with_name_containing(
+                        &all_entities_with_children,
+                        &names,
+                        bodypart_mesh,
+                        "NiTriShape",
+                    );
+                    for trishape in entities {
+                        if let Ok(mut transform) = transforms.get_mut(trishape) {
+                            transform.translation.x = -transform.translation.x;
+                            transform.rotation.y = -transform.rotation.y;
+                            transform.rotation.z = -transform.rotation.z;
+                            transform.scale.x = -1.0;
+                        }
+                        if let Ok((mesh3d, material)) = materials_query.get(trishape) {
+                            if let Some(mesh) = meshes.get_mut(&mesh3d.0) {
+                                let mut clone_mesh = mesh.clone();
+                                if let Some(VertexAttributeValues::Float32x3(normals)) =
+                                    clone_mesh.attribute_mut(Mesh::ATTRIBUTE_NORMAL)
+                                {
+                                    //Flip normals since we flipped x scale
+                                    for normal in normals {
+                                        normal[0] *= -1.0;
+                                        normal[1] *= -1.0;
+                                        normal[2] *= -1.0;
                                     }
-                                    if let Some(standard_material) = materials.get_mut(&material.0)
-                                    {
-                                        standard_material.cull_mode = Some(Face::Front);
-                                        standard_material.double_sided = true;
-                                    }
                                 }
+                                let mesh_handle = meshes.add(clone_mesh);
+                                commands.entity(trishape).insert(Mesh3d(mesh_handle));
+                            }
+                            if let Some(standard_material) = materials.get_mut(&material.0) {
+                                standard_material.cull_mode = Some(Face::Front);
+                                standard_material.double_sided = true;
                             }
                         }
-                        commands
-                            .entity(nifscene_root)
-                            .insert(ChildOf(skeleton_bone.entity));
-                        commands.entity(nifscene_root).remove::<AttachmentType>();
                     }
                 }
+                dbg!("inserting childof");
+                dbg!(skeleton_bone.entity);
+                // Fallback: if no "hair" node exists, attach the root (default behavior)
+                commands
+                    .entity(nifscene_root)
+                    .insert(ChildOf(skeleton_bone.entity));
+
+                commands.entity(nifscene_root).remove::<AttachmentType>();
             } else {
                 match attach_type {
                     //don't parent main skeleton to itself

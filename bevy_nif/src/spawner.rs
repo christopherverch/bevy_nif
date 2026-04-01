@@ -8,16 +8,13 @@ use bevy::mesh::VertexAttributeValues;
 use bevy::mesh::skinning::{SkinnedMesh, SkinnedMeshInverseBindposes};
 use bevy::pbr::{MeshMaterial3d, StandardMaterial};
 use bevy::prelude::*;
-use bevy_rapier3d::prelude::{Collider, RigidBody};
 use nif::loader::ConsumedNiType;
 use nif::loader::NiKey;
 use nif::loader::Nif;
-use nif::{BoundData, NiSkinInstance, NiType};
+use nif::{NiSkinInstance, NiType};
 use std::collections::HashMap;
 use std::f32::consts::FRAC_PI_2;
 use std::f32::consts::PI;
-#[derive(Component)]
-pub struct MainNifSkeleton;
 #[derive(Component)]
 pub struct NeedsNifAnimator {
     pub handle: Handle<Nif>,
@@ -32,11 +29,10 @@ pub struct NifInstantiated {
 }
 #[allow(dead_code)]
 #[derive(Component)]
-pub struct LoadedNifScene(pub Handle<Nif>);
+pub struct LoadedNifScene;
 #[derive(Resource, Default, Debug, Component)]
 pub struct NifScene(pub Handle<Nif>);
 //for nif->bevy coordinates
-pub const MESH_ROTATION: Quat = Quat::from_xyzw(0.0, 0.70710677, 0.70710677, 0.0);
 
 pub fn spawn_nif_scenes(
     mut commands: Commands,
@@ -45,12 +41,7 @@ pub fn spawn_nif_scenes(
     nif_assets: Res<Assets<Nif>>,
     asset_server: Res<AssetServer>,
     mut new_scenes: Query<
-        (
-            Entity,
-            &mut Transform,
-            &NifScene,
-            Option<&mut AttachmentType>,
-        ),
+        (Entity, &NifScene, Option<&mut AttachmentType>),
         Without<LoadedNifScene>,
     >,
     mut inverse_bindposes: ResMut<Assets<SkinnedMeshInverseBindposes>>,
@@ -62,50 +53,63 @@ pub fn spawn_nif_scenes(
     // is_main_skeleton is just based on if the asset_path contains base_anim.nif
     // default to false
     let mut is_main_skeleton = false;
-    let Some((entity, asset_handle, nif_scene_component, target_skeleton_id_opt)) =
-        new_scenes.iter_mut().find_map(
-            |(entity, mut transform, nif_scene_component, attachment_type_opt)| {
-                let asset_handle = &nif_scene_component.0;
-                let asset_path = asset_handle.path()?.to_string();
+    let Some((
+        original_entity,
+        work_root,
+        asset_handle,
+        nif_scene_component,
+        target_skeleton_id_opt,
+    )) = new_scenes
+        .iter_mut()
+        .find_map(|(entity, nif_scene_component, attachment_type_opt)| {
+            let asset_handle = &nif_scene_component.0;
+            let asset_path = asset_handle.path()?.to_string();
 
-                is_main_skeleton = asset_path.contains("base_anim.nif");
-                let target_skeleton_id_opt =
-                    attachment_type_opt.map(|a| a.get_target_skeleton_id());
-
-                if !is_main_skeleton {
-                    if let Some(id) = target_skeleton_id_opt {
-                        let exists = skeleton_map_res.root_skeleton_entity_map.contains_key(&id);
-                        if !exists {
-                            // If it's not a skeleton asset, and this asset relies on a skeleton
-                            // that doesn't exist (yet?), skip for now and try the next asset
-                            return None;
-                        }
+            is_main_skeleton = asset_path.contains("base_anim.nif");
+            let target_skeleton_id_opt = attachment_type_opt.map(|a| a.get_target_skeleton_id());
+            if !is_main_skeleton {
+                if let Some(id) = target_skeleton_id_opt {
+                    let exists = skeleton_map_res.root_skeleton_entity_map.contains_key(&id);
+                    if !exists {
+                        // If it's not a skeleton asset, and this asset relies on a skeleton
+                        // that doesn't exist (might exist later), skip for now and try the next asset
+                        return None;
                     }
                 }
+            }
+            let mut work_root = entity;
+            if is_main_skeleton {
+                // TODO:: maybe this should happen in the loader, modifying the root node?
+                // Add the entity as
+                let root_rotator_entity = commands
+                    .spawn((
+                        Name::new("rotator entity"),
+                        Transform::from_rotation(
+                            Quat::from_rotation_x(-FRAC_PI_2) * Quat::from_rotation_z(PI),
+                        ),
+                        ChildOf(entity),
+                    ))
+                    .id();
+                // add the rotator entity as a child and then set it as the "root"
+                work_root = root_rotator_entity;
+            }
 
-                if is_main_skeleton {
-                    // TODO:: maybe this should happen in the loader, modifying the root node?
-                    transform.rotation =
-                        Quat::from_rotation_x(-FRAC_PI_2) * Quat::from_rotation_z(PI);
-                }
-
-                Some((
-                    entity,
-                    asset_handle,
-                    nif_scene_component,
-                    target_skeleton_id_opt,
-                ))
-            },
-        )
+            Some((
+                entity,
+                work_root,
+                asset_handle,
+                nif_scene_component,
+                target_skeleton_id_opt,
+            ))
+        })
     else {
-        println!("No suitable NIF scene found.");
+        // println!("No suitable NIF scene found.");
         return;
     };
     let Some(nif) = nif_assets.get(&nif_scene_component.0) else {
-        println!("Nif hasn't finished loading");
+        //  println!("Nif hasn't finished loading");
         return;
     };
-
     let mut skeleton = Skeleton::new();
     let already_spawned_nodes = HashMap::new();
     let ninodes_with_bvs = Vec::new();
@@ -123,12 +127,12 @@ pub fn spawn_nif_scenes(
                 Transform::default(),
                 Visibility::Inherited,
                 Name::new(format!("NifScene {:?}_{}", asset_handle.id(), index)),
+                ChildOf(work_root),
             ))
             .id();
-        commands.entity(entity).add_child(root_node_entity);
         let current_parent_entity = root_node_entity;
 
-        new_spawn_nif_node_recursive(
+        spawn_nif_node_recursive(
             nif,
             &mut spawn_context,
             current_node.key,
@@ -142,35 +146,40 @@ pub fn spawn_nif_scenes(
             &mut commands,
         );
     }
-
+    // Now the nif is fully set up, trigger that it's instantiated so any further desired
+    // setup can be done by the user
     commands.trigger(NifInstantiated {
         handle: asset_handle.clone(),
-        root_entity: entity,
+        root_entity: original_entity,
         skeleton_id_opt: target_skeleton_id_opt,
     });
+    // If any of the nodes had bounding volumes, attach a component with the volumes
+    // so the user can set up physics objects for them
     if spawn_context.ninodes_with_bvs.len() > 0 {
         commands
-            .entity(entity)
+            .entity(original_entity)
             .insert(NeedsNifPhysics(spawn_context.ninodes_with_bvs));
     }
-    commands
-        .entity(entity)
-        .insert(LoadedNifScene(asset_handle.clone()));
+    // Attach a marker component so we don't try to load it again
+    commands.entity(original_entity).insert(LoadedNifScene);
     if is_main_skeleton {
-        if let Some(target_skeleton_id) = target_skeleton_id_opt {
-            skeleton_map_res
-                .root_skeleton_entity_map
-                .insert(target_skeleton_id, entity);
-            skeleton_map_res
-                .skeletons
-                .insert(target_skeleton_id, skeleton);
+        let Some(target_skeleton_id) = target_skeleton_id_opt else {
+            unreachable!("main skeleton should always have a skeleton id");
+        };
+        // Add a link from this skeleton id -> the skeleton entity
+        skeleton_map_res
+            .root_skeleton_entity_map
+            .insert(target_skeleton_id, original_entity);
+        // Add a link from skeleton id -> the skeleton data struct
+        skeleton_map_res
+            .skeletons
+            .insert(target_skeleton_id, skeleton);
 
-            commands.entity(entity).insert(NeedsNifAnimator {
-                handle: asset_handle.clone(),
-                skeleton_id: target_skeleton_id,
-            });
-            commands.entity(entity).insert(MainNifSkeleton);
-        }
+        // Skeletons need something to animate them
+        commands.entity(original_entity).insert(NeedsNifAnimator {
+            handle: asset_handle.clone(),
+            skeleton_id: target_skeleton_id,
+        });
     }
 }
 
@@ -181,7 +190,7 @@ struct SpawnContext<'a> {
     already_spawned_nodes: HashMap<NiKey, Entity>,
     ninodes_with_bvs: Vec<(Entity, NiKey)>,
 }
-fn new_spawn_nif_node_recursive<'a>(
+fn spawn_nif_node_recursive<'a>(
     nif: &Nif,
     spawn_context: &mut SpawnContext<'a>,
     current_key: NiKey,
@@ -208,33 +217,32 @@ fn new_spawn_nif_node_recursive<'a>(
     match ni_type {
         NiType::NiNode(ni_node) => {
             let nif_transform = ni_node;
-            let rot_mat = Mat3::from_cols(
-                Vec3::new(
-                    nif_transform.rotation.x_axis[0],
-                    nif_transform.rotation.y_axis[0],
-                    nif_transform.rotation.z_axis[0],
-                ), // First Column
-                Vec3::new(
-                    nif_transform.rotation.x_axis[1],
-                    nif_transform.rotation.y_axis[1],
-                    nif_transform.rotation.z_axis[1],
-                ), // Second Column
-                Vec3::new(
-                    nif_transform.rotation.x_axis[2],
-                    nif_transform.rotation.y_axis[2],
-                    nif_transform.rotation.z_axis[2],
-                ), // Third Column
-            );
+            let rot = nif_transform.rotation;
+            let rot_mat = Mat3::from_cols_array(&[
+                rot.x_axis[0],
+                rot.y_axis[0],
+                rot.z_axis[0],
+                rot.x_axis[1],
+                rot.y_axis[1],
+                rot.z_axis[1],
+                rot.x_axis[2],
+                rot.y_axis[2],
+                rot.z_axis[2],
+            ]);
             let bevy_transform = Transform {
                 translation: ni_node.translation,
                 rotation: Quat::from_mat3(&rot_mat),
                 scale: Vec3::splat(ni_node.scale),
             };
             let new_ninode_entity = commands
-                .spawn((bevy_transform, Name::new(ni_node.name.clone())))
+                .spawn((
+                    bevy_transform,
+                    Name::new(ni_node.name.clone()),
+                    ChildOf(parent_entity),
+                ))
                 .id();
             if let Some(_bounding_volume) = &ni_node.bounding_volume {
-                dbg!("pushing bv to", new_ninode_entity);
+                // dbg!("pushing bv to", new_ninode_entity);
                 spawn_context
                     .ninodes_with_bvs
                     .push((new_ninode_entity, current_key));
@@ -257,9 +265,8 @@ fn new_spawn_nif_node_recursive<'a>(
                 );
                 current_bone_name_opt = Some(ni_node.name.as_str());
             }
-            commands.entity(parent_entity).add_child(new_ninode_entity);
             for child in &ni_node.children {
-                new_spawn_nif_node_recursive(
+                spawn_nif_node_recursive(
                     nif,
                     spawn_context,
                     child.key,
@@ -275,11 +282,29 @@ fn new_spawn_nif_node_recursive<'a>(
             }
         }
         NiType::NiTriShape(ni_trishape) => {
+            let nif_transform = ni_trishape;
+            let rot = nif_transform.rotation;
+            let rot_mat = Mat3::from_cols_array(&[
+                rot.x_axis[0],
+                rot.y_axis[0],
+                rot.z_axis[0],
+                rot.x_axis[1],
+                rot.y_axis[1],
+                rot.z_axis[1],
+                rot.x_axis[2],
+                rot.y_axis[2],
+                rot.z_axis[2],
+            ]);
+            let bevy_transform = Transform {
+                translation: ni_trishape.translation,
+                rotation: Quat::from_mat3(&rot_mat),
+                scale: Vec3::splat(ni_trishape.scale),
+            };
             // Create the entity and set up the name
-            let new_nitrishape_entity = commands.spawn(ni_trishape.transform()).id();
+            let new_nitrishape_entity = commands.spawn(bevy_transform).id();
             let name_ref: &str = &ni_trishape.name;
             let formatted_name = format!("NiTriShape: {:?}", name_ref);
-            // Make shadow invisible (or if it's the main skeleton bones)
+            // Make shadow invisible (or if it's the main skeleton, the bones)
             if name_ref == "Tri Shadow"
                 || name_ref == "Tri QuadPatch01"
                 || spawn_context.is_main_skeleton
@@ -291,7 +316,9 @@ fn new_spawn_nif_node_recursive<'a>(
             commands
                 .entity(new_nitrishape_entity)
                 .insert(Name::new(formatted_name));
-
+            // The mesh was built as the nif was loading, rather than storing it, re loading it,
+            // and then building the mesh.
+            // We have to get the mesh handle using our nitrishape's key
             let Some(consumed_ni_type) = nif.block_assets.get(&ni_trishape.geometry_data.key)
             else {
                 warn!("NiTriShape missing mesh!");
@@ -331,6 +358,8 @@ fn new_spawn_nif_node_recursive<'a>(
             if let Some(mut material) = material_opt {
                 material.base_color_texture = texture_handle_opt.take();
                 material.alpha_mode = AlphaMode::Mask(1.0);
+                //TODO:: fix culling, when attaching bones some transform scales are set to -1
+                //which breaks the culling, for now no culling
                 material.cull_mode = None;
                 let material_h = materials.add(material);
                 commands
@@ -396,53 +425,59 @@ fn apply_skin_instance(
     };
     // 1. Add vertex attributes
     if let Some(mesh) = meshes.get_mut(mesh_handle) {
-        if let Some(vertex_count) = mesh.attribute(Mesh::ATTRIBUTE_POSITION).map(|a| a.len()) {
-            // ... (Initialize joint_indices, joint_weights, vertex_bone_counts) ...
-            let mut joint_indices: Vec<[u16; 4]> = vec![[0, 0, 0, 0]; vertex_count];
-            let mut joint_weights: Vec<[f32; 4]> = vec![[0.0, 0.0, 0.0, 0.0]; vertex_count];
-            let mut vertex_bone_counts: Vec<u8> = vec![0; vertex_count];
-            // ... (Loop sd.bone_list, loop weight_data, populate indices/weights) ...
+        // Only insert joint indices/weights if some other node didn't already do it for this mesh
+        if mesh.attribute(Mesh::ATTRIBUTE_JOINT_INDEX).is_none() {
+            if let Some(vertex_count) = mesh.attribute(Mesh::ATTRIBUTE_POSITION).map(|a| a.len()) {
+                //  Initialize
+                let mut joint_indices: Vec<[u16; 4]> = vec![[0, 0, 0, 0]; vertex_count];
+                let mut joint_weights: Vec<[f32; 4]> = vec![[0.0, 0.0, 0.0, 0.0]; vertex_count];
+                let mut vertex_bone_counts: Vec<u8> = vec![0; vertex_count];
+                // loop through the bone data and populate indices and vertex weights
 
-            for (bone_list_idx, bone_data) in skin_data.bone_data.iter().enumerate() {
-                if bone_list_idx >= 256 {
-                    continue;
-                }
-                for (index, weight) in &bone_data.vertex_weights {
-                    let vertex_index = *index as usize;
-                    if let Some(slot) = vertex_bone_counts.get_mut(vertex_index) {
-                        if *slot < 4 {
-                            joint_indices[vertex_index][*slot as usize] = bone_list_idx as u16;
-                            joint_weights[vertex_index][*slot as usize] = *weight;
-                            *slot += 1;
+                for (bone_list_idx, bone_data) in skin_data.bone_data.iter().enumerate() {
+                    if bone_list_idx >= 256 {
+                        warn!("Too many bones in bone_data, skipping any past 256");
+                        continue;
+                    }
+                    for (index, weight) in &bone_data.vertex_weights {
+                        let vertex_index = *index as usize;
+                        if let Some(slot) = vertex_bone_counts.get_mut(vertex_index) {
+                            if *slot < 4 {
+                                joint_indices[vertex_index][*slot as usize] = bone_list_idx as u16;
+                                joint_weights[vertex_index][*slot as usize] = *weight;
+                                *slot += 1;
+                            }
+                        } else {
+                            warn!("Invalid vertex index {} in skin data", vertex_index);
                         }
-                    } else {
-                        warn!("Invalid vertex index {} in skin data", vertex_index);
                     }
                 }
-            }
-            // ... (Normalize weights) ...
-            for i in 0..vertex_count {
-                let sum: f32 = joint_weights[i].iter().sum();
-                if sum > 1e-6 {
-                    for j in 0..4 {
-                        joint_weights[i][j] /= sum;
+                // Normalize weights
+                for weights in joint_weights.iter_mut() {
+                    let sum: f32 = weights.iter().sum();
+                    if sum > 1e-6 {
+                        let inv_sum = 1.0 / sum;
+                        for w in weights.iter_mut() {
+                            *w *= inv_sum;
+                        }
                     }
                 }
+
+                // Insert Bevy vertex attributes
+                mesh.insert_attribute(
+                    Mesh::ATTRIBUTE_JOINT_INDEX,
+                    VertexAttributeValues::Uint16x4(joint_indices),
+                );
+                mesh.insert_attribute(
+                    Mesh::ATTRIBUTE_JOINT_WEIGHT,
+                    VertexAttributeValues::Float32x4(joint_weights),
+                );
+            } else {
+                warn!(
+                    "   Could not apply skinning attributes: Mesh for {:?} missing positions?",
+                    skin_instance.root.key,
+                );
             }
-            // Insert Bevy vertex attributes
-            mesh.insert_attribute(
-                Mesh::ATTRIBUTE_JOINT_INDEX,
-                VertexAttributeValues::Uint16x4(joint_indices),
-            );
-            mesh.insert_attribute(
-                Mesh::ATTRIBUTE_JOINT_WEIGHT,
-                VertexAttributeValues::Float32x4(joint_weights),
-            );
-        } else {
-            warn!(
-                "   Could not apply skinning attributes: Mesh for {:?} missing positions?",
-                skin_instance.root.key,
-            );
         }
     } else {
         warn!(
@@ -452,19 +487,18 @@ fn apply_skin_instance(
     }
 
     // 2. Spawn Skeleton Hierarchy
-    if !spawn_context.is_main_skeleton {
-        // if not the main skeleton, but we have skinning data, we wouldn't set up this asset unless
-        // the skeleton was already set up correctly, so we can just assume it's set up
-    } else {
+    if spawn_context.is_main_skeleton {
         let root_key = skin_instance.root.key;
         // If the root wasn't spawned yet, spawn it
         if !spawn_context.already_spawned_nodes.contains_key(&root_key) {
-            new_spawn_nif_node_recursive(
+            spawn_nif_node_recursive(
                 nif,
                 spawn_context,
                 root_key,
                 //TODO:: Is this right? I think we might have to spawn the whole tree first
-                //since this just spawns it at the current parent level arbitrarily
+                //since this just spawns it at the current parent level arbitrarily. I think
+                //it's only working because the root is usually encountered earlier in the ninode
+                //tree
                 parent_entity,
                 parent_bone_name_opt,
                 skeleton,
@@ -480,7 +514,7 @@ fn apply_skin_instance(
     let mut ibp_matrices = Vec::with_capacity(skin_data.bone_data.len());
     for bone_data in &skin_data.bone_data {
         // Convert NIF transform -> Bevy Transform -> Bevy Mat4
-        // Assumes bone_data.bone_transform IS the inverse bind pose
+        // Assumes bone_data.bone_transform is the inverse bind pose
         let bevy_transform = Transform {
             translation: bone_data.translation,
             rotation: Quat::from_mat3(&bone_data.rotation),
@@ -495,50 +529,52 @@ fn apply_skin_instance(
     let mut joints_vec: Vec<Entity> = Vec::with_capacity(skin_instance.bones.len());
     let mut missing_bone = false;
     if !spawn_context.is_main_skeleton {
-        // --- ATTACHABLE NIF LOGIC ---
-        // `base_skeleton_map_holder` is `&ActiveSkeletonBones`
+        // --- Attachable Nif Logic ---
         if let Some(target_skeleton_id) = spawn_context.target_skeleton_id_opt {
-            if let Some(skeleton) = &skeleton_map.skeletons.get(&target_skeleton_id) {
-                for (bone_order_idx, bone_link_in_current_nif) in
-                    skin_instance.bones.iter().enumerate()
-                {
-                    if let Some(bone_object_nitype) = nif.objects.get(bone_link_in_current_nif.key)
-                    {
-                        let bone_object = match bone_object_nitype {
-                            NiType::NiNode(ni_node) => ni_node,
-                            _ => {
-                                // Should be unreachable
-                                warn!("NiSkinInstance bone linked to non-NiAVObject!");
-                                warn!("{:?}", bone_object_nitype);
-                                return;
-                            }
-                        };
-                        let bone_name = &bone_object.name;
-                        if let Some(bone_data) = skeleton.get_bone_by_name(bone_name) {
-                            joints_vec.push(bone_data.entity);
-                        } else {
-                            warn!(
-                                "Attachable TriShape root {:?}: Bone '{}' not found in active base skeleton map.",
-                                skin_instance.root,
-                                &format!("{}", bone_name),
-                            );
-                            missing_bone = true;
-                            break;
-                        }
-                    } else {
-                        warn!(
-                            "Attachable TriShape root {:?}: Missing bone link at order index {} in SkinInstance.",
-                            skin_instance.root, bone_order_idx
-                        );
-                        missing_bone = true;
-                        break;
+            let Some(skeleton) = &skeleton_map.skeletons.get(&target_skeleton_id) else {
+                error!(
+                    "target skeleton was not set up before nif that attaches to it! id:{}",
+                    target_skeleton_id
+                );
+                return;
+            };
+            for (bone_order_idx, bone_link_in_current_nif) in skin_instance.bones.iter().enumerate()
+            {
+                let Some(bone_object_nitype) = nif.objects.get(bone_link_in_current_nif.key) else {
+                    warn!(
+                        "Attachable TriShape root {:?}: Missing bone link at order index {} in SkinInstance.",
+                        skin_instance.root, bone_order_idx
+                    );
+                    missing_bone = true;
+                    break;
+                };
+                let bone_object = match bone_object_nitype {
+                    NiType::NiNode(ni_node) => ni_node,
+                    _ => {
+                        // Should be unreachable
+                        warn!("NiSkinInstance bone linked to non-NiAVObject!");
+                        warn!("{:?}", bone_object_nitype);
+                        return;
                     }
+                };
+                let bone_name = &bone_object.name;
+                if let Some(bone_data) = skeleton.get_bone_by_name(bone_name) {
+                    joints_vec.push(bone_data.entity);
+                } else {
+                    warn!(
+                        "Attachable TriShape root {:?}: Bone '{}' not found in active base skeleton map.",
+                        skin_instance.root,
+                        &format!("{}", bone_name),
+                    );
+                    missing_bone = true;
+                    break;
                 }
             }
         }
     } else {
+        // --- Main skeleton logic ---
         for (i, bone_link) in skin_instance.bones.iter().enumerate() {
-            // Look up the Entity spawned for this bone's NiNode index
+            // Look up the Entity linked to by this bone's NiNode index
             if let Some(bone_entity) = spawn_context.already_spawned_nodes.get(&bone_link.key) {
                 joints_vec.push(*bone_entity);
             } else {
@@ -551,7 +587,8 @@ fn apply_skin_instance(
             }
         }
     }
-    // 3c. Add SkinnedMesh Component (if all bones found)
+    // 3c. Add Bevy SkinnedMesh Component (if all bones found)
+    // Required for animation
     if !missing_bone && joints_vec.len() == skin_data.bone_data.len() {
         commands.entity(current_entity).insert(SkinnedMesh {
             inverse_bindposes: ibp_handle,

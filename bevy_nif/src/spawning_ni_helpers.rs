@@ -28,8 +28,10 @@ pub fn process_nitexturingproperty(
                             TextureSource::External(ext_path) => {
                                 dbg!("loading");
                                 dbg!(ext_path);
-                                texture_handle_opt =
-                                    Some(asset_server.load(resolve_nif_path(ext_path)));
+                                let path = resolve_nif_path(ext_path);
+                                if let Some(path) = path {
+                                    texture_handle_opt = Some(asset_server.load(path));
+                                }
                             }
                             TextureSource::Internal(link) => {
                                 dbg!("Unimplemented!");

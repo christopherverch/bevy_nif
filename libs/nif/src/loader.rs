@@ -252,7 +252,7 @@ pub fn convert_nif_mesh(data: NiTriShapeData) -> Option<Mesh> {
     let NiTriShapeData {
         base,
         triangles,
-        shared_normals,
+        shared_normals: _shared_normals,
     } = data;
     let NiTriBasedGeomData { base } = base;
     let vertices = base.vertices;

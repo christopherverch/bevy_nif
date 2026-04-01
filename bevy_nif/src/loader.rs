@@ -12,46 +12,15 @@ use nif::loader::{NiKey, load_nif_bytes};
 
 pub use nif::loader::Nif;
 /// Data extracted from NiSkinInstance and NiSkinData to build the Bevy skeleton.
+/// TODO:: not created yet, but we probably should make it while loading the nif
 #[derive(Debug, Clone)]
 pub struct NifSkinData {
     pub skeleton_root: NiKey,  // The key of the root bone (NiNode)
     pub bone_keys: Vec<NiKey>, // The array of bone NiKeys (nodes that form the skeleton)
-    pub inverse_bind_poses: Handle<SkinnedMeshInverseBindposes>, // The GPU-ready asset
-}
-/// Minimal data required for Bevy entity creation and hierarchy traversal.
-#[derive(Debug, Clone)]
-pub struct NifHierarchyMetadata {
-    pub transform: Transform,
-    pub children: Vec<NiKey>,
-    pub name: String,
-
-    // This key ties the spatial block to its functional component in Nif::components.
-    pub component_key: NiKey,
+    pub inverse_bind_poses: Handle<SkinnedMeshInverseBindposes>, // The already created bindposes
 }
 
-#[derive(Debug, Clone)]
-pub enum NifComponent {
-    // For NiTriShape
-    Mesh(NifMeshComponent),
-
-    // For blocks that ONLY group or are parents (like a standard NiNode with no children)
-    // We only put it here if it has properties/controllers attached that need runtime setup.
-    // Otherwise, a simple NiNode is just in the hierarchy map, with no entry here.
-    NodeBase,
-}
-#[derive(Debug, Clone)]
-pub struct NifMeshComponent {
-    // The actual Bevy asset handle, resolved during the loader's work.
-    pub mesh_handle: Handle<Mesh>,
-
-    // The actual Bevy asset handle for the material.
-    pub material_handle: Handle<StandardMaterial>,
-
-    /// The NiKey of the linked NiSkinInstance block, if skinning is present.
-    pub skin_instance_key: Option<NiKey>,
-}
-
-#[derive(Default)]
+#[derive(Default, TypePath)]
 pub struct NifAssetLoader;
 
 impl AssetLoader for NifAssetLoader {
@@ -78,7 +47,7 @@ impl AssetLoader for NifAssetLoader {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, TypePath)]
 pub struct BMPLoader;
 
 impl AssetLoader for BMPLoader {

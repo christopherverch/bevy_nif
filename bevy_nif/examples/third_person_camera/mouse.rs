@@ -30,7 +30,7 @@ pub fn orbit_mouse(
     window_q: Query<&Window, With<PrimaryWindow>>,
     mut cam_q: Query<(&ThirdPersonCamera, &mut Transform), With<ThirdPersonCamera>>,
     mouse: Res<ButtonInput<MouseButton>>,
-    mut mouse_evr: EventReader<MouseMotion>,
+    mut mouse_evr: MessageReader<MouseMotion>,
 ) {
     let mut rotation = Vec2::ZERO;
     for ev in mouse_evr.read() {
@@ -73,7 +73,7 @@ pub fn orbit_mouse(
     cam_transform.translation = rot_matrix.mul_vec3(Vec3::new(0.0, 0.0, cam.zoom.radius));
 }
 
-fn zoom_mouse(mut scroll_evr: EventReader<MouseWheel>, mut cam_q: Query<&mut ThirdPersonCamera>) {
+fn zoom_mouse(mut scroll_evr: MessageReader<MouseWheel>, mut cam_q: Query<&mut ThirdPersonCamera>) {
     let mut scroll = 0.0;
     for ev in scroll_evr.read() {
         scroll += ev.y;

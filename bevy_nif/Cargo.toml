@@ -1,6 +1,6 @@
 [package]
 name = "bevy_nif"
-description = "A very basic loader for Bevy NIFs"
+description = "A basic loader for Bevy NIFs"
 version.workspace = true
 edition.workspace = true
 
@@ -11,14 +11,13 @@ path = "src/lib.rs"
 nif = { path = "../libs/nif" }
 bitflags = "2.9.0"
 bmp = "0.5.0"
-byteorder = "1.5" # For reading binary data easily
+byteorder = "1.5" 
 serde = "1.0.219"
 slotmap = "1.0.7"
-bevy_rapier3d = "0.32.0"
 bevy = {workspace = true}
 
 
 [dev-dependencies]
-bevy = { version = "0.17", default-features = false, features = ["x11", "tonemapping_luts","dynamic_linking", "reflect_auto_register",] }
-bevy-inspector-egui = "0.35.0"
-bevy_rapier3d = "0.32.0"
+bevy = { version = "0.18", default-features = false, features = ["x11", "tonemapping_luts","dynamic_linking", "reflect_auto_register",] }
+bevy-inspector-egui = "0.36.0"
+bevy_rapier3d = "0.33.0"

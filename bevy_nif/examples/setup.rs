@@ -1,11 +1,8 @@
 use bevy::light::{CascadeShadowConfigBuilder, NotShadowCaster, NotShadowReceiver};
 use bevy::prelude::*;
 use bevy::{pbr::OpaqueRendererMethod, render::view::Hdr};
-use bevy_nif::NeedsNifPhysics;
 use bevy_nif::attach_parts::AttachmentType;
-use bevy_nif::loader::Nif;
 use bevy_nif::spawner::NifScene;
-use bevy_rapier3d::prelude::RigidBody;
 
 pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     spawn_nif_unattached(commands.reborrow(), &asset_server);
@@ -91,6 +88,7 @@ pub fn setup_scene(
             aspect_ratio: 1.0,
             near: 0.1,
             far: 1000.0,
+            ..default()
         }),
         ThirdPersonCamera::default(),
         Transform::from_xyz(0.7, 0.7, 1.0).looking_at(Vec3::new(0.0, 0.3, 0.0), Vec3::Y),
@@ -177,6 +175,9 @@ fn spawn_nif_unattached(mut commands: Commands, asset_server: &Res<AssetServer>)
 /// also has a NeedsNifPhysic component.
 /// It creates and attaches the appropriate Rapier physics components, handling
 /// local collider offsets by spawning a dedicated child entity for the collider.
+
+// TODO::
+/*
 pub fn setup_nif_physics(
     mut commands: Commands,
     nif_assets: Res<Assets<Nif>>,
@@ -210,7 +211,7 @@ pub fn setup_nif_physics(
         // --- Process each collision shape and spawn it as a child ---
     }
 }
-
+*/
 fn spawn_nif_attached(
     player_entity: Entity,
     mut commands: Commands,

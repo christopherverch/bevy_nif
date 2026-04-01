@@ -6,7 +6,6 @@ use bevy_nif::nif_animation::{BlendMask, NifAnimator, SkeletonMap};
 use bevy_nif::*;
 use bevy_rapier3d::plugin::{NoUserData, RapierPhysicsPlugin};
 use bevy_rapier3d::render::RapierDebugRenderPlugin;
-use setup::setup_nif_physics;
 use third_person_camera::*;
 mod setup;
 mod third_person_camera;
@@ -15,7 +14,7 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugins(BevyNifPlugin)
-        .insert_resource(AmbientLight {
+        .insert_resource(GlobalAmbientLight {
             // Add ambient light resource
             color: Color::srgb(1.0, 0.8, 0.6), // Match warm tone
             brightness: 100.0,
@@ -28,7 +27,6 @@ fn main() {
         .add_systems(Startup, setup::setup)
         .add_systems(Update, test_animations)
         .add_systems(Update, test_loop_anims)
-        .add_systems(Update, setup_nif_physics)
         .add_plugins(EguiPlugin::default())
         .add_plugins(WorldInspectorPlugin::new())
         .run();
@@ -95,7 +93,6 @@ fn test_animations(
     >,
     mut anim_graphs: ResMut<Assets<AnimationGraph>>,
     skeleton_map_res: Res<SkeletonMap>,
-    animation_clips: Res<Assets<AnimationClip>>,
 ) {
     for (id, _skeleton) in &skeleton_map_res.skeletons {
         for (mut animation_player, mut nif_animator, graph_handle) in animator_q.iter_mut() {

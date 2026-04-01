@@ -12,7 +12,7 @@ use crate::{
     spawner::NeedsNifAnimator,
 };
 use bevy::{
-    animation::{AnimationTarget, AnimationTargetId, animated_field},
+    animation::{AnimatedBy, AnimationTargetId, animated_field},
     prelude::*,
 };
 use nif::{NiKeyframeController, NiTextKey, loader::NiKey};
@@ -216,10 +216,7 @@ pub fn setup_animations(
                 if tagged_bones.insert(bone_anim.bone_entity) {
                     commands
                         .entity(bone_anim.bone_entity)
-                        .insert(AnimationTarget {
-                            id: bone_anim.target_id,
-                            player: entity,
-                        });
+                        .insert((bone_anim.target_id, AnimatedBy(entity)));
                 }
 
                 raw_bone_data.push(bone_anim);

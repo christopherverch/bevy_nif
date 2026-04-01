@@ -48,7 +48,6 @@ pub fn attach_parts(
 ) {
     //make sure this is a nif that has a target skeleton
     let Some(skeleton_id) = event.skeleton_id_opt else {
-        dbg!("no skeleton id");
         return;
     };
     //make sure the target skeleton exists
@@ -60,7 +59,6 @@ pub fn attach_parts(
         error!("nif tried to attach to skeleton but is missing a skeleton to attach to!");
         return;
     }
-    dbg!(&skeleton_map.root_skeleton_entity_map);
     for (nifscene_root, attach_type) in attach_query.iter() {
         if let Some(bodypart_mesh) = find_child_of_child_with_name_containing(
             &all_entities_with_children,
@@ -73,7 +71,6 @@ pub fn attach_parts(
                 target_bone,
             } = attach_type
             {
-                dbg!(skeleton_id);
                 let Some(skeleton) = skeleton_map.skeletons.get(skeleton_id) else {
                     error!(
                         "nif tried to attach to skeleton but is missing a skeleton to attach to!"
@@ -124,8 +121,6 @@ pub fn attach_parts(
                         }
                     }
                 }
-                dbg!("inserting childof");
-                dbg!(skeleton_bone.entity);
                 // Fallback: if no "hair" node exists, attach the root (default behavior)
                 commands
                     .entity(nifscene_root)

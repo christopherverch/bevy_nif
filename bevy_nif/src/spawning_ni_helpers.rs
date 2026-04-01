@@ -1,7 +1,6 @@
 use bevy::{
     asset::{AssetServer, Handle},
     color::{Color, LinearRgba},
-    ecs::system::Res,
     image::Image,
     pbr::StandardMaterial,
     render::alpha::AlphaMode,
@@ -33,7 +32,7 @@ pub fn process_nitexturingproperty(
                                     texture_handle_opt = Some(asset_server.load(path));
                                 }
                             }
-                            TextureSource::Internal(link) => {
+                            TextureSource::Internal(_link) => {
                                 dbg!("Unimplemented!");
                                 //TODO::
                             }
@@ -43,7 +42,7 @@ pub fn process_nitexturingproperty(
                 }
             }
         }
-        TextureMap::BumpMap(tex_bumpmap) => {
+        TextureMap::BumpMap(_tex_bumpmap) => {
             dbg!("Unimplemented!");
         }
     }

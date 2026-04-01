@@ -3,7 +3,6 @@ use std::collections::HashSet;
 use tes3mp_rust::{
     actor_defs::ActorState,
     defs::{ColliderEntityLink, LocalPlayer},
-    events::{SoundEvent, SoundSource},
 };
 
 use bevy::prelude::*;
@@ -42,7 +41,6 @@ pub fn character_movement_system(
         &Collider,
         Option<&ActorState>, // Use ActorState to identify actors
     )>,
-    mut commands: Commands,
 ) {
     let delta_time = time.delta_secs();
     if delta_time == 0.0 {
@@ -305,14 +303,7 @@ pub fn character_movement_system(
         } else {
             controller.inertia = Vec3::ZERO;
         }
-        let was_on_ground = controller.on_ground;
         controller.on_ground = final_on_ground;
-        if !was_on_ground && controller.on_ground {
-            commands.trigger(SoundEvent {
-                sound_source: SoundSource::LocalPlayer,
-                sound_path: "sounds/bodyfallMED.wav".to_string(),
-            });
-        }
         controller.on_slope = final_on_slope;
         transform.translation = current_pos;
     }
@@ -351,10 +342,10 @@ fn trace_down(
             entity: hit_entity,
             toi: hit.time_of_impact,
             world_normal: if let Some(ShapeCastHitDetails {
-                witness1,
-                witness2,
+                witness1: _witness1,
+                witness2: _witness2,
                 normal1,
-                normal2,
+                normal2: _normal2,
             }) = hit.details
             {
                 normal1.into()

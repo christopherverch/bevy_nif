@@ -6,9 +6,9 @@ use bevy::{
     render::view::Hdr,
 };
 use bevy_anti_alias::fxaa::Fxaa;
-use bevy_nif::spawner::NifScene;
+use bevy_nif::{loader::Nif, spawner::NifScene};
 use bevy_rapier3d::prelude::{Collider, RigidBody, Sleeping};
-use std::f32::consts::{FRAC_PI_4, FRAC_PI_8, PI};
+use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, FRAC_PI_8, PI};
 use tes3mp_rust::defs::{PlayerCamera, TestingComponent};
 
 #[derive(Component)]
@@ -21,8 +21,26 @@ pub fn setup_scene(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    spawn_nif_unattached(&mut commands, &asset_server);
-
+    let head_handle = asset_server.load("data/A_Glass_Helmet.nif");
+    spawn_nif_unattached(&mut commands, head_handle);
+    let head = asset_server.load("data/Data Files/Meshes/b/B_N_High Elf_M_Head_01.nif");
+    let hair = asset_server.load("data/Data Files/Meshes/b/B_N_High Elf_M_Hair_04.nif");
+    commands.spawn((
+        NifScene(head),
+        Transform {
+            translation: Vec3::new(-0.0, 2.0, -1.0),
+            rotation: Quat::from_rotation_x(-FRAC_PI_2) * Quat::from_rotation_z(PI),
+            scale: Vec3::splat(0.03), //nifs are huge otherwise
+        },
+    ));
+    commands.spawn((
+        NifScene(hair),
+        Transform {
+            translation: Vec3::new(-0.0, 2.0, -1.0),
+            rotation: Quat::from_rotation_x(-FRAC_PI_2) * Quat::from_rotation_z(PI),
+            scale: Vec3::splat(0.03), //nifs are huge otherwise
+        },
+    ));
     commands.spawn((
         Camera3d::default(),
         Camera::default(),
@@ -281,10 +299,9 @@ pub fn setup_scene(
     ));
 }
 
-fn spawn_nif_unattached(commands: &mut Commands, asset_server: &Res<AssetServer>) {
-    let head_handle = asset_server.load("data/A_Glass_Helmet.nif");
+pub fn spawn_nif_unattached(commands: &mut Commands, nif_handle: Handle<Nif>) {
     commands.spawn((
-        NifScene(head_handle),
+        NifScene(nif_handle),
         Visibility::Visible,
         Transform {
             translation: Vec3::new(-0.0, 0.5, -1.0),

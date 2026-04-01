@@ -13,6 +13,7 @@ use tes3mp_rust::serializer::SerializableTransform;
 
 use crate::camera::MWCameraTarget;
 use crate::const_defs::NIF_SCALE_MULTIPLIER;
+use crate::gui::setup_race_select;
 use crate::physics::CreatureControllerLink;
 use tes3mp_rust::actor_defs::{
     ActorState, AnimationDisplacement, CharacterState, CombatState, JumpingState, MovementState,
@@ -113,6 +114,9 @@ pub fn setup_player(
                 },
                 SpatialAudioReceiver,
             ));
+            // Set up the race select UI
+
+            commands.run_system_cached(setup_race_select);
         }
         commands.entity(player_entity).add_child(player_mesh);
         commands.entity(player_entity).remove::<NeedsSetup>();
@@ -130,6 +134,7 @@ pub fn setup_player(
         ));
     }
 }
+
 pub fn spawn_player_offline(mut commands: Commands) {
     info!("spawning player offline");
     commands.spawn(NeedsSetup {
@@ -160,7 +165,7 @@ fn spawn_player_mesh(
     transform: Transform,
 ) -> Entity {
     let asset_handle = asset_server.load("data/base_anim.nif");
-    let child = commands
+    let skeleton_entity = commands
         .spawn((
             NifScene(asset_handle),
             AttachmentType::MainSkeleton { skeleton_id },
@@ -168,21 +173,21 @@ fn spawn_player_mesh(
             transform,
         ))
         .id();
-    commands.entity(player_entity).add_child(child);
+    commands.entity(player_entity).add_child(skeleton_entity);
     let paths_with_target_bone: Vec<(&str, AttachmentType)> = vec![
         (
             "data/b_n_dark elf_m_skins.nif",
             AttachmentType::Skinned { skeleton_id },
         ),
         (
-            "data/B_N_Dark Elf_M_Head_01.nif",
+            "data/Data Files/Meshes/b/B_N_Orc_M_Head_01.nif",
             AttachmentType::Rigid {
                 target_bone: "Head".to_string(),
                 skeleton_id,
             },
         ),
         (
-            "data/B_N_Dark Elf_M_Hair_01.nif",
+            "data/Data Files/Meshes/b/B_N_High Elf_M_Hair_04.nif",
             AttachmentType::Rigid {
                 target_bone: "Head".to_string(),
                 skeleton_id,
@@ -255,17 +260,17 @@ fn spawn_player_mesh(
     spawn_nifs(
         paths_with_target_bone,
         &asset_server,
-        child,
+        skeleton_entity,
         &mut commands,
         Transform::from_scale(Vec3::splat(1.0)),
     );
-    child
+    skeleton_entity
 }
 
 fn spawn_nifs(
     paths_with_target_bone: Vec<(&str, AttachmentType)>,
     asset_server: &Res<AssetServer>,
-    entity: Entity,
+    skeleton_entity: Entity,
     commands: &mut Commands,
     transform: Transform,
 ) {
@@ -288,7 +293,7 @@ fn spawn_nifs(
                     Visibility::Inherited,
                 ))
                 .id();
-            commands.entity(entity).add_child(child);
+            commands.entity(skeleton_entity).add_child(child);
             attachment_type = AttachmentType::Rigid {
                 target_bone: format!("Right {}", target_bone),
                 skeleton_id,
@@ -302,7 +307,7 @@ fn spawn_nifs(
                 Visibility::Inherited,
             ))
             .id();
-        commands.entity(entity).add_child(child);
+        commands.entity(skeleton_entity).add_child(child);
     }
 }
 /*

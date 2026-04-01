@@ -5,11 +5,6 @@ use bevy::{
     shader::ShaderRef,
 };
 
-#[derive(Resource, Clone, Deref, DerefMut)]
-pub struct TextureArrayHandle(pub Handle<Image>);
-#[derive(Resource, Clone, Deref, DerefMut)]
-pub struct AlphaMapTextureArrayHandle(pub Handle<Image>);
-
 #[derive(ShaderType, Clone, Default, Debug)]
 pub struct TerrainMaterialParams {
     pub num_textures_in_array: u32,

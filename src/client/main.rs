@@ -1,9 +1,12 @@
+use std::{env, fs};
+
 use actor::{
     actor_funcs::apply_hit,
     controller::{character_controller_system, resolve_final_animation_state_system},
 };
 use animation::actor_animator::animate_actors_using_state;
 use bevy::{light::DirectionalLightShadowMap, pbr::DefaultOpaqueRendererMethod, prelude::*};
+use serde::Deserialize;
 use tes3mp_rust::defs::{GameState, IdToEntityMap, Pause, PlayerInput};
 mod networking;
 mod setup_scene;
@@ -33,6 +36,7 @@ use temporary_funcs::{animate_light_direction, switch_mode};
 pub mod actor;
 pub mod camera;
 mod equipment;
+mod gui;
 mod handle_nif_events;
 mod initial_esm_parse;
 mod landscape;
@@ -48,12 +52,26 @@ use ui::{UiPlugin, despawn_main_menu_ui, setup_main_menu};
 
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct Connected;
-
+#[derive(Deserialize, Debug)]
+struct Config {
+    data_dirs: Vec<String>,
+    content: Vec<String>,
+}
+#[derive(Resource)]
+pub struct NextAvailableSkeletonId(pub u64);
 fn main() {
     /*let bsa = bsa::BSAFile::new("Morrowind.bsa").unwrap();
     for file in bsa.get_list().iter() {
         println!("{}", file.name);
     }*/
+    let path = env::var("CARGO_MANIFEST_DIR");
+    if let Ok(mut path) = path {
+        path.push_str("/config.toml");
+        let config_text = fs::read_to_string(&path).expect("Could not read config");
+        let config: Config = toml::from_str(&config_text).expect("Invalid config format");
+        dbg!(config);
+    }
+
     let mut app = App::new();
     app.insert_resource(DefaultOpaqueRendererMethod::deferred())
         .insert_resource(DirectionalLightShadowMap { size: 4096 })
@@ -94,6 +112,7 @@ fn main() {
     });
     app.insert_resource(PlayerInput::default())
         .insert_resource(IdToEntityMap::default())
+        .insert_resource(NextAvailableSkeletonId(1))
         .init_state::<GameState>()
         .add_systems(Startup, setup_scene)
         .add_systems(Update, setup_player)

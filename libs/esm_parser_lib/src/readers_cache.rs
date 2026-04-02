@@ -7,11 +7,6 @@ use to_utf8::Utf8Encoder;
 
 use crate::{EsmError, EsmReader};
 
-// Assuming these structs are defined elsewhere
-// use crate::esmreader::{EsmReader, EsmError};
-// use crate::header_types::Header;
-// use crate::common_types::EsmContext;
-
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 enum ReaderState {
     Busy,

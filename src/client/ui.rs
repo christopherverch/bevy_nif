@@ -105,11 +105,11 @@ pub fn setup_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                                 justify_content: JustifyContent::Center,
                                 align_items: AlignItems::Center,
                                 border: UiRect::all(Val::Px(5.0)), // The Border component
+                                border_radius: BorderRadius::MAX,
                                 ..default()
                             },
                             BorderColor::all(Color::BLACK),
                             BackgroundColor(GREEN.into()), // Assuming NORMAL_BUTTON is Color::GREEN
-                            BorderRadius::MAX,
                             ConnectButton,
                             Interaction::default(),
                         ))

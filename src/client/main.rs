@@ -16,7 +16,6 @@ use bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_kira_audio::{AudioPlugin, SpatialAudioPlugin};
 use bevy_nif::BevyNifPlugin;
-use bevy_rapier3d::prelude::RapierPhysicsPlugin;
 use bevy_rapier3d::prelude::*;
 use bevy_renet::RenetClientPlugin;
 use camera::MWCameraPlugin;

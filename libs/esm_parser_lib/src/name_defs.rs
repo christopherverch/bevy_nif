@@ -1,5 +1,3 @@
-use std::str::Utf8Error;
-
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use strum_macros::Display;

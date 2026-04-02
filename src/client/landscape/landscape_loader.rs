@@ -85,7 +85,7 @@ pub fn load_landscape(
         let mut image_handles = Vec::new();
         let mut texture_index_map = HashMap::new();
         for (slot_index, land_texture_def) in textures_for_material_setup.iter().enumerate() {
-            let texture_path = format!("textures/{}", land_texture_def.texture_file);
+            let texture_path = format!("Textures/{}", land_texture_def.texture_file);
             println!("trying to load {}", texture_path);
             image_handles.push(asset_server.load(texture_path));
             texture_index_map.insert(land_texture_def.index as u16, slot_index);
@@ -194,7 +194,10 @@ fn finish_landscape_setup(
     };
     let (positions_bevy, normals_bevy, uvs_bevy, colors_bevy, indices) = landscape_data;
     let heightfield_collider = create_heightfield_collider(&positions_bevy);
-    let positions_vec3_for_collider: Vec<Vec3> = positions_bevy
+
+    //Old, we use a heightfield now
+    /*
+     * let positions_vec3_for_collider: Vec<Vec3> = positions_bevy
         .iter()
         .map(|pos_array| Vec3::from_array(*pos_array))
         .collect();
@@ -206,6 +209,7 @@ fn finish_landscape_setup(
             [chunk[0], chunk[1], chunk[2]]
         })
         .collect();
+    */
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions_bevy);
     mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals_bevy);
     mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs_bevy);
@@ -516,7 +520,7 @@ fn setup_terrain_2d_array(
 fn create_heightfield_collider(positions: &[[f32; 3]]) -> Collider {
     let mut heights = Vec::with_capacity(LAND_SIDE_VERTICES * LAND_SIDE_VERTICES);
     for x in (0..LAND_SIDE_VERTICES).rev() {
-        for y in (0..LAND_SIDE_VERTICES) {
+        for y in 0..LAND_SIDE_VERTICES {
             let vertex_index = y * LAND_SIDE_VERTICES + x;
             if vertex_index < positions.len() {
                 heights.push(positions[vertex_index][1]); // Use Y as height

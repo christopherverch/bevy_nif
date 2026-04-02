@@ -1,10 +1,14 @@
 pub mod aipackage;
+pub mod bodypart;
 pub mod cell;
 pub mod cell_id;
 pub mod cell_ref;
+pub mod enums;
 pub mod flags;
 pub mod landscape;
 pub mod landscape_textures;
+pub mod race;
 pub mod reference;
+pub mod spell_list;
 pub mod static_object;
 pub mod weapon;

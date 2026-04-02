@@ -5,6 +5,8 @@ use bevy::ecs::world::DeferredWorld;
 use bevy::prelude::*;
 use bevy_nif::nif_animation::NifEventType;
 use esm_parser_lib::Weapon;
+use esm_parser_lib::types::bodypart::Bodypart;
+use esm_parser_lib::types::race::Race;
 use esm_parser_lib::{EsmReader, LandTexture, Landscape, RefId};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -179,3 +181,7 @@ fn add_creature_to_id_map(
 }
 #[derive(Resource)]
 pub struct WeaponDefinitions(pub HashMap<RefId, Weapon>);
+#[derive(Resource)]
+pub struct RaceDefinitions(pub HashMap<RefId, Race>);
+#[derive(Resource)]
+pub struct BodypartDefinitions(pub HashMap<RefId, Bodypart>);

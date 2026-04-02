@@ -26,6 +26,7 @@ pub fn setup_scene(
     let head = asset_server.load("data/Data Files/Meshes/b/B_N_High Elf_M_Head_01.nif");
     let hair = asset_server.load("data/Data Files/Meshes/b/B_N_High Elf_M_Hair_04.nif");
     commands.spawn((
+        Name::new("head"),
         NifScene(head),
         Transform {
             translation: Vec3::new(-0.0, 2.0, -1.0),
@@ -34,6 +35,7 @@ pub fn setup_scene(
         },
     ));
     commands.spawn((
+        Name::new("hair"),
         NifScene(hair),
         Transform {
             translation: Vec3::new(-0.0, 2.0, -1.0),
@@ -50,6 +52,7 @@ pub fn setup_scene(
             aspect_ratio: 1.0,
             near: 0.1,
             far: 1000.0,
+            ..default()
         }),
         PlayerCamera,
         MWCamera::default(),
@@ -59,8 +62,8 @@ pub fn setup_scene(
         DistanceFog {
             color: Color::srgb_u8(43, 44, 47),
             falloff: FogFalloff::Linear {
-                start: 5.0,
-                end: 20.0,
+                start: 10.0,
+                end: 40.0,
             },
             ..default()
         },
@@ -125,12 +128,14 @@ pub fn setup_scene(
     let darkelf_scene = asset_server
         .load(GltfAssetLabel::Scene(0).from_asset("models/m2/dark_elf/B_N_Dark_Elf_M_Hair_01.glb"));
     commands.spawn((
+        Visibility::Visible,
         SceneRoot(darkelf_scene),
         Transform::from_xyz(-3.0, 1.8, -3.0),
     ));
     let darkelf_scene = asset_server
         .load(GltfAssetLabel::Scene(0).from_asset("models/m2/dark_elf/B_N_Dark_Elf_M_Head_01.glb"));
     commands.spawn((
+        Visibility::Visible,
         SceneRoot(darkelf_scene),
         Transform::from_xyz(-3.0, 1.8, -3.0),
     ));

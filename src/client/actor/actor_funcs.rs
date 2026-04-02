@@ -8,20 +8,20 @@ use tes3mp_rust::{
 };
 
 pub fn apply_hit(
-    trigger: Trigger<TriggerHit>,
+    event: On<TriggerHit>,
     mut creature_state_q: Query<(&mut CreatureStats, &mut Transform)>,
     mut commands: Commands,
     local_player_q: Query<Entity, With<LocalPlayer>>,
     id_to_entity_map: Res<IdToEntityMap>,
     mut is_third_person: ResMut<IsThirdPerson>,
 ) {
-    if trigger.networked {
-        commands.trigger(NetworkEvent::Hit(trigger.clone()));
+    if event.networked {
+        commands.trigger(NetworkEvent::Hit(event.clone()));
     }
-    let Some(_attacker_entity) = id_to_entity_map.0.get(&trigger.attacker_id) else {
+    let Some(_attacker_entity) = id_to_entity_map.0.get(&event.attacker_id) else {
         return;
     };
-    let Some(receiver_entity) = id_to_entity_map.0.get(&trigger.receiver_id) else {
+    let Some(receiver_entity) = id_to_entity_map.0.get(&event.receiver_id) else {
         return;
     };
     let Ok((mut receiver_creature_stats, _receiver_transform)) =
@@ -32,17 +32,17 @@ pub fn apply_hit(
     let local_player_entity = local_player_q.single().unwrap();
     let local_player_was_hit = local_player_entity == *receiver_entity;
 
-    receiver_creature_stats.health -= trigger.damage;
+    receiver_creature_stats.health -= event.damage;
     if receiver_creature_stats.health <= 0.0 {
         commands.trigger(RequestAnimation {
-            skeleton_id: trigger.receiver_id,
+            skeleton_id: event.receiver_id,
             animation_config: AnimationConfig {
                 name: "death4".to_string(),
                 repeat: RepeatAnim::Never,
                 priority: 10,
                 mask: BlendMask::all(),
             },
-            networked: trigger.networked,
+            networked: event.networked,
         });
         //if it's the local player that died
         if local_player_was_hit {
@@ -65,17 +65,17 @@ pub fn apply_hit(
         sound_source,
         sound_path: "sounds/body hit.wav".to_string(),
     });
-    if trigger.damage > 12.0 {
+    if event.damage > 12.0 {
         println!("requesting knockdown for {}", receiver_entity);
         commands.trigger(RequestAnimation {
-            skeleton_id: trigger.receiver_id,
+            skeleton_id: event.receiver_id,
             animation_config: AnimationConfig {
                 name: "knockdown".to_string(),
                 repeat: RepeatAnim::Never,
                 priority: 10,
                 mask: BlendMask::all(),
             },
-            networked: trigger.networked,
+            networked: event.networked,
         });
     }
 }

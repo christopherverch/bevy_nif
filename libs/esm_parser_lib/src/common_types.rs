@@ -1,9 +1,7 @@
-// src/common_types.rs
-
+use bytemuck::{Pod, Zeroable};
+use core::fmt;
 use std::path::PathBuf;
 use std::str;
-
-use bytemuck::{Pod, Zeroable};
 
 pub type StringSizeType = u32;
 
@@ -19,12 +17,12 @@ impl<const N: usize> Default for FixedString<N> {
         Self { data: [0; N] }
     }
 }
+/// Creates a const Name4 from a string, which is compiled to the byte equivalent
 #[macro_export]
-macro_rules! name32 {
+macro_rules! name4 {
     ($s:literal) => {{
-        // Use the const constructor to create the FixedString<32> at compile time.
-        // This requires the FixedString<32>::new_const function we defined earlier.
-        $crate::Name32::new_const($s)
+        // Use the const constructor to create the FixedString<4> at compile time.
+        $crate::Name4::new_const($s)
     }};
 }
 impl<const N: usize> FixedString<N> {
@@ -79,14 +77,14 @@ impl<const N: usize> FixedString<N> {
         Self { data: bytes }
     }
 
-    pub fn to_string_view(&self) -> &str {
+    pub fn to_str(&self) -> &str {
         let len = self.data.iter().position(|&b| b == 0).unwrap_or(N);
         str::from_utf8(&self.data[..len]).unwrap_or_default()
     }
 
     pub fn to_string_lossy(&self) -> String {
         let len = self.data.iter().position(|&b| b == 0).unwrap_or(N);
-        String::from_utf8_lossy(&self.data[..len]).to_string() // Use .to_string() or .into_owned() on Cow
+        String::from_utf8_lossy(&self.data[..len]).to_string()
     }
 
     pub fn clear(&mut self) {
@@ -116,7 +114,7 @@ impl FixedString<4> {
         }
     }
 
-    pub fn to_int(&self) -> u32 {
+    pub fn to_u32(&self) -> u32 {
         u32::from_le_bytes(self.data)
     }
 }
@@ -142,12 +140,14 @@ impl<const N: usize> PartialEq<&str> for FixedString<N> {
 
 impl PartialEq<u32> for FixedString<4> {
     fn eq(&self, other: &u32) -> bool {
-        self.to_int() == *other
+        self.to_u32() == *other
     }
 }
 
-pub type Name32 = FixedString<4>;
-pub type Name64 = FixedString<8>;
+pub type Name4 = FixedString<4>;
+pub type Name8 = FixedString<8>;
+pub type Name32 = FixedString<32>;
+pub type Name64 = FixedString<64>;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EsmContext {
@@ -155,8 +155,8 @@ pub struct EsmContext {
     // Maybe remaining rec data should be i64 so we can go past and then backtrack?
     pub remaining_rec_data: u32,
     pub remaining_subrec_data: u32,
-    pub rec_name: Name32,
-    pub sub_name: Name32,
+    pub rec_name: Name4,
+    pub sub_name: Name4,
     // When working with multiple esX files, we will generate lists of all files that
     // actually contribute to a specific cell. Therefore, we need to store the index
     // of the file belonging to this contest. See CellStore::(list/load)refs for details.
@@ -180,12 +180,22 @@ impl EsmContext {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct EsmVersion {
-    pub ui: u32,
+#[derive(Clone, Copy)]
+pub union EsmVersion {
     pub f: f32,
+    pub ui: u32,
 }
-
+impl Default for EsmVersion {
+    fn default() -> Self {
+        EsmVersion { ui: 0 }
+    }
+}
+impl fmt::Debug for EsmVersion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        unsafe { write!(f, "EsmVersion {{ f: {}, ui: {:?} }}", self.f, self.ui) }
+    }
+}
+/// Utility macro, we can do things like static_assert(1+1=2) and have it evaluate at compile time
 #[macro_export]
 macro_rules! static_assert {
     ($condition:expr) => {
@@ -194,9 +204,4 @@ macro_rules! static_assert {
     ($condition:expr, $message:expr) => {
         const _: () = assert!($condition, $message);
     };
-}
-
-fn _size_checks() {
-    assert_eq!(std::mem::size_of::<Name32>(), 4);
-    assert_eq!(std::mem::size_of::<Name64>(), 8);
 }

@@ -1,9 +1,12 @@
-use crate::{EsmError, EsmReader, Load, esm_reader::ConsumptionType, name_defs::RecNameBytes};
-use lazy_static::lazy_static;
-use std::{fmt, hash::Hash, sync::Mutex};
-use string_interner::{DefaultStringInterner, symbol::SymbolU32};
+use crate::{
+    EsmError, EsmReader, Load,
+    esm_reader::ConsumptionType,
+    name_defs::RecNameBytes,
+    string_interning::{find_interned, get_or_intern},
+};
+use std::{fmt, hash::Hash};
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, Eq, Hash)]
 pub enum RefId {
     Empty(EmptyRefId),
     SizedString(StringRefId),
@@ -17,8 +20,8 @@ impl fmt::Debug for RefId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             RefId::Empty(v) => write!(f, "{}", v.to_debug_string()),
-            RefId::SizedString(v) => write!(f, "{}", v.to_debug_string()),
-            RefId::UnsizedString(v) => write!(f, "{}", v.to_debug_string()),
+            RefId::SizedString(v) => write!(f, "SizedString: {}", v.to_debug_string()),
+            RefId::UnsizedString(v) => write!(f, "UnsizedString {}", v.to_debug_string()),
             RefId::FormId(v) => write!(f, "{}", v.to_debug_string()),
             RefId::Generated(v) => write!(f, "{}", v.to_debug_string()),
             RefId::Index(v) => write!(f, "{}", v.to_debug_string()),
@@ -37,10 +40,9 @@ impl fmt::Display for RefId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             RefId::Empty(_empty_ref_id) => write!(f, ""),
-            RefId::SizedString(string_ref_id) | RefId::UnsizedString(string_ref_id) => {
-                let interner_guard = INTERNER.lock().unwrap();
-                let contained_string = interner_guard.resolve(string_ref_id.0);
-                write!(f, "{:?}", contained_string)
+            RefId::SizedString(str_ref) | RefId::UnsizedString(str_ref) => {
+                let contained_str = str_ref.0;
+                write!(f, "{:?}", contained_str)
             }
             RefId::FormId(form_id) => write!(f, "FormId({:?})", form_id),
             RefId::Generated(generated_ref_id) => write!(f, "Generated({:?})", generated_ref_id),
@@ -105,21 +107,35 @@ impl TryFrom<&str> for RefId {
         }
     }
 }
+impl PartialEq for RefId {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            // This handles Sized == Sized, Unsized == Unsized, AND Sized == Unsized
+            (RefId::SizedString(s1), RefId::SizedString(s2))
+            | (RefId::UnsizedString(s1), RefId::UnsizedString(s2))
+            | (RefId::SizedString(s1), RefId::UnsizedString(s2))
+            | (RefId::UnsizedString(s1), RefId::SizedString(s2)) => s1.0.eq_ignore_ascii_case(s2.0),
+
+            (RefId::Empty(_), RefId::Empty(_)) => true,
+            (RefId::FormId(a), RefId::FormId(b)) => a == b,
+            (RefId::Generated(a), RefId::Generated(b)) => a == b,
+            (RefId::Index(a), RefId::Index(b)) => a == b,
+            (RefId::ESM3ExteriorCell(a), RefId::ESM3ExteriorCell(b)) => a == b,
+            _ => false,
+        }
+    }
+}
 
 // Implementing PartialEq<str> for RefId for convenience
 impl PartialEq<str> for RefId {
     fn eq(&self, other: &str) -> bool {
         match self {
-            RefId::SizedString(string_ref_id) | RefId::UnsizedString(string_ref_id) => {
-                let interner_guard = match INTERNER.lock() {
-                    Ok(guard) => guard,
-                    Err(_) => return false, // Mutex is poisoned, cannot proceed
-                };
-
-                let contained_string = interner_guard.resolve(string_ref_id.0);
-
+            RefId::SizedString(str_ref) | RefId::UnsizedString(str_ref) => {
                 // Use eq_ignore_ascii_case for a case-insensitive comparison
-                contained_string.map_or(false, |s| s.eq_ignore_ascii_case(other))
+                dbg!(str_ref.0.eq_ignore_ascii_case(other));
+                dbg!(str_ref.0);
+                dbg!(other);
+                str_ref.0.eq_ignore_ascii_case(other)
             }
             _ => false,
         }
@@ -159,24 +175,52 @@ impl RefId {
     pub fn from_esm3_exterior_cell(x: i32, y: i32) -> Self {
         RefId::ESM3ExteriorCell(ESM3ExteriorCellRefId::new(x, y))
     }
-    /// Resolves the contained string ID into a String using the global INTERNER.
+    /// Resolves the contained string ID into a String
     /// Returns an empty string for EmptyRefId, as required for the region name logic.
     pub fn resolve_string(&self) -> String {
         match self {
             // RefId::Empty is the C++ ESM::RefId() default, which is treated as an empty region name.
             RefId::Empty(_) => "".to_string(),
-
-            // If it's a string ID, lock the global interner and resolve the symbol.
-            RefId::SizedString(v) | RefId::UnsizedString(v) => {
-                let interner_guard = INTERNER.lock().unwrap();
-                interner_guard
-                    .resolve(v.0) // Assuming v.0 is the SymbolU32, based on to_debug_string
-                    .unwrap_or("<Missing String>") // Fallback for safety
-                    .to_string()
-            }
+            RefId::SizedString(v) | RefId::UnsizedString(v) => v.0.to_string(),
             // For other variants (FormId, Index, etc.), which shouldn't happen for a region name,
             // we return the debug representation for safety and debugging.
             _ => format!("{:?}", self),
+        }
+    }
+    pub fn starts_with(&self, prefix: &str) -> bool {
+        match self {
+            RefId::SizedString(s) | RefId::UnsizedString(s) => {
+                let text = s.0;
+                if prefix.len() > text.len() {
+                    return false;
+                }
+                text[..prefix.len()].eq_ignore_ascii_case(prefix)
+            }
+            _ => false, // Not a string type, so it can't "start with" a string
+        }
+    }
+
+    pub fn ends_with(&self, suffix: &str) -> bool {
+        match self {
+            RefId::SizedString(s) | RefId::UnsizedString(s) => {
+                let text = s.0;
+                if suffix.len() > text.len() {
+                    return false;
+                }
+                text[text.len() - suffix.len()..].eq_ignore_ascii_case(suffix)
+            }
+            _ => false,
+        }
+    }
+
+    pub fn contains(&self, sub_string: &str) -> bool {
+        match self {
+            RefId::SizedString(s) | RefId::UnsizedString(s) => {
+                let text = s.0.to_ascii_lowercase();
+                let search = sub_string.to_ascii_lowercase();
+                text.contains(&search)
+            }
+            _ => false,
         }
     }
 }
@@ -204,40 +248,40 @@ impl ESM3ExteriorCellRefId {
         format!("ESM3ExteriorCell{{x: {}, y: {}}}", self.x, self.y)
     }
 }
-lazy_static! {
-    pub static ref INTERNER: Mutex<DefaultStringInterner> =
-        Mutex::new(DefaultStringInterner::new());
+#[derive(Debug, Copy, Clone, Eq, Hash)]
+pub struct StringRefId(pub &'static str);
+impl PartialEq for StringRefId {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.eq_ignore_ascii_case(other.0)
+    }
 }
-
-/// This is the Rust equivalent of the C++ `StringRefId` class.
-/// It holds a shared reference (`Arc`) to a unique string in the global pool.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct StringRefId(pub SymbolU32);
-
 impl StringRefId {
     /// Creates a new StringRefId, interning the string if it doesn't already exist.
     pub fn new(s: &str) -> Self {
-        // Lock the global interner and get the symbol.
-        let symbol = INTERNER.lock().unwrap().get_or_intern(s);
-
-        // Return a new StringRefId containing the symbol.
-        Self(symbol)
+        Self(get_or_intern(s))
     }
-    pub fn deserialize_existing(s: &str) -> Option<Self> {
-        // Lock the global interner and get the symbol.
-        let symbol = INTERNER.lock().unwrap().get(s);
 
-        // If a symbol was found, return a new StringRefId with it.
-        symbol.map(|sym| Self(sym))
+    pub fn deserialize_existing(s: &str) -> Option<Self> {
+        find_interned(s).map(Self)
     }
 
     pub fn to_debug_string(&self) -> String {
-        let interner_guard = INTERNER.lock().unwrap();
-        let contained_string = interner_guard.resolve(self.0);
+        format!("StringRefId: {:?}", self.0)
+    }
+    pub fn ends_with(&self, suffix: &str) -> bool {
+        let s = self.0;
+        if suffix.len() > s.len() {
+            return false;
+        }
 
-        format!("StringRefId: {:?}", contained_string)
+        // Take a slice of the end of the string equal to the suffix length
+        let actual_suffix = &s[s.len() - suffix.len()..];
+
+        // case-insensitive comparison
+        actual_suffix.eq_ignore_ascii_case(suffix)
     }
 }
+
 pub type FormId32 = u32;
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub struct FormId {

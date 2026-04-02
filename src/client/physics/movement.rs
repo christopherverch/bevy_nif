@@ -97,10 +97,10 @@ pub fn character_movement_system(
                     entity: hit_entity,
                     toi: hit.time_of_impact,
                     world_normal: if let Some(ShapeCastHitDetails {
-                        witness1,
-                        witness2,
+                        witness1: _witness1,
+                        witness2: _witness2,
                         normal1,
-                        normal2,
+                        normal2: _normal2,
                     }) = hit.details
                     {
                         normal1.into()

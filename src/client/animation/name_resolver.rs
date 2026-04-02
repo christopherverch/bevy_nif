@@ -75,7 +75,7 @@ pub fn resolve_movement_anim_name(
     animator: &NifAnimator,
 ) -> Option<String> {
     // The state is WeaponEquipped, not Equipping or Unequipping.
-    let weapon_equipped = actor_state.combat.weapon_type > 0;
+    // let weapon_equipped = actor_state.combat.weapon_type > 0;
     let mut base_group = match state {
         CharacterState::WalkForward => "walkforward",
         CharacterState::WalkBack => "walkback",

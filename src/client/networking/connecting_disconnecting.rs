@@ -2,8 +2,8 @@ use std::{net::UdpSocket, time::SystemTime};
 
 use bevy::prelude::*;
 use bevy_renet::{
+    RenetClient,
     netcode::{ClientAuthentication, NetcodeClientTransport},
-    renet::RenetClient,
 };
 use tes3mp_rust::{
     EntityId,

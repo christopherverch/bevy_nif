@@ -3,7 +3,7 @@
 use super::connecting_disconnecting::{create_player, remove_player};
 use super::{EntityIdToEntityMap, InterpolationSpeeds};
 use bevy::prelude::*;
-use bevy_renet::renet::RenetClient;
+use bevy_renet::RenetClient;
 use std::time::Instant;
 use tes3mp_rust::events::SoundSource;
 use tes3mp_rust::networking::{
@@ -36,8 +36,6 @@ pub fn client_send_transform(
 
 pub fn client_sync_players(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
     mut client: ResMut<RenetClient>,
     mut lobby: ResMut<EntityIdToEntityMap>,
     mut networked_entity_q: Query<&mut NetworkedEntity>,
@@ -51,8 +49,6 @@ pub fn client_sync_players(
         &mut client,
         &mut lobby,
         &mut commands,
-        &mut meshes,
-        &mut materials,
         &mut id_to_entity_map,
         &mut actor_state_query,
         &mut local_entity_id,
@@ -74,8 +70,6 @@ fn process_server_messages(
     client: &mut RenetClient,
     lobby: &mut EntityIdToEntityMap,
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
     mut id_to_entity_map: &mut IdToEntityMap,
     actor_state_query: &mut Query<&mut ActorState, Without<LocalPlayer>>,
     local_entity_id: &mut ClientEntityId,
@@ -205,7 +199,7 @@ pub fn send_local_player_state_system(
 
 /// Adds a critical (not acceptable to drop) network event
 pub fn add_critical_network_event(
-    trigger: Trigger<NetworkEvent>,
+    event: On<NetworkEvent>,
     // take an option since observers can't be put in sets, so it will run
     // whether we're connected or not
     client_opt: Option<ResMut<RenetClient>>,
@@ -221,7 +215,7 @@ pub fn add_critical_network_event(
     action_id_counter.0 += 1;
 
     let attack_action = NetworkEventWithId {
-        payload: trigger.clone(),
+        payload: event.clone(),
         action_id,
     };
     match bincode::serialize(&attack_action) {
@@ -230,7 +224,7 @@ pub fn add_critical_network_event(
             pending_acks.0.insert(
                 action_id,
                 SentActionInfo {
-                    action_payload: trigger.clone(),
+                    action_payload: event.clone(),
                     time_sent: time.elapsed(),
                     retries: 0,
                 },

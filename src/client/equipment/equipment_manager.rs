@@ -4,11 +4,8 @@ use tes3mp_rust::{
     events::PlayerReadyWeapon,
 };
 
-pub fn on_player_ready_weapon(
-    trigger: Trigger<PlayerReadyWeapon>,
-    mut actor_q: Query<&mut ActorState>,
-) {
-    if let Ok(mut actor_state) = actor_q.get_mut(trigger.player_entity) {
+pub fn on_player_ready_weapon(event: On<PlayerReadyWeapon>, mut actor_q: Query<&mut ActorState>) {
+    if let Ok(mut actor_state) = actor_q.get_mut(event.player_entity) {
         match actor_state.combat.upper_body_state {
             // If a weapon is already out, begin the process of unequipping it.
             UpperBodyState::WeaponEquipped => {

@@ -4,7 +4,10 @@ use crate::{
     RefId,
     esm_reader::{ConsumptionType, EsmError, EsmReader},
 };
-use std::io::{self, Write};
+use std::{
+    io::{self, Write},
+    mem::MaybeUninit,
+};
 
 pub trait Load {
     fn load(reader: &mut EsmReader) -> Result<Self, EsmError>
@@ -39,13 +42,23 @@ impl Load for u8 {
         reader.read_typed(ConsumptionType::SubrecordPayload)
     }
 }
-impl Load for [u8; 4] {
+
+// TODO:: Slower than manual impls for each potential array size, but whatever
+impl<L, const N: usize> Load for [L; N]
+where
+    L: Load,
+{
     fn load(reader: &mut EsmReader) -> Result<Self, EsmError> {
-        let first = reader.read_typed(ConsumptionType::SubrecordPayload)?;
-        let second = reader.read_typed(ConsumptionType::SubrecordPayload)?;
-        let third = reader.read_typed(ConsumptionType::SubrecordPayload)?;
-        let fourth = reader.read_typed(ConsumptionType::SubrecordPayload)?;
-        Ok([first, second, third, fourth])
+        // Use MaybeUninit to safely initialize an array element by element
+        let mut array: [MaybeUninit<L>; N] = unsafe { MaybeUninit::uninit().assume_init() };
+
+        for i in 0..N {
+            array[i] = MaybeUninit::new(L::load(reader)?);
+        }
+
+        // Safety: all elements are now initialized
+        let array = unsafe { std::mem::transmute_copy::<_, [L; N]>(&array) };
+        Ok(array)
     }
 }
 impl Load for i8 {

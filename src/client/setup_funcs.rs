@@ -38,7 +38,6 @@ pub fn setup_player(
             Player,
             Name::new(format!("Player {}", setup_info.entity_id)),
             Transform::from_translation(player_start_location),
-            Visibility::Visible,
             CreatureStats {
                 entity_id: setup_info.entity_id,
                 health: 50.0,
@@ -130,7 +129,6 @@ pub fn setup_player(
                 x: 0,
                 y: 0,
             },
-            Visibility::Visible,
         ));
     }
 }
@@ -286,12 +284,7 @@ fn spawn_nifs(
                 skeleton_id,
             };
             let child = commands
-                .spawn((
-                    NifScene(asset_handle.clone()),
-                    attachment_type,
-                    transform,
-                    Visibility::Inherited,
-                ))
+                .spawn((NifScene(asset_handle.clone()), attachment_type, transform))
                 .id();
             commands.entity(skeleton_entity).add_child(child);
             attachment_type = AttachmentType::Rigid {
@@ -300,12 +293,7 @@ fn spawn_nifs(
             };
         }
         let child = commands
-            .spawn((
-                NifScene(asset_handle),
-                attachment_type,
-                transform,
-                Visibility::Inherited,
-            ))
+            .spawn((NifScene(asset_handle), attachment_type, transform))
             .id();
         commands.entity(skeleton_entity).add_child(child);
     }

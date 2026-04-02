@@ -140,15 +140,6 @@ impl Load for Weapon {
                 }
                 b"WPDT" => {
                     esm_reader.read_sub_header()?;
-                    let expected_size = 32; // WPDT is fixed at 32 bytes
-                    if esm_reader.get_sub_size() != expected_size {
-                        return Err(EsmReader::report_sub_size_mismatch(
-                            expected_size,
-                            esm_reader.get_sub_size(),
-                            &esm_reader.context,
-                            esm_reader.file_pos,
-                        ));
-                    }
                     weapon.data = esm_reader.load()?;
                     has_data = true;
                 }

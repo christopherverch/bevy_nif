@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy_renet::renet::RenetClient;
+use bevy_renet::RenetClient;
 use tes3mp_rust::{
     actor_defs::ActorState,
     defs::{LocalPlayer, NetworkedEntity},

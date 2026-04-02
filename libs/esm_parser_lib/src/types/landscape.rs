@@ -7,7 +7,7 @@
 
 use crate::common_types::EsmContext;
 use crate::esm_reader::{ConsumptionType, EsmError, EsmReader};
-use crate::{Load, Name32};
+use crate::{Load, Name4};
 
 use super::flags::ObjectFlags; // Assuming EsmContext is your context struct
 
@@ -141,10 +141,7 @@ impl Load for Landscape {
             // context.sub_name is set. context.sub_cached is now false.
             let current_sub_name = reader.get_or_read_sub_name()?;
 
-            // Now get the size for this subrecord. This reads 4 bytes (size) and updates
-            // file_pos, rem_file_data, rem_rec_data by 4.
-            // context.remaining_subrec_data is set to the payload size.
-            // This specific get_sub_header does not use/set sub_cached.
+            // Get the size of the payload
             reader.read_sub_header()?;
 
             match current_sub_name.as_bytes() {
@@ -153,8 +150,8 @@ impl Load for Landscape {
                         return Err(EsmError::SubSizeMismatch {
                             actual: reader.get_sub_size(),
                             expected: LAND_INTV_PAYLOAD_SIZE as u32,
-                            sub_name: Name32::new("INTV"),
-                            rec_name: Name32::new("LAND"),
+                            sub_name: Name4::new("INTV"),
+                            rec_name: Name4::new("LAND"),
                             file: reader.context.filename.clone(),
                             offset: reader.file_pos,
                         });
@@ -219,16 +216,12 @@ impl Load for Landscape {
                     // OpenMW reads WNAM directly in Land::load.
                     if reader.get_sub_size() as usize != WNAM_PAYLOAD_SIZE { /* error */ }
                     let mut wnam_array = Box::new([0i8; WNAM_PAYLOAD_SIZE]);
+                    // SAFETY:: Box initializes the memory, u8 and i8 have the same memory layout
                     let u8_slice_for_read: &mut [u8] = unsafe {
-                        // Get a mutable slice to the data within the Box: &mut [i8; WNAM_PAYLOAD_SIZE]
-                        let i8_array_slice_mut: &mut [i8; WNAM_PAYLOAD_SIZE] = &mut *wnam_array;
-                        // Get the raw mutable pointer to the start of the i8 slice.
-                        let ptr_i8_mut = i8_array_slice_mut.as_mut_ptr();
-                        // Cast this pointer to a *mut u8.
-                        let ptr_u8_mut = ptr_i8_mut as *mut u8;
-                        // Create a new mutable slice of u8 from the raw pointer and length.
-                        // The length is WNAM_PAYLOAD_SIZE because each i8 is 1 byte.
-                        std::slice::from_raw_parts_mut(ptr_u8_mut, WNAM_PAYLOAD_SIZE)
+                        let ptr: *mut [i8; WNAM_PAYLOAD_SIZE] = &mut *wnam_array; // raw pointer
+                        let ptr_u8: *mut [u8; WNAM_PAYLOAD_SIZE] =
+                            ptr as *mut [u8; WNAM_PAYLOAD_SIZE]; // reinterpret
+                        &mut *ptr_u8
                     };
                     reader.read_exact(
                         &mut u8_slice_for_read[..],

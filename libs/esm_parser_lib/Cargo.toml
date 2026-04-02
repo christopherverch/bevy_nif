@@ -22,6 +22,6 @@ num-traits = "0.2.19"
 strum = "0.27.2"
 strum_macros = "0.27.2"
 dashmap = "6.1.0"
-string-interner = {path = "../string-interner"}
+esm_parser_macros= {path = "../esm_parser_macros"}
 lazy_static = "1.5.0"
 

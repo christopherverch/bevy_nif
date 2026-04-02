@@ -86,6 +86,7 @@ pub fn setup_nif_physics(
         let collider_entity = commands
             .spawn((
                 Name::new("PhysicsCollider"),
+                Visibility::default(),
                 Transform::default(),
                 GlobalTransform::default(),
                 Sleeping::disabled(),

@@ -5,8 +5,8 @@ use bevy::{
 };
 use bevy_egui::EguiPlugin;
 use bevy_renet::{
-    RenetServerPlugin,
-    renet::{ClientId, RenetServer, ServerEvent},
+    RenetServer, RenetServerEvent, RenetServerPlugin,
+    renet::{ClientId, ServerEvent},
 };
 use std::{
     collections::HashMap,
@@ -95,6 +95,7 @@ fn main() {
             server_handle_client_critical_actions_system,
         ),
     );
+    app.add_observer(on_server_event);
     app.add_systems(
         Update,
         server_prune_action_cache_system.run_if(on_timer(Duration::from_secs(10))),
@@ -103,8 +104,8 @@ fn main() {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn server_update_system(
-    mut server_events: EventReader<ServerEvent>,
+fn on_server_event(
+    server_event: On<RenetServerEvent>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -113,80 +114,86 @@ fn server_update_system(
     mut player_transforms: ResMut<PlayerTransforms>,
     mut client_id_to_entity_id: ResMut<ClientIdToEntityId>,
 ) {
-    for event in server_events.read() {
-        match event {
-            ServerEvent::ClientConnected { client_id } => {
-                let new_player_entity_id = generate_id();
+    let event = &server_event.0;
+    match event {
+        ServerEvent::ClientConnected { client_id } => {
+            let new_player_entity_id = generate_id();
 
-                // Tell the client its new id
-                // Note this is just the one we use internally, renet is still using client_id
-                let message = bincode::serialize(&ServerMessages::Welcome {
-                    entity_id: new_player_entity_id,
-                })
-                .unwrap();
-                client_id_to_entity_id
-                    .0
-                    .insert(*client_id, new_player_entity_id);
-                server.send_message(*client_id, ServerChannel::ServerMessages, message);
+            // Tell the client its new id
+            // Note this is just the one we use internally, renet is still using client_id
+            let message = bincode::serialize(&ServerMessages::Welcome {
+                entity_id: new_player_entity_id,
+            })
+            .unwrap();
+            client_id_to_entity_id
+                .0
+                .insert(*client_id, new_player_entity_id);
+            server.send_message(*client_id, ServerChannel::ServerMessages, message);
 
-                // Spawn other players for this new client
-                for (entity_id, transform) in player_transforms.0.iter() {
-                    let translation: [f32; 3] = transform.translation.into();
-                    let message = bincode::serialize(&ServerMessages::PlayerCreate {
-                        entity_id: *entity_id,
-                        translation,
-                    })
-                    .unwrap();
-                    server.send_message(*client_id, ServerChannel::ServerMessages, message);
-                }
-                println!("Player {} connected.", client_id);
-
-                // Spawn new player for visualization on the server
-                let transform = Transform::from_xyz(
-                    (fastrand::f32() - 0.5) * 40.,
-                    0.51,
-                    (fastrand::f32() - 0.5) * 40.,
-                );
-                let player_entity = commands
-                    .spawn((
-                        Mesh3d(meshes.add(Mesh::from(Cuboid::default()))),
-                        MeshMaterial3d(materials.add(Color::srgb(0.8, 0.7, 0.6))),
-                        transform,
-                    ))
-                    .insert(Velocity::default())
-                    .insert(Player)
-                    .id();
-
-                // Add the player to the entity id -> entity map
-                lobby.players.insert(new_player_entity_id, player_entity);
-
-                // Tell everyone this player joined
+            // Spawn other players for this new client
+            for (entity_id, transform) in player_transforms.0.iter() {
                 let translation: [f32; 3] = transform.translation.into();
                 let message = bincode::serialize(&ServerMessages::PlayerCreate {
-                    entity_id: new_player_entity_id,
+                    entity_id: *entity_id,
                     translation,
                 })
                 .unwrap();
-                server.broadcast_message(ServerChannel::ServerMessages, message);
+                server.send_message(*client_id, ServerChannel::ServerMessages, message);
             }
-            ServerEvent::ClientDisconnected { client_id, reason } => {
-                if let Some(entity_id) = client_id_to_entity_id.0.get(client_id) {
-                    println!("Player {} disconnected: {}", entity_id, reason);
-                    if let Some(player_entity) = lobby.players.remove(entity_id) {
-                        commands.entity(player_entity).despawn();
-                    }
+            println!("Player {} connected.", client_id);
 
-                    let message = bincode::serialize(&ServerMessages::PlayerRemove {
-                        entity_id: *entity_id,
-                    })
-                    .unwrap();
-                    player_transforms.0.remove(entity_id);
-                    server.broadcast_message(ServerChannel::ServerMessages, message);
+            // Spawn new player for visualization on the server
+            let transform = Transform::from_xyz(
+                (fastrand::f32() - 0.5) * 40.,
+                0.51,
+                (fastrand::f32() - 0.5) * 40.,
+            );
+            let player_entity = commands
+                .spawn((
+                    Mesh3d(meshes.add(Mesh::from(Cuboid::default()))),
+                    MeshMaterial3d(materials.add(Color::srgb(0.8, 0.7, 0.6))),
+                    transform,
+                ))
+                .insert(Velocity::default())
+                .insert(Player)
+                .id();
+
+            // Add the player to the entity id -> entity map
+            lobby.players.insert(new_player_entity_id, player_entity);
+
+            // Tell everyone this player joined
+            let translation: [f32; 3] = transform.translation.into();
+            let message = bincode::serialize(&ServerMessages::PlayerCreate {
+                entity_id: new_player_entity_id,
+                translation,
+            })
+            .unwrap();
+            server.broadcast_message(ServerChannel::ServerMessages, message);
+        }
+        ServerEvent::ClientDisconnected { client_id, reason } => {
+            if let Some(entity_id) = client_id_to_entity_id.0.get(&client_id) {
+                println!("Player {} disconnected: {}", entity_id, reason);
+                if let Some(player_entity) = lobby.players.remove(entity_id) {
+                    commands.entity(player_entity).despawn();
                 }
+
+                let message = bincode::serialize(&ServerMessages::PlayerRemove {
+                    entity_id: *entity_id,
+                })
+                .unwrap();
+                player_transforms.0.remove(entity_id);
+                server.broadcast_message(ServerChannel::ServerMessages, message);
             }
         }
     }
-
+}
+fn server_update_system(
+    mut commands: Commands,
+    lobby: Res<EntityIdToEntityMap>,
+    mut server: ResMut<RenetServer>,
+    mut player_transforms: ResMut<PlayerTransforms>,
+    client_id_to_entity_id: ResMut<ClientIdToEntityId>,
+) {
     for client_id in server.clients_id() {
         while let Some(message) = server.receive_message(client_id, ClientChannel::EntityTransforms)
         {
@@ -250,7 +257,7 @@ fn update_projectiles_system(
 ) {
     for (entity, mut projectile) in projectiles.iter_mut() {
         projectile.duration.tick(time.delta());
-        if projectile.duration.finished() {
+        if projectile.duration.is_finished() {
             commands.entity(entity).despawn();
         }
     }

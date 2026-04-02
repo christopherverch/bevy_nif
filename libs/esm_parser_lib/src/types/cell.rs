@@ -2,7 +2,7 @@ use std::collections::LinkedList;
 
 use crate::{
     ESM3ExteriorCellRefId, EsmContext, EsmError, EsmReader, FormId, Load, RefId, StringRefId,
-    esm_reader::ConsumptionType, name32, refid_types::INTERNER,
+    esm_reader::ConsumptionType, name4, string_interning::get_or_intern,
 };
 
 use super::{
@@ -155,7 +155,7 @@ impl Cell {
             let sub_name = reader.get_or_read_sub_name()?;
             match sub_name.as_bytes() {
                 b"NAME" => {
-                    self.name = reader.read_header_decode_str()?.to_string();
+                    self.name = reader.read_header_decode_string()?;
                 }
                 b"DATA" => {
                     self.data = reader.read_typed_header_load()?;
@@ -242,9 +242,8 @@ impl Cell {
     pub fn generate_id_for_cell(exterior: bool, cell_name: &str, x: i32, y: i32) -> RefId {
         if !exterior {
             // Intern the string
-            let mut interner_guard = INTERNER.lock().unwrap();
-            let symbol = interner_guard.get_or_intern(cell_name);
-            RefId::SizedString(StringRefId(symbol))
+            let str = get_or_intern(cell_name);
+            RefId::SizedString(StringRefId(str))
         } else {
             RefId::ESM3ExteriorCell(ESM3ExteriorCellRefId::new(x, y))
         }
@@ -313,20 +312,20 @@ impl Cell {
         if !reader.has_more_subs() {
             return Ok(false);
         }
-        while reader.is_next_sub(name32!("MVRF"))? {
+        while reader.is_next_sub(name4!("MVRF"))? {
             let mut moved_cell_ref = MovedCellRef::default();
             moved_cell_ref.ref_num.index = reader.read_typed_header()?;
-            if let Some(val) = reader.read_typed_named_header(name32!("CNDT"))? {
+            if let Some(val) = reader.read_typed_named_header(name4!("CNDT"))? {
                 moved_cell_ref.target = val;
             }
             let mut skipped_cell_ref = CellRef::default();
-            if reader.peek_next_sub(name32!("FRMR"))? {
+            if reader.peek_next_sub(name4!("FRMR"))? {
                 return Ok(false);
             }
             let mut skipped_deleted = false;
             skipped_cell_ref.load(reader, &mut skipped_deleted, FALSE_WIDE_REF_NUM)?;
         }
-        if reader.peek_next_sub(name32!("FRMR"))? {
+        if reader.peek_next_sub(name4!("FRMR"))? {
             cell_ref.load(reader, is_deleted, FALSE_WIDE_REF_NUM)?;
             // TODO: should count the number of temp refs and validate the number
             adjust_ref_num(reader, &mut cell_ref.ref_num);
@@ -356,17 +355,17 @@ impl Cell {
             return Ok(false);
         }
 
-        if reader.is_next_sub(name32!("MVRF"))? {
+        if reader.is_next_sub(name4!("MVRF"))? {
             *moved = true;
 
             moved_cell_ref.ref_num.index = reader.read_typed_header()?;
-            if let Some(val) = reader.read_typed_named_header(name32!("CNDT"))? {
+            if let Some(val) = reader.read_typed_named_header(name4!("CNDT"))? {
                 moved_cell_ref.target = val;
             }
         }
 
         // The FRMR subrecord must immediately follow the MVRF (or be the next subrecord).
-        if !reader.peek_next_sub(name32!("FRMR"))? {
+        if !reader.peek_next_sub(name4!("FRMR"))? {
             return Ok(false);
         }
 

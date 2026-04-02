@@ -1,6 +1,9 @@
-use bitflags::bitflags;
+use std::io::{self, Write};
 
-use crate::{EsmError, EsmReader, Load, esm_reader::ConsumptionType};
+use bitflags::bitflags;
+use bytemuck::Pod;
+
+use crate::{EsmError, EsmReader, Load, Save, esm_reader::ConsumptionType};
 
 bitflags! {
     #[repr(transparent)]
@@ -28,5 +31,19 @@ impl Load for ObjectFlags {
         ObjectFlags::from_bits(reader.read_typed(ConsumptionType::SubrecordPayload)?).ok_or_else(
             || EsmError::Custom("Failed to convert flag bytes to ObjectFlags!".to_string()),
         )
+    }
+}
+bitflags! {
+#[repr(transparent)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+    pub struct RaceFlags: i32 {
+        const PLAYABLE = 0x01;
+        const BEAST    = 0x02;
+    }
+}
+impl Load for RaceFlags {
+    fn load(reader: &mut EsmReader) -> Result<Self, EsmError> {
+        let raw: i32 = Load::load(reader)?; // read the raw i32
+        Ok(RaceFlags::from_bits_truncate(raw)) // convert into bitflags
     }
 }

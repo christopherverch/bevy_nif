@@ -44,7 +44,7 @@ impl Load for LandTexture {
         while esm_reader.has_more_subs() {
             let sub_name = esm_reader.get_or_read_sub_name()?; // Consumes subrecord name
 
-            // Compare by creating Name32 structs or by their u32 representation if available
+            // Compare by creating Name4 structs or by their u32 representation if available
             match sub_name.as_bytes() {
                 b"NAME" => {
                     // read_ref_id should handle its own subrecord header reading (NAME + size)

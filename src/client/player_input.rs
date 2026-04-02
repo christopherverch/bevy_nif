@@ -138,10 +138,10 @@ pub fn orbit_mouse(
     window_q: Query<&Window, With<PrimaryWindow>>,
     mut cam_q: Query<(&MWCamera, &mut Transform), With<MWCamera>>,
     mut player_input: ResMut<PlayerInput>,
-    mut mouse_evr: EventReader<MouseMotion>,
+    mut mouse_msgs: MessageReader<MouseMotion>,
 ) {
     let mut rotation = Vec2::ZERO;
-    for ev in mouse_evr.read() {
+    for ev in mouse_msgs.read() {
         rotation = ev.delta;
         // Track how much the player rotated so we can play the turn animation
         player_input.rotation_z += rotation.x;
@@ -183,9 +183,9 @@ pub fn clear_player_rotation_input_system(mut player_input: ResMut<PlayerInput>)
     player_input.rotation_z = 0.0;
 }
 
-fn zoom_mouse(mut scroll_evr: EventReader<MouseWheel>, mut cam_q: Query<&mut MWCamera>) {
+fn zoom_mouse(mut scroll_msgs: MessageReader<MouseWheel>, mut cam_q: Query<&mut MWCamera>) {
     let mut scroll = 0.0;
-    for ev in scroll_evr.read() {
+    for ev in scroll_msgs.read() {
         scroll += ev.y;
     }
 

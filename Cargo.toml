@@ -4,7 +4,7 @@ edition = "2024"
 
 [workspace]
 members = [
-    "libs/esm_parser_lib",
+    "libs/esm_parser_lib", "libs/esm_parser_macros",
     "libs/to_utf8",
 ]
 
@@ -22,12 +22,13 @@ unused = "deny"
 missing_docs = "allow"
 
 [workspace.dependencies]
-bevy = { version = "0.17", default-features = false, features = ["bevy_asset", "bevy_render", "bevy_winit", "bevy_core_pipeline", "bevy_pbr", "bevy_scene", "bevy_text", "bevy_ui", "bevy_ui_render", "x11", "bevy_gltf", "png", "ktx2", "hdr", "default_font", "std", "tonemapping_luts", "bevy_state", "multi_threaded", "bevy_animation", "animation", "dynamic_linking", "tga", "reflect_auto_register"] }
+bevy = { version = "0.18", default-features = false, features = ["bevy_asset", "bevy_render", "bevy_winit", "bevy_core_pipeline", "bevy_pbr", "bevy_scene", "bevy_text", "bevy_ui", "ui_picking", "bevy_animation", "bevy_ui_render", "x11", "bevy_gltf", "png", "ktx2", "hdr", "default_font", "std", "tonemapping_luts", "bevy_state", "multi_threaded", "bevy_animation", "dynamic_linking", "tga", "reflect_auto_register", "bevy_gizmos_render"] }
 
 [dependencies]
 bevy = {workspace = true}
 esm_parser_lib = { path = "libs/esm_parser_lib"}
-bevy_nif = { git = "https://github.com/christopherverch/bevy_nif.git" }
+#bevy_nif = { git = "https://github.com/christopherverch/bevy_nif.git", branch = "main"}
+bevy_nif = { path = "../../bevy_nif/bevy_nif"}
 bsatoollib = "0.2.1"
 #bevy_renet = { path = "libs/renet/bevy_renet"}
 to_utf8 = { path = "libs/to_utf8"}
@@ -35,17 +36,18 @@ bytes = "1"
 serde = "1.0.219"
 bincode = "1.3.3"
 fastrand = "2.3.0"
-renet_visualizer = "1.0.0"
 bitflags = "2.9.0"
 thiserror = "2.0.12"
-bevy_rapier3d = "0.32.0"
 kira = "0.10.8"
 tes3 = "0.1.0"
-bevy_renet = "3.0.0"
-bevy_egui = "0.38.0"
-bevy-inspector-egui = "0.35.0"
-bevy_kira_audio = "0.24.0"
-bevy_anti_alias = "0.17.3"
+bevy-inspector-egui = "0.36.0"
+bevy_kira_audio = "0.25.0"
+bevy_anti_alias = "0.18"
+toml = "1.1.0"
+bevy_rapier3d = { version = "0.33.0", features = ["debug-render-3d", "simd-stable", "parallel" ]}
+bevy_renet = "4.0.1"
+renet_visualizer = "2.0.0"
+bevy_egui = "0.39.1"
 [[bin]]
 name = "client"
 path = "src/client/main.rs"

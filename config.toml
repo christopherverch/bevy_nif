@@ -1,0 +1,10 @@
+# List of data folders to look in
+data_dirs = ["./data", "/home/user/games/morrowind/data"]
+
+# The specific files to load in order
+content = [
+    "Morrowind.esm",
+    "Tribunal.esm",
+    "Bloodmoon.esm",
+    "MyMod.esp"
+]

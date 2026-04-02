@@ -1,8 +1,6 @@
 use glam::{EulerRot, Quat, Vec3};
 
-use crate::{
-    EsmError, EsmReader, Load, RefId, format_version_defs::DEFAULT_FORMAT_VERSION, name32,
-};
+use crate::{EsmError, EsmReader, Load, RefId, format_version_defs::DEFAULT_FORMAT_VERSION, name4};
 
 use super::cell::RefNum;
 
@@ -120,21 +118,21 @@ impl CellRef {
     }
 
     pub fn load_id(&mut self, reader: &mut EsmReader, wide_ref_num: bool) -> Result<(), EsmError> {
-        if reader.is_next_sub(name32!("NAM0"))? {
+        if reader.is_next_sub(name4!("NAM0"))? {
             reader.skip_sub_header()?;
         }
         self.blank();
-        self.ref_num = reader.read_form_id(wide_ref_num, name32!("FRMR"))?;
-        self.ref_id = reader.read_named_sub_ref_id(name32!("NAME"))?;
+        self.ref_num = reader.read_form_id(wide_ref_num, name4!("FRMR"))?;
+        self.ref_id = reader.read_named_sub_ref_id(name4!("NAME"))?;
 
         Ok(())
     }
     fn skip_load_id(reader: &mut EsmReader, wide_ref_num: bool) -> Result<(), EsmError> {
-        if reader.is_next_sub(name32!("NAM0"))? {
+        if reader.is_next_sub(name4!("NAM0"))? {
             reader.skip_sub_header()?; // Consumes the NAM0 header and its (zero) data
         }
-        let _ = reader.read_form_id(wide_ref_num, name32!("FRMR"))?;
-        reader.skip_named_header_ref_id(name32!("NAME"))?;
+        let _ = reader.read_form_id(wide_ref_num, name4!("FRMR"))?;
+        reader.skip_named_header_ref_id(name4!("NAME"))?;
 
         Ok(())
     }

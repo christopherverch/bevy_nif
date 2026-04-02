@@ -13,8 +13,7 @@ use crate::readers_cache::ReadersCache;
 use crate::refid_types::{FormId, RefId, RefIdType};
 use crate::types::flags::ObjectFlags;
 use crate::{
-    CellId, ESM3ExteriorCellRefId, EmptyRefId, GeneratedRefId, IndexRefId, Load, Name32,
-    StringRefId,
+    CellId, ESM3ExteriorCellRefId, EmptyRefId, GeneratedRefId, IndexRefId, Load, Name4, StringRefId,
 };
 
 use std::cell::RefCell;
@@ -95,7 +94,7 @@ impl EsmReader {
     /// Opens the esm file and reads the rec header and the header
     pub fn open(&mut self, path: &Path) -> Result<(), EsmError> {
         self.open_raw(path)?;
-        if self.read_rec_name()? != Name32::new("TES3") {
+        if self.read_rec_name()? != Name4::new("TES3") {
             return Err(self.fail("Not a valid Morrowind file"));
         }
         self.read_rec_header()?;
@@ -176,7 +175,7 @@ impl EsmReader {
         &self.context.parent_file_indices
     }
     /// Remaps an index to what the mapping says the actual index is
-    /// if mod0 was saved with mod1 at index 1, but it was loaded at index 0,
+    /// if mod0 was saved with mod1 at index 1, but mod1 was loaded at index 0,
     /// the mapping should map 1->0
     pub fn apply_content_file_mapping(&mut self, form_id: &mut FormId) -> bool {
         if let Some(mapping) = &self.content_file_mapping {
@@ -204,13 +203,13 @@ impl EsmReader {
                 Ok(RefId::UnsizedString(StringRefId::new(&cell_id.world_space)))
             }
         } else {
-            self.read_header_ref_id_check_name(Name32::new("NAME"))
+            self.read_header_ref_id_check_name(Name4::new("NAME"))
         }
     }
 
     pub fn read_header_ref_id_check_name(
         &mut self,
-        expected_name: Name32,
+        expected_name: Name4,
     ) -> Result<RefId, EsmError> {
         self.get_or_read_validated_subname(expected_name)?;
         return self.read_ref_id();
@@ -335,7 +334,7 @@ impl EsmReader {
         }
     }
 
-    pub fn get_sub_name(&self) -> Name32 {
+    pub fn get_sub_name(&self) -> Name4 {
         self.context.sub_name
     }
     pub fn get_sub_size(&self) -> u32 {
@@ -383,14 +382,14 @@ impl EsmReader {
         // --- 1. Pre-checks based on direction and consumption_type ---
         if offset > 0 {
             // Forward skip
-            // Check against remaining_file_data (fundamental check)
+            // Check against remaining_file_data
             if self.get_remaining_file_data()? < abs_offset_as_u64 {
                 return Err(self.fail(&format!(
                             "EOF (file budget): Cannot skip forward {} bytes (have {}). Context: {:?}, File pos: 0x{:X}",
                             offset, self.get_remaining_file_data()?, consumption_type, self.file_pos
                 )));
             }
-            // Context-specific budget checks for forward skip
+            // Check if we have remaining data for whatever consumptiontype skip we have
             match consumption_type {
                 ConsumptionType::RecordContent => {
                     if self.context.remaining_rec_data < abs_offset_as_u64 as u32 {
@@ -428,7 +427,7 @@ impl EsmReader {
             }
         }
 
-        // --- 2. Perform Seek ---
+        // --- 2. Seek ---
         let original_tracked_pos = self.file_pos;
         let new_stream_pos = self.file.seek(SeekFrom::Current(offset)).map_err(|e| {
             self.fail(&format!(
@@ -437,7 +436,7 @@ impl EsmReader {
             ))
         })?;
 
-        // --- 3. Validate Seek (ensure it moved precisely as expected) ---
+        // --- 3. Validate Seek (ensure it moved as expected) ---
         let expected_new_pos = if offset > 0 {
             original_tracked_pos.checked_add(abs_offset_as_u64)
         } else {
@@ -447,7 +446,7 @@ impl EsmReader {
 
         match expected_new_pos {
             Some(expected_pos) if new_stream_pos == expected_pos => {
-                // Seek was successful and precise
+                // Seek was successful and had no issues
             }
             _ => {
                 // Seek didn't land where expected (clamped at EOF/BOF, or arithmetic issue)
@@ -458,7 +457,7 @@ impl EsmReader {
             }
         }
         // --- 4. Update All Counters ---
-        self.file_pos = new_stream_pos; // Most reliable position
+        self.file_pos = new_stream_pos;
 
         if offset > 0 {
             match consumption_type {
@@ -483,6 +482,7 @@ impl EsmReader {
                     self.context.remaining_subrec_data += abs_offset_as_u64 as u32;
                     // Add back
                 }
+                // Already updated with self.file_pos = new_stream_pos
                 ConsumptionType::FileOnly => {}
             }
         }
@@ -495,7 +495,7 @@ impl EsmReader {
         Ok(self.get_remaining_file_data()? >= MINIMAL_RECORD_HEADER_SIZE)
     }
 
-    pub fn read_rec_name(&mut self) -> Result<Name32, EsmError> {
+    pub fn read_rec_name(&mut self) -> Result<Name4, EsmError> {
         if !self.has_more_recs()? {
             return Err(self.fail("No more records"));
         }
@@ -510,9 +510,9 @@ impl EsmReader {
             )?
         }
 
-        let mut name_bytes = [0u8; Name32::S_CAPACITY];
+        let mut name_bytes = [0u8; Name4::S_CAPACITY];
         self.read_exact(&mut name_bytes, ConsumptionType::FileOnly)?;
-        self.context.rec_name = Name32 { data: name_bytes };
+        self.context.rec_name = Name4 { data: name_bytes };
         self.context.sub_cached = false;
         Ok(self.context.rec_name)
     }
@@ -548,21 +548,21 @@ impl EsmReader {
         self.context.remaining_rec_data > 0 || self.context.sub_cached
     }
 
-    pub fn get_or_read_sub_name(&mut self) -> Result<Name32, EsmError> {
+    pub fn get_or_read_sub_name(&mut self) -> Result<Name4, EsmError> {
         if self.context.sub_cached {
             self.context.sub_cached = false;
             return Ok(self.context.sub_name);
         }
-        if self.context.remaining_rec_data < Name32::S_CAPACITY as u32 {
+        if self.context.remaining_rec_data < Name4::S_CAPACITY as u32 {
             return Err(self.fail(&format!(
                         "End of record (remaining_rec_data: {}) before reading sub-record name for rec '{}'",
                         self.context.remaining_rec_data,
                         self.context.rec_name.to_string_lossy()
             )));
         }
-        let mut name_bytes = [0u8; Name32::S_CAPACITY];
+        let mut name_bytes = [0u8; Name4::S_CAPACITY];
         self.read_exact(&mut name_bytes, ConsumptionType::RecordContent)?;
-        self.context.sub_name = Name32 { data: name_bytes };
+        self.context.sub_name = Name4 { data: name_bytes };
         Ok(self.context.sub_name)
     }
 
@@ -579,7 +579,7 @@ impl EsmReader {
         let sub_data_payload_size: u32 = self.read_typed(ConsumptionType::RecordContent)?;
         self.context.remaining_subrec_data = sub_data_payload_size;
 
-        // Validate the declared subrecord data payload size against what's *truly* left
+        // check the declared subrecord data payload size is within what's left in the whole record
         if self.context.remaining_subrec_data > self.context.remaining_rec_data {
             return Err(self.fail(&format!(
                         "Subrecord data payload size ({}) for sub '{}' in rec '{}' exceeds remaining record data ({}). Subrecord header ends at file_pos approx 0x{:X}.",
@@ -593,14 +593,11 @@ impl EsmReader {
 
         Ok(())
     }
-    pub fn read_header_string_with_name(
-        &mut self,
-        expected_name: Name32,
-    ) -> Result<&str, EsmError> {
+    pub fn read_header_string_with_name(&mut self, expected_name: Name4) -> Result<&str, EsmError> {
         self.get_or_read_validated_subname(expected_name)?;
         self.read_header_decode_str()
     }
-    pub fn get_or_read_validated_subname(&mut self, expected_name: Name32) -> Result<(), EsmError> {
+    pub fn get_or_read_validated_subname(&mut self, expected_name: Name4) -> Result<(), EsmError> {
         let actual_name = self.get_or_read_sub_name()?;
         if actual_name == expected_name {
             Ok(())
@@ -613,13 +610,13 @@ impl EsmReader {
         }
     }
 
-    pub fn is_next_sub(&mut self, name_to_check: Name32) -> Result<bool, EsmError> {
+    pub fn is_next_sub(&mut self, name_to_check: Name4) -> Result<bool, EsmError> {
         if !self.has_more_subs() {
             return Ok(false);
         }
         let actual_name = self.get_or_read_sub_name()?;
         if actual_name == name_to_check {
-            // Matched. Name32 consumed from stream (if not cached), remaining_rec_data updated, sub_cached is false.
+            // Matched. Name4 consumed from stream (if not cached), remaining_rec_data updated, sub_cached is false.
             Ok(true)
         } else {
             self.context.sub_cached = true; // Cache the name that was read but didn't match
@@ -627,13 +624,14 @@ impl EsmReader {
         }
     }
 
-    pub fn peek_next_sub(&mut self, name_to_check: Name32) -> Result<bool, EsmError> {
+    pub fn peek_next_sub(&mut self, name_to_check: Name4) -> Result<bool, EsmError> {
         if !self.has_more_subs() {
             return Ok(false);
         }
-        let _ = self.get_or_read_sub_name()?; // Ensure context.sub_name is populated (advances stream if not cached)
-        self.context.sub_cached = true; // Crucially, mark it as cached for the *next* operation.
-        Ok(self.context.sub_name == name_to_check)
+        // Reads the sub name (advances stream) or just gets it if it was cached
+        let sub_name = self.get_or_read_sub_name()?;
+        self.context.sub_cached = true; // Mark it as cached, since we're doing a peek
+        Ok(sub_name == name_to_check)
     }
 
     pub fn cache_sub_name(&mut self) {
@@ -676,7 +674,7 @@ impl EsmReader {
     /// Assumes read_sub_header() was called and context.remaining_subrec_data is set.
     pub fn read_decode_str(&mut self, size_to_read: usize) -> Result<&str, EsmError> {
         // Resize buffer if needed
-        if self.buffer.len() < size_to_read + 1 {
+        if self.buffer.len() <= size_to_read {
             self.buffer.resize(3 * size_to_read, 0);
         }
         // Ensure zero termination
@@ -728,21 +726,24 @@ impl EsmReader {
             self.read_decode_str(self.context.remaining_subrec_data as usize)
         }
     }
-    pub fn get_optional_named_header_string(&mut self, name: Name32) -> Result<&str, EsmError> {
+    pub fn read_header_decode_string(&mut self) -> Result<String, EsmError> {
+        Ok(self.read_header_decode_str()?.to_string())
+    }
+    pub fn get_optional_named_header_string(&mut self, name: Name4) -> Result<&str, EsmError> {
         if self.is_next_sub(name)? {
             self.read_header_decode_str()
         } else {
             Ok(EMPTY_STRING)
         }
     }
-    pub fn read_named_sub_ref_id(&mut self, name: Name32) -> Result<RefId, EsmError> {
+    pub fn read_named_sub_ref_id(&mut self, name: Name4) -> Result<RefId, EsmError> {
         if self.is_next_sub(name)? {
             self.read_ref_id()
         } else {
             Ok(RefId::default())
         }
     }
-    pub fn read_typed_named_header<T: Pod>(&mut self, name: Name32) -> Result<Option<T>, EsmError> {
+    pub fn read_typed_named_header<T: Pod>(&mut self, name: Name4) -> Result<Option<T>, EsmError> {
         if self.is_next_sub(name)? {
             Ok(Some(self.read_typed_header()?))
         } else {
@@ -766,8 +767,8 @@ impl EsmReader {
         self.read_sub_header()?;
         if (self.context.remaining_subrec_data as usize) < size_of::<T>() {
             return Err(EsmReader::report_sub_size_mismatch(
-                self.context.remaining_subrec_data,
                 size_of::<T>() as u32,
+                self.context.remaining_subrec_data,
                 &self.context,
                 self.file_pos,
             ));
@@ -779,7 +780,7 @@ impl EsmReader {
         self.read_sub_header()?;
         self.load()
     }
-    pub fn skip_named_header_ref_id(&mut self, name: Name32) -> Result<(), EsmError> {
+    pub fn skip_named_header_ref_id(&mut self, name: Name4) -> Result<(), EsmError> {
         if self.is_next_sub(name)? {
             self.skip_header_ref_id()?;
         }
@@ -833,7 +834,7 @@ impl EsmReader {
         }
         Ok(())
     }
-    pub fn skip_sub_header_until(&mut self, name: Name32) -> Result<(), EsmError> {
+    pub fn skip_sub_header_until(&mut self, name: Name4) -> Result<(), EsmError> {
         while self.has_more_subs() && !self.is_next_sub(name)? {
             self.context.sub_cached = false;
             self.skip_sub_header()?;
@@ -861,7 +862,7 @@ impl EsmReader {
     }
     pub fn read_sub_header_validate_name<const EXPECTED_SIZE: u32>(
         &mut self,
-        tag: Name32,
+        tag: Name4,
     ) -> Result<(), EsmError> {
         self.get_or_read_validated_subname(tag)?;
         self.read_sub_header()?;
@@ -880,7 +881,7 @@ impl EsmReader {
     }
 
     /// This reads a 32-bit FormId from the stream. This is typically used for the main record header.
-    pub fn read_form_id(&mut self, wide: bool, tag: Name32) -> Result<FormId, EsmError> {
+    pub fn read_form_id(&mut self, wide: bool, tag: Name4) -> Result<FormId, EsmError> {
         let mut result = FormId::default();
 
         if wide {
@@ -911,7 +912,7 @@ impl EsmReader {
             Ok(RefId::from_str(s))
         } else {
             // For newer formats, the sub-header is read directly in this function,
-            // and then read_ref_id_impl() handles the complex RefId variants.
+            // and then read_ref_id_impl() handles the RefId variants.
             self.read_sub_header()?;
             self.read_ref_id_impl(size)
         }
@@ -1029,8 +1030,8 @@ pub enum EsmError {
     Io(io::Error),
     Format(String),
     SubRecordMismatch {
-        expected: Name32,
-        found: Name32,
+        expected: Name4,
+        found: Name4,
     },
     StringSizeMismatch {
         stored: u32,
@@ -1039,8 +1040,8 @@ pub enum EsmError {
     SubSizeMismatch {
         actual: u32,
         expected: u32,
-        sub_name: Name32,
-        rec_name: Name32,
+        sub_name: Name4,
+        rec_name: Name4,
         file: PathBuf,
         offset: u64,
     },

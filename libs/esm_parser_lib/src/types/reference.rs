@@ -1,6 +1,6 @@
 use super::aipackage::TravelDestination;
 use crate::{
-    Load, Name32,
+    Load, Name4,
     esm_reader::{EsmError, EsmReader},
 };
 use glam::Vec3;
@@ -35,10 +35,10 @@ impl Load for Reference {
         dbg!(reader.get_sub_size());
 
         while reader.has_more_subs()
-            && !reader.peek_next_sub(Name32::new("FRMR"))?
-            && !reader.peek_next_sub(Name32::new("MVRF"))?
-            && !reader.peek_next_sub(Name32::new("DELE"))?
-            && !reader.peek_next_sub(Name32::new("NAM0"))?
+            && !reader.peek_next_sub(Name4::new("FRMR"))?
+            && !reader.peek_next_sub(Name4::new("MVRF"))?
+            && !reader.peek_next_sub(Name4::new("DELE"))?
+            && !reader.peek_next_sub(Name4::new("NAM0"))?
         {
             let sub_name = reader.get_or_read_sub_name()?;
             reader.read_sub_header()?;

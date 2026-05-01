@@ -1,0 +1,19 @@
+[package]
+name = "server"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+bincode = { workspace = true }
+bevy = { workspace = true, features = ["3d"] }
+bevy_renet = { workspace = true }
+common = { workspace = true }
+serializer = { workspace = true }
+networking = { workspace = true }
+fastrand.workspace = true
+
+[lints]
+workspace = true

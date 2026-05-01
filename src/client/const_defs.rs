@@ -1,8 +1,0 @@
-pub const MW_SCALE_REDUCTION: f32 = 45.0;
-pub const MORROWIND_CELL_SIZE: f32 = 102.0;
-pub const FIRST_PERSON_CAMERA_HEIGHT_OFFSET: f32 = 1.64;
-pub const NIF_SCALE_MULTIPLIER: f32 = 0.02;
-//pub const MESH_HEIGHT_OFFSET: f32 = 0.9;
-pub const UNITS_PER_METER: f32 = 69.99125109;
-
-pub const FRAME_DURATION: f32 = 1.0 / 24.0; // 0.041666...

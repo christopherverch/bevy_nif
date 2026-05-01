@@ -1,0 +1,31 @@
+[package]
+name = "client"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+bevy = { workspace = true, features = ["bevy_asset", "bevy_render", "bevy_winit", "bevy_core_pipeline", "bevy_pbr", "bevy_scene", "bevy_text", "bevy_ui", "ui_picking", "bevy_animation", "bevy_ui_render", "x11", "bevy_gltf", "png", "ktx2", "hdr", "default_font", "std", "tonemapping_luts", "bevy_state", "multi_threaded", "bevy_animation", "dynamic_linking", "tga", "reflect_auto_register", "bevy_gizmos_render"] }
+esm_parser_lib = { workspace = true }
+bevy_nif = { workspace = true }
+to_utf8 = { workspace = true }
+common = { workspace = true }
+bincode = { workspace = true }
+
+bevy-inspector-egui = { workspace = true }
+bevy_kira_audio = { workspace = true }
+bevy_anti_alias = { workspace = true }
+bevy_rapier3d = { workspace = true }
+bevy_renet = { workspace = true }
+kira = { workspace = true }
+serde = { workspace = true }
+networking = { workspace = true }
+serializer = { path = "../../crates/serializer" }
+bytes = "1.11.1"
+toml = "1.1.2"
+bevy_egui = "0.39.1"
+
+[lints]
+workspace = true

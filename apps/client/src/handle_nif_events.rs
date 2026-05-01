@@ -1,0 +1,34 @@
+use crate::defs::{CreatureStats, LocalPlayer};
+use bevy::prelude::*;
+use bevy_nif::nif_animation::{NifEvent, NifEventType};
+use common::{SoundEvent, SoundSource};
+
+pub fn handle_nif_event(
+    event: On<NifEvent>,
+    mut commands: Commands,
+    local_player_q: Single<&CreatureStats, With<LocalPlayer>>,
+) {
+    let local_player = local_player_q.into_inner();
+    info!("nif event triggered: {:?} ", event.event_type,);
+    let is_local_player = local_player.nif_animator_link == Some(event.entity);
+    match &event.event_type {
+        NifEventType::SoundGen { sound_name } => {
+            let sound_source = if is_local_player {
+                SoundSource::LocalPlayer
+            } else {
+                SoundSource::Attached(event.entity)
+            };
+            if sound_name.contains("Left") {
+                commands.trigger(SoundEvent {
+                    sound_source,
+                    sound_path: "sounds/walkl_br.wav".to_string(),
+                });
+            } else if sound_name.contains("Right") {
+                commands.trigger(SoundEvent {
+                    sound_source,
+                    sound_path: "sounds/walkr_br.wav".to_string(),
+                });
+            }
+        }
+    }
+}

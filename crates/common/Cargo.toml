@@ -1,0 +1,15 @@
+[package]
+name = "common"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+bevy_ecs = { workspace = true }
+bevy_math = { workspace = true }
+serde = { workspace = true }
+bitflags = { workspace = true }
+[lints]
+workspace = true

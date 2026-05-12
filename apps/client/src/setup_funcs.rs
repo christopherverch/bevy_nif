@@ -3,12 +3,12 @@ use crate::defs::{
     AnimateableEntity, ClientEntityId, CreatureStats, LocalPlayer, LocalPlayerMesh, MeshEntityLink,
     NeedsSetup, NetworkedEntity, Player, RootEntityLink,
 };
+use avian3d::prelude::RigidBody;
 use bevy::prelude::*;
 use bevy_kira_audio::{SpatialAudioEmitter, SpatialAudioReceiver, SpatialRadius};
 use bevy_nif::attach_parts::AttachmentType;
 use bevy_nif::nif_animation::{NifAnimator, NifAnimatorAdded};
 use bevy_nif::spawner::NifScene;
-use bevy_rapier3d::prelude::*;
 use serializer::SerializableTransform;
 use std::f32::consts::{FRAC_PI_2, PI};
 use std::time::Instant;
@@ -75,7 +75,7 @@ pub fn setup_player(
             // Animation / physics
             AnimationDisplacement::default(),
             AnimateableEntity,
-            RigidBody::KinematicPositionBased,
+            RigidBody::Kinematic,
             // Audio
             SpatialAudioEmitter::default(),
             SpatialRadius { radius: 12.0 },

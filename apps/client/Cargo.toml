@@ -17,7 +17,6 @@ bincode = { workspace = true }
 bevy-inspector-egui = { workspace = true }
 bevy_kira_audio = { workspace = true }
 bevy_anti_alias = { workspace = true }
-bevy_rapier3d = { workspace = true }
 bevy_renet = { workspace = true }
 kira = { workspace = true }
 serde = { workspace = true }
@@ -26,6 +25,9 @@ serializer = { path = "../../crates/serializer" }
 bytes = "1.11.1"
 toml = "1.1.2"
 bevy_egui = "0.39.1"
+mwphysics = { workspace = true } 
+glam = "0.30.10"
+avian3d = { workspace = true }
 
 [lints]
 workspace = true

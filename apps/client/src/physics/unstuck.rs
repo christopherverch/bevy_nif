@@ -1,14 +1,12 @@
 // In src/client/physics/unstuck.rs
 
-use bevy::prelude::*;
-use bevy_rapier3d::{
-    na::RealField,
-    parry::query::contact as parry_contact,
-    prelude::{Collider, QueryFilter, RapierContext},
-    rapier::prelude::Isometry,
-};
+use std::ops::Deref;
 
-use common::ActorState;
+use avian3d::{
+    parry::{math::Pose3, query::contact},
+    prelude::{Collider, SpatialQuery, SpatialQueryFilter},
+};
+use bevy::prelude::*;
 
 use super::{
     CreaturePhysicsState,
@@ -26,8 +24,8 @@ struct UnstuckContactData {
 
 /// Queries a hypothetical position for penetrations using direct, stateless geometry queries.
 fn query_potential_position(
-    context: &RapierContext,
-    collider_query: &Query<(&GlobalTransform, &Collider, Option<&ActorState>)>,
+    spatial_query: &SpatialQuery,
+    collider_query: &Query<(&Transform, &Collider)>,
     root_entity: Entity,
     controller: &CreaturePhysicsState,
     test_pos: Vec3,
@@ -35,26 +33,26 @@ fn query_potential_position(
 ) -> UnstuckContactData {
     let mut contact_data = UnstuckContactData::default();
     let character_shape = &controller.collision_shape;
-    let character_iso: Isometry<f32> = (test_pos, test_rot).into();
+    let character_pose = Pose3::from_parts(test_pos, test_rot);
 
     // Broad-phase: Find all shapes we are potentially overlapping with.
-    context.intersect_shape(
+    spatial_query.shape_intersections_callback(
+        &character_shape,
         test_pos,
         test_rot,
-        character_shape.into(),
-        QueryFilter::new().exclude_rigid_body(root_entity),
+        &SpatialQueryFilter::from_excluded_entities([root_entity]),
         |hit_entity| {
             // Narrow-phase: For each potential overlap, get its shape and transform.
-            if let Ok((hit_transform, hit_collider, _)) = collider_query.get(hit_entity) {
+            if let Ok((hit_transform, hit_collider)) = collider_query.get(hit_entity) {
                 let (_scale, rot, trans) = hit_transform.to_scale_rotation_translation();
-                let hit_iso: Isometry<f32> = (trans, rot).into();
+                let hit_pose = Pose3::from_parts(trans, rot);
 
                 // Perform the direct, stateless contact query using the Parry library function.
-                if let Ok(Some(contact)) = parry_contact(
-                    &character_iso,
+                if let Ok(Some(contact)) = contact(
+                    &character_pose,
                     character_shape.raw.as_ref(),
-                    &hit_iso,
-                    hit_collider.raw.as_ref(),
+                    &hit_pose,
+                    hit_collider.shape().deref(),
                     0.0, // Prediction distance. 0.0 checks for actual penetration.
                 ) {
                     let normal = Vec3::from(contact.normal1); // Use the normal on the object we hit
@@ -86,8 +84,8 @@ fn query_potential_position(
 }
 
 pub fn unstuck_character(
-    context: &RapierContext,
-    collider_query: &Query<(&GlobalTransform, &Collider, Option<&ActorState>)>,
+    spatial_query: &SpatialQuery,
+    collider_query: &Query<(&Transform, &Collider)>,
     root_entity: Entity,
     collider_entity: Entity,
     transform: &mut Transform,
@@ -114,7 +112,7 @@ pub fn unstuck_character(
     let mut contacts_found = 0;
 
     // Use `contact_pairs_with` with the now-provided `collider_entity`.
-    for contact_pair in context.contact_pairs_with(collider_entity) {
+    for contact_pair in spatial_query.contact_pairs_with(collider_entity) {
         for manifold in contact_pair.manifolds() {
             for contact_point in manifold.points() {
                 // `dist` is negative if there is a penetration.
@@ -169,7 +167,7 @@ pub fn unstuck_character(
     // --- Attempt 1: Ejection via Clamped Summed Deltas ---
     let test_pos_1 = initial_shape_position + add_margin_to_delta(ejection_delta);
     let contacts_after_attempt_1 = query_potential_position(
-        context,
+        spatial_query,
         collider_query,
         root_entity,
         controller,
@@ -184,7 +182,7 @@ pub fn unstuck_character(
         let upward_ejection = Vec3::Y * ejection_delta.y.abs();
         let test_pos_2 = initial_shape_position + add_margin_to_delta(upward_ejection);
         let contacts_after_attempt_2 = query_potential_position(
-            context,
+            spatial_query,
             collider_query,
             root_entity,
             controller,
@@ -198,7 +196,7 @@ pub fn unstuck_character(
             let fixed_upward_ejection = Vec3::Y * FAILSAFE_UNSTUCK_UPWARD_DISTANCE;
             let test_pos_3 = initial_shape_position + add_margin_to_delta(fixed_upward_ejection);
             let contacts_after_attempt_3 = query_potential_position(
-                context,
+                spatial_query,
                 collider_query,
                 root_entity,
                 controller,

@@ -1,0 +1,1487 @@
+use crate::{
+    actor::{AnimationDisplacement, RootMotionState},
+    defs::{CreatureStats, IdToEntityMap, IsThirdPerson, LocalPlayer, MeshEntityLink},
+};
+use bevy::prelude::*;
+use bevy_nif::nif_animation::NifAnimator;
+use common::{ActorState, JumpingStateKind};
+
+use crate::{
+    animation::animation_helpers::get_anim_components_for_creature, const_defs::MW_SCALE_REDUCTION,
+};
+
+pub fn calculate_animation_displacement_system(
+    is_third_person: Res<IsThirdPerson>,
+
+    mut creature_mesh_query: Query<&mut RootMotionState>,
+
+    mut actor_query: Query<
+        (
+            &ActorState,
+            &CreatureStats,
+            &mut AnimationDisplacement,
+            &MeshEntityLink,
+        ),
+        With<LocalPlayer>,
+    >,
+    mut animator_q: Query<(
+        &mut AnimationPlayer,
+        &mut NifAnimator,
+        &AnimationGraphHandle,
+    )>,
+    id_to_entity_map: Res<IdToEntityMap>,
+) {
+    // This system only matters in third-person view.
+    if !is_third_person.0 {
+        // In first-person view, root motion is not applied. We explicitly clear
+        // any existing animation displacement to prevent it from affecting the camera.
+        if let Ok((_, _, mut animation_displacement, _mesh_entity_link)) = actor_query.single_mut()
+        {
+            animation_displacement.0 = Vec3::ZERO;
+        }
+        return;
+    }
+    // We get a link to the player's mesh here
+    let Ok((actor_state, creature_stats, mut animation_displacement, mesh_entity_link)) =
+        actor_query.single_mut()
+    else {
+        return;
+    };
+
+    // Get the root motion state of the mesh
+    let Ok(mut root_motion_state) = creature_mesh_query.get_mut(mesh_entity_link.0) else {
+        return;
+    };
+
+    // Root motion is ignored while jumping/falling. The speed is zero.
+    if actor_state.jumping.state != JumpingStateKind::None {
+        animation_displacement.0 = Vec3::ZERO;
+        return;
+    }
+
+    let Some((_, animation_player, animator, _)) =
+        get_anim_components_for_creature(&creature_stats, &id_to_entity_map, &mut animator_q)
+    else {
+        return;
+    };
+
+    let mut frame_displacement = Vec3::ZERO;
+    let current_move_group = &actor_state.movement.current_animation_group;
+
+    if !current_move_group.is_empty() {
+        if let Some(definition) = animator.animation_definitions.get(current_move_group) {
+            if let Some(curve) = &definition.root_translation_curve {
+                if let Some(anim_state) = animation_player.animation(definition.node_index) {
+                    let current_time = anim_state.elapsed() % definition.duration;
+
+                    if current_move_group != &root_motion_state.last_animation_group
+                        || current_time < root_motion_state.previous_time
+                    {
+                        root_motion_state.previous_time = current_time;
+                    }
+                    // Calculate the displacement delta since the last frame, handling animation loops correctly.
+                    let delta = if current_time < root_motion_state.previous_time {
+                        // The animation has looped since the last frame. To get the correct
+                        // displacement, we must calculate it in two parts:
+
+                        // 1. The displacement from the previous frame's timestamp to the end of the animation.
+                        let pos_at_end_opt = curve.sample(definition.duration);
+                        let pos_at_prev_opt = curve.sample(root_motion_state.previous_time);
+                        let delta1 = pos_at_end_opt
+                            .zip(pos_at_prev_opt)
+                            .map_or(Vec3::ZERO, |(end, prev)| end - prev);
+
+                        // 2. The displacement from the beginning of the animation to the new, smaller timestamp.
+                        let pos_at_start_opt = curve.sample(0.0);
+                        let pos_at_now_opt = curve.sample(current_time);
+                        let delta2 = pos_at_start_opt
+                            .zip(pos_at_now_opt)
+                            .map_or(Vec3::ZERO, |(start, now)| now - start);
+
+                        delta1 + delta2
+                    } else {
+                        // Normal frame, no loop.
+                        let pos_now_opt = curve.sample(current_time);
+                        let pos_prev_opt = curve.sample(root_motion_state.previous_time);
+                        pos_now_opt
+                            .zip(pos_prev_opt)
+                            .map_or(Vec3::ZERO, |(now, prev)| now - prev)
+                    };
+
+                    let scaled_delta = (delta / MW_SCALE_REDUCTION) * anim_state.speed();
+                    // Transform from NIF's coordinate system (Y-up, X-right) to Bevy's (Y-up, -Z-forward).
+                    // The vertical (Y) component of root motion is discarded
+                    // since the physics system handles y-motion with gravity
+                    // TODO:: check if openmw flattens the y (scaled_delta.z) to 0.0
+                    frame_displacement = Vec3::new(scaled_delta.x, 0.0, -scaled_delta.y);
+
+                    root_motion_state.previous_time = current_time;
+                    root_motion_state.last_animation_group = current_move_group.clone();
+                }
+            }
+        }
+    }
+    // The final calculated displacement for this frame is stored in the AnimationDisplacement component.
+    // This value is consumed by `prepare_character_velocity_system`, which converts it into a
+    // velocity before passing it to the movement solver.
+    animation_displacement.0 = frame_displacement;
+}
+use bevy::prelude::*;
+use bevy_rapier3d::prelude::Collider;
+#[derive(Component, Debug)]
+pub struct CreaturePhysicsState {
+    /// The final velocity vector calculated by the preparation system for this frame.
+    /// The main movement solver will consume this value.
+    pub velocity_for_frame: Vec3,
+
+    /// The persistent velocity from external forces, primarily gravity.
+    pub inertia: Vec3,
+
+    /// Is the character currently on a surface considered walkable ground?
+    pub on_ground: bool,
+    pub on_slope: bool,
+
+    // --- Transient State for the Iterative Solver ---
+    // These fields are reset each frame but used between iterations of the movement loop.
+    /// The normal of the last surface the character slid against.
+    pub last_slide_normal: Vec3,
+
+    /// The normal of the slide before the most recent one. Used for crevice logic.
+    pub last_slide_normal_fallback: Vec3,
+
+    /// The number of times the character has slid against a surface in the current frame.
+    pub times_slid: u32,
+
+    // The single, compound collider shape for this character.
+    // We clone it from the entity when the component is added.
+    pub collision_shape: Collider,
+    /// Counts consecutive frames where significant geometry penetration is detected.
+    pub stuck_frames: u32,
+    pub last_stuck_position: Vec3,
+    /// The vertical offset from the character's root transform to the center
+    /// of the collision shape. This is needed for vanilla-accurate physics.
+    pub vertical_offset: f32,
+}
+
+impl Default for CreaturePhysicsState {
+    fn default() -> Self {
+        Self {
+            velocity_for_frame: Vec3::ZERO,
+            inertia: Vec3::ZERO,
+            on_ground: true, // Start assuming on the ground
+            on_slope: false,
+            last_slide_normal: Vec3::ZERO,
+            last_slide_normal_fallback: Vec3::ZERO,
+            times_slid: 0,
+            collision_shape: Collider::default(),
+            stuck_frames: 0,
+            last_stuck_position: Vec3::ZERO,
+            vertical_offset: 0.0,
+        }
+    }
+}
+// src/physics/constants.rs
+
+//! This module contains the exact physics constants ported from the OpenMW C++
+//! source code.
+
+use crate::const_defs::UNITS_PER_METER;
+
+pub const GRAVITY_CONST: f32 = 8.96;
+// The steepest slope, in degrees, that is considered "walkable ground".
+pub const MAX_SLOPE_DEGREES: f32 = 46.0;
+
+/// The maximum number of iterations the movement solver will run in a single frame
+/// to resolve collisions.
+pub const MAX_ITERATIONS: u8 = 8;
+
+// --- Collision Margins ---
+/// A small distance to keep the character from surfaces to prevent snagging.
+pub const COLLISION_MARGIN: f32 = 0.2 / UNITS_PER_METER;
+/// The amount of penetration allowed before the "unstuck" logic kicks in.
+/// Setting this to 0 means the unstuck code runs on any penetration.
+pub const ALLOWED_PENETRATION: f32 = 0.0;
+
+// --- Ground and Stepping ---
+/// The ideal distance to keep the character's collision shape above the ground.
+pub const GROUND_OFFSET: f32 = 1.0 / UNITS_PER_METER;
+/// The maximum distance the character can "fall" downwards when trying to step
+/// onto a new surface.
+pub const STEP_SIZE_DOWN: f32 = 62.0 / UNITS_PER_METER;
+/// The maximum height the character can step up onto.
+pub const STEP_SIZE_UP: f32 = 34.0 / UNITS_PER_METER;
+// --- Stair Stepping Hacks ---
+/// These are for working around bad Morrowind assets. Disabling them improves
+/// performance but breaks movement in some areas.
+pub const DO_EXTRA_STAIR_HACKS: bool = true;
+/// A fixed-distance forward move used in the first stair-stepping hack.
+pub const S_MIN_STEP: f32 = 10.0 / UNITS_PER_METER;
+/// A further, less-tall fixed-distance move for the second hack.
+pub const S_MIN_STEP_2: f32 = 20.0 / UNITS_PER_METER;
+// A final, last-resort vertical distance to push the character upwards if it's severely stuck.
+pub const FAILSAFE_UNSTUCK_UPWARD_DISTANCE: f32 = 10.0 / UNITS_PER_METER;
+use bevy::math::Vec3;
+
+/// Projects the `direction` vector onto the `normal` vector.
+pub fn project(direction: Vec3, normal: Vec3) -> Vec3 {
+    normal * direction.dot(normal)
+}
+
+/// Calculates the rejection of the `direction` from the `normal`.
+/// This returns the component of `direction` that is parallel to the collision surface.
+pub fn reject(direction: Vec3, normal: Vec3) -> Vec3 {
+    direction - project(direction, normal)
+}
+use bevy::app::Plugin;
+
+mod components;
+mod constants;
+mod helpers;
+pub mod movement;
+pub mod preparation;
+mod unstuck;
+pub struct CharacterMotionPlugin;
+mod apply_animation_motion;
+pub mod physics_setup;
+pub use apply_animation_motion::calculate_animation_displacement_system;
+use bevy::prelude::*;
+pub use components::CreaturePhysicsState;
+use physics_setup::setup_nif_physics;
+#[derive(Component)]
+pub struct CreatureControllerLink(pub Entity);
+impl Plugin for CharacterMotionPlugin {
+    fn build(&self, app: &mut bevy::app::App) {
+        app.add_systems(Update, setup_nif_physics);
+        // `calculate_animation_displacement_system`: Produces `AnimationDisplacement` from animations.
+        // `prepare_character_velocity_system`: Consumes `AnimationDisplacement` and player input to produce a final `velocity_for_frame`.
+        // `character_movement_system`: Consumes `velocity_for_frame` to move the character and resolve all collisions.
+        // The entire chain has to run before `PhysicsSet::SyncBackend` so Rapier can see the final, moved transform.
+    }
+}
+use std::collections::HashSet;
+
+use crate::defs::{ColliderEntityLink, LocalPlayer};
+use common::ActorState;
+
+use bevy::prelude::*;
+use bevy_rapier3d::{
+    plugin::ReadRapierContext,
+    prelude::{
+        Collider, QueryFilter, RapierContext, ShapeCastHit, ShapeCastHitDetails, ShapeCastOptions,
+    },
+};
+
+use super::{components::CreaturePhysicsState, helpers::reject, unstuck::unstuck_character};
+use super::{constants, helpers::project};
+#[derive(Debug, Clone, Copy)]
+pub struct SweepHit {
+    pub entity: Entity,
+    pub toi: f32,
+    pub world_normal: Vec3,
+    pub point: Vec3,
+}
+
+pub fn character_movement_system(
+    time: Res<Time<Fixed>>,
+    rapier_context: ReadRapierContext,
+    mut character_query: Query<
+        (
+            Entity,
+            &mut Transform,
+            &mut CreaturePhysicsState,
+            &ColliderEntityLink,
+        ),
+        With<LocalPlayer>,
+    >,
+
+    collider_query: Query<(
+        &GlobalTransform,
+        &Collider,
+        Option<&ActorState>, // Use ActorState to identify actors
+    )>,
+) {
+    let delta_time = time.delta_secs();
+    if delta_time == 0.0 {
+        return;
+    }
+
+    let actor_entities: HashSet<Entity> = character_query.iter().map(|(e, _, _, _)| e).collect();
+    let Ok(rapier_context) = rapier_context.single() else {
+        return;
+    };
+    for (root_entity, mut transform, mut controller, collider_link) in character_query.iter_mut() {
+        unstuck_character(
+            &rapier_context,
+            &collider_query,
+            root_entity,
+            collider_link.0,
+            &mut transform,
+            &mut controller,
+        );
+        let mut remaining_time = delta_time;
+        let mut iterations = 0;
+        let mut current_pos = transform.translation;
+        let mut current_velocity = controller.velocity_for_frame;
+        controller.times_slid = 0;
+        let character_shape = &controller.collision_shape.clone();
+        let on_ground_this_frame = controller.on_ground;
+
+        while remaining_time > 0.0 && iterations < constants::MAX_ITERATIONS {
+            iterations += 1;
+            let move_vector = current_velocity * remaining_time;
+
+            if move_vector.length_squared() < 0.0001 {
+                break;
+            }
+
+            let sweep_options = ShapeCastOptions {
+                max_time_of_impact: 1.0,
+                stop_at_penetration: true,
+                ..default()
+            };
+            dbg!("ignoring", root_entity);
+            let sweep_result = rapier_context.cast_shape(
+                current_pos,
+                Quat::IDENTITY,
+                move_vector,
+                character_shape.into(),
+                sweep_options, // Pass the struct here
+                QueryFilter::new().exclude_rigid_body(root_entity),
+            );
+            dbg!(sweep_result);
+
+            if let Some((hit_entity, hit)) = sweep_result {
+                let mut sweep_hit = SweepHit {
+                    entity: hit_entity,
+                    toi: hit.time_of_impact,
+                    world_normal: if let Some(ShapeCastHitDetails {
+                        witness1: _witness1,
+                        witness2: _witness2,
+                        normal1,
+                        normal2: _normal2,
+                    }) = hit.details
+                    {
+                        normal1.into()
+                    } else {
+                        -move_vector.normalize_or_zero()
+                    },
+                    point: current_pos + move_vector * hit.time_of_impact,
+                };
+                // Actor collision
+                if let Ok((hit_transform, _, Some(_))) = collider_query.get(hit_entity) {
+                    // Check for existing penetration before overriding the collision normal.
+                    if rapier_context
+                        .contact_pair(root_entity, hit_entity)
+                        .is_some()
+                    {
+                        let my_origin = transform.translation;
+                        let other_origin = hit_transform.translation();
+
+                        // Calculate horizontal push-out vector
+                        let mut horizontal_normal = my_origin - other_origin;
+                        horizontal_normal.y = 0.0; // In Bevy, Y is vertical.
+                        horizontal_normal = horizontal_normal.normalize_or_zero();
+
+                        // Only apply the override if moving towards the other actor.
+                        if horizontal_normal.dot(move_vector) < 0.0 {
+                            sweep_hit.world_normal = horizontal_normal;
+                            sweep_hit.toi = 0.0; // Force immediate collision response
+                        } else {
+                            // If moving away from an overlapping actor, ignore the collision entirely
+                            // to prevent getting stuck.
+                            current_pos += move_vector;
+                            remaining_time = 0.0;
+                            continue;
+                        }
+                    }
+                    // If not overlapping, proceed with the normal sweep_hit result.
+                }
+
+                let was_stepped = try_step_up(
+                    &rapier_context,
+                    root_entity,
+                    character_shape,
+                    &mut current_pos,
+                    &mut current_velocity,
+                    &mut remaining_time,
+                    &mut controller,
+                    iterations == 1,
+                );
+
+                if was_stepped {
+                    // If a step-up was successfully performed, the character's position has changed.
+                    // We restart the movement loop from this new position to re-evaluate the next move.
+                    continue;
+                }
+
+                let dist_to_hit = sweep_hit.toi * move_vector.length();
+                let safe_move_dist = (dist_to_hit - constants::COLLISION_MARGIN).max(0.0);
+                current_pos += move_vector.normalize_or_zero() * safe_move_dist;
+
+                let ejection_vector = sweep_hit.world_normal * constants::COLLISION_MARGIN * 2.0;
+                if let Some((_, ejection_hit)) = rapier_context.cast_shape(
+                    current_pos,
+                    Quat::IDENTITY,
+                    ejection_vector,
+                    character_shape.into(),
+                    sweep_options, // Re-use the same options
+                    QueryFilter::new().exclude_rigid_body(root_entity),
+                ) {
+                    current_pos += ejection_vector * (ejection_hit.time_of_impact * 0.5);
+                } else {
+                    current_pos += ejection_vector * 0.5;
+                }
+
+                // (The rest of the slide logic is unchanged)
+                let time_fraction_consumed = (safe_move_dist / move_vector.length()).min(1.0);
+                remaining_time *= 1.0 - time_fraction_consumed;
+                let mut used_seam_logic = false;
+                let orig_plane_normal = sweep_hit.world_normal;
+                let max_slope_cos = constants::MAX_SLOPE_DEGREES.to_radians().cos();
+                let hit_is_walkable = orig_plane_normal.y > max_slope_cos;
+                let seen_ground_this_iteration =
+                    (on_ground_this_frame && !controller.on_slope) || hit_is_walkable;
+
+                // --- Crevice/Seam Logic ---
+                // When sliding into an acute interior corner, rejecting from each wall in succession
+                // can cancel out movement and make the character feel "stuck". This logic detects
+                // when we hit a surface that is acute to our last slide plane. If so, it calculates
+                // the "seam" of the two planes and projects velocity along that seam, allowing the
+                // character to slide smoothly along the corner.
+                if controller.times_slid > 0 {
+                    // Check for an acute angle with the last two slide planes.
+                    let dot_a = orig_plane_normal.dot(controller.last_slide_normal);
+
+                    // The fallback normal is only relevant after the second slide.
+                    let dot_b = if controller.times_slid > 1 {
+                        orig_plane_normal.dot(controller.last_slide_normal_fallback)
+                    } else {
+                        1.0 // A non-negative value to ensure it's not chosen by default.
+                    };
+
+                    if dot_a <= 0.0 || dot_b <= 0.0 {
+                        // Choose the normal from the plane that is more acute to the current one.
+                        let best_normal = if dot_b < dot_a {
+                            let fallback = controller.last_slide_normal_fallback;
+                            // If we use the fallback, it becomes the new "last" normal for this calculation.
+                            controller.last_slide_normal = fallback;
+                            fallback
+                        } else {
+                            controller.last_slide_normal
+                        };
+
+                        // The seam is the cross product of the two normals.
+                        let seam_vector = best_normal.cross(orig_plane_normal).normalize_or_zero();
+
+                        if seam_vector.length_squared() > 0.001 {
+                            // Project the velocity onto the seam vector to slide along it.
+                            current_velocity = project(current_velocity, seam_vector);
+
+                            // Also apply a small positional ejection out of the crevice to prevent snagging.
+                            let average_normal =
+                                (best_normal + orig_plane_normal).normalize_or_zero();
+                            let ejection_vec = average_normal * (constants::COLLISION_MARGIN * 2.0);
+
+                            if let Some((_, ejection_hit)) = rapier_context.cast_shape(
+                                current_pos,
+                                Quat::IDENTITY,
+                                ejection_vec,
+                                character_shape.into(),
+                                sweep_options,
+                                QueryFilter::new().exclude_rigid_body(root_entity),
+                            ) {
+                                // Move halfway into the clear space found.
+                                current_pos += ejection_vec * (ejection_hit.time_of_impact * 0.5);
+                            } else {
+                                current_pos += ejection_vec * 0.5;
+                            }
+
+                            used_seam_logic = true;
+                        }
+                    }
+                }
+                if !used_seam_logic {
+                    let old_velocity = current_velocity;
+                    let mut effective_normal = orig_plane_normal;
+
+                    if seen_ground_this_iteration
+                        && !hit_is_walkable
+                        && effective_normal.y.abs() > 0.001
+                    {
+                        effective_normal.y = 0.0;
+                        effective_normal = effective_normal.normalize_or_zero();
+                    }
+                    current_velocity = reject(current_velocity, effective_normal);
+
+                    if !hit_is_walkable {
+                        current_velocity.y = current_velocity.y.min(old_velocity.y);
+                    }
+                }
+
+                controller.last_slide_normal_fallback = controller.last_slide_normal;
+                controller.last_slide_normal = orig_plane_normal;
+                controller.times_slid += 1;
+            } else {
+                current_pos += move_vector;
+                remaining_time = 0.0;
+            }
+        }
+
+        // --- Final Ground Check & State Update (Unchanged) ---
+        let mut final_on_ground = false;
+        let mut final_on_slope = false;
+        if controller.inertia.y <= 0.0 {
+            let trace_dist = constants::GROUND_OFFSET * 2.0
+                + if on_ground_this_frame {
+                    constants::STEP_SIZE_DOWN
+                } else {
+                    0.0
+                };
+            if let Some(hit) = trace_down(
+                &rapier_context,
+                root_entity,
+                character_shape,
+                current_pos,
+                trace_dist,
+                &actor_entities,
+            ) {
+                let max_slope_cos = constants::MAX_SLOPE_DEGREES.to_radians().cos();
+                let hit_is_walkable = hit.world_normal.y > max_slope_cos;
+                if hit_is_walkable {
+                    final_on_ground = true;
+                    current_pos.y = hit.point.y + constants::GROUND_OFFSET;
+                } else {
+                    final_on_slope = true;
+                }
+            }
+        }
+
+        if !final_on_ground {
+            controller.inertia.y -= constants::GRAVITY_CONST * delta_time;
+        } else {
+            controller.inertia = Vec3::ZERO;
+        }
+        controller.on_ground = final_on_ground;
+        controller.on_slope = final_on_slope;
+        transform.translation = current_pos;
+    }
+}
+
+/// A downward trace to find the ground beneath the character.
+fn trace_down(
+    rapier_context: &RapierContext,
+    character_entity: Entity,
+    character_shape: &Collider,
+    position: Vec3,
+    max_dist: f32,
+    actor_entities: &HashSet<Entity>,
+) -> Option<SweepHit> {
+    let down_vector = Vec3::NEG_Y * max_dist;
+    let predicate = |e| !actor_entities.contains(&e);
+    let filter = QueryFilter::new()
+        .exclude_rigid_body(character_entity)
+        .predicate(&predicate);
+    let sweep_options = ShapeCastOptions {
+        max_time_of_impact: 1.0,
+        stop_at_penetration: true,
+        ..default()
+    };
+    let sweep_result = rapier_context.cast_shape(
+        position,
+        Quat::IDENTITY,
+        down_vector,
+        character_shape.into(),
+        sweep_options,
+        filter,
+    );
+
+    if let Some((hit_entity, hit)) = sweep_result {
+        return Some(SweepHit {
+            entity: hit_entity,
+            toi: hit.time_of_impact,
+            world_normal: if let Some(ShapeCastHitDetails {
+                witness1: _witness1,
+                witness2: _witness2,
+                normal1,
+                normal2: _normal2,
+            }) = hit.details
+            {
+                normal1.into()
+            } else {
+                Vec3::Y
+            },
+            point: position + down_vector * hit.time_of_impact,
+        });
+    }
+
+    None
+}
+
+fn can_step_down(hit: &SweepHit) -> bool {
+    let max_slope_cos = constants::MAX_SLOPE_DEGREES.to_radians().cos();
+    hit.world_normal.y > max_slope_cos
+}
+
+fn try_step_up(
+    rapier_context: &RapierContext,
+    entity: Entity,
+    character_shape: &Collider,
+    current_pos: &mut Vec3,
+    current_velocity: &mut Vec3,
+    remaining_time: &mut f32,
+    controller: &mut CreaturePhysicsState,
+    first_iteration: bool,
+) -> bool {
+    if current_velocity.xz().length_squared() == 0.0 {
+        return false;
+    }
+
+    let filter = QueryFilter::new().exclude_rigid_body(entity);
+    let sweep_options = ShapeCastOptions {
+        max_time_of_impact: 1.0,
+        stop_at_penetration: true,
+        ..default()
+    };
+
+    // 1. Upward Cast
+    let up_cast_vector = Vec3::Y * constants::STEP_SIZE_UP;
+    let up_hit = rapier_context.cast_shape(
+        *current_pos,
+        Quat::IDENTITY,
+        up_cast_vector,
+        character_shape.into(),
+        sweep_options,
+        filter,
+    );
+
+    let up_distance = if let Some((_, hit)) = up_hit {
+        let dist = hit.time_of_impact * constants::STEP_SIZE_UP;
+        if dist <= constants::COLLISION_MARGIN {
+            return false;
+        }
+        dist - constants::COLLISION_MARGIN
+    } else {
+        constants::STEP_SIZE_UP
+    };
+
+    let elevated_base_pos = *current_pos + Vec3::Y * up_distance;
+
+    // 2. Multi-Attempt Forward/Down Trace Loop
+    let mut successful_step_info: Option<(SweepHit, Option<ShapeCastHit>)> = None;
+    let move_direction = current_velocity.normalize_or_zero();
+
+    for attempt in 1..=3 {
+        let (forward_cast_vector, _is_fixed_step) = match attempt {
+            1 => (*current_velocity * *remaining_time, false),
+            2 => {
+                if !constants::DO_EXTRA_STAIR_HACKS || !first_iteration {
+                    break;
+                }
+                (move_direction * constants::S_MIN_STEP, true)
+            }
+            3 => {
+                if !constants::DO_EXTRA_STAIR_HACKS || !first_iteration {
+                    break;
+                }
+                (move_direction * constants::S_MIN_STEP_2, true)
+            }
+            _ => unreachable!(),
+        };
+
+        let forward_hit = rapier_context.cast_shape(
+            elevated_base_pos,
+            Quat::IDENTITY,
+            forward_cast_vector,
+            character_shape.into(),
+            sweep_options,
+            filter,
+        );
+
+        // --- MODIFIED BLOCK: This now includes the ejection logic from the C++ source. ---
+        let (step_forward_pos, forward_hit_details) = if let Some((_, hit)) = forward_hit {
+            let dist = hit.time_of_impact * forward_cast_vector.length();
+            if dist <= constants::COLLISION_MARGIN {
+                continue; // Not enough space to move, try next attempt.
+            }
+            let final_dist = dist - constants::COLLISION_MARGIN;
+            let pre_ejection_pos = elevated_base_pos + move_direction * final_dist;
+
+            // Safely eject from the wall we hit to avoid penetration before the downward trace.
+            let forward_hit_normal = if let Some(details) = &hit.details {
+                details.normal1.into()
+            } else {
+                -move_direction
+            };
+
+            let ejection_cast_vector = forward_hit_normal * constants::COLLISION_MARGIN * 2.0;
+
+            let ejection_hit = rapier_context.cast_shape(
+                pre_ejection_pos,
+                Quat::IDENTITY,
+                ejection_cast_vector,
+                character_shape.into(),
+                sweep_options,
+                filter,
+            );
+
+            let final_step_forward_pos = if let Some((_, ejection_details)) = ejection_hit {
+                // We hit something during our ejection trace.
+                if ejection_details.time_of_impact > 0.5 {
+                    // There's more than COLLISION_MARGIN of free space, so we can push out safely.
+                    let effective_fraction = ejection_details.time_of_impact * 2.0 - 1.0;
+                    pre_ejection_pos
+                        + forward_hit_normal * constants::COLLISION_MARGIN * effective_fraction
+                } else {
+                    // Not enough free space, stay put.
+                    pre_ejection_pos
+                }
+            } else {
+                // Ejection trace hit nothing, so we have plenty of space. Eject by one margin.
+                pre_ejection_pos + forward_hit_normal * constants::COLLISION_MARGIN
+            };
+
+            (final_step_forward_pos, Some(hit))
+        } else {
+            // Forward trace hit nothing.
+            (elevated_base_pos + forward_cast_vector, None)
+        };
+
+        let actor_entities = HashSet::new();
+        let down_hit = trace_down(
+            rapier_context,
+            entity,
+            character_shape,
+            step_forward_pos, // Use the new, potentially ejected position.
+            up_distance + constants::STEP_SIZE_DOWN,
+            &actor_entities,
+        );
+
+        if let Some(hit) = down_hit {
+            if can_step_down(&hit) {
+                successful_step_info = Some((hit, forward_hit_details));
+                break;
+            }
+        }
+    }
+
+    // 3. Finalize Successful Step
+    if let Some((down_hit, forward_hit_details)) = successful_step_info {
+        let final_pos = down_hit.point;
+        if (final_pos.y - current_pos.y) > up_distance && !controller.on_ground {
+            return false;
+        }
+        *current_pos = final_pos + Vec3::Y * constants::GROUND_OFFSET;
+        if let Some(hit) = forward_hit_details {
+            if let Some(details) = hit.details {
+                let mut plane_normal: Vec3 = details.normal1.into();
+                if controller.on_ground
+                    && plane_normal.y <= constants::MAX_SLOPE_DEGREES.to_radians().cos()
+                    && plane_normal.y != 0.0
+                {
+                    plane_normal.y = 0.0;
+                    plane_normal = plane_normal.normalize_or_zero();
+                }
+                *current_velocity = reject(*current_velocity, plane_normal);
+            }
+        }
+        *current_velocity = reject(*current_velocity, down_hit.world_normal);
+
+        let fraction_travelled = forward_hit_details.map_or(1.0, |h| h.time_of_impact);
+        *remaining_time *= 1.0 - fraction_travelled;
+
+        return true;
+    }
+
+    false
+}
+use super::CreaturePhysicsState;
+use crate::const_defs::NIF_SCALE_MULTIPLIER;
+use crate::physics::CreatureControllerLink;
+use bevy::prelude::*;
+use bevy_nif::{BoundData, NeedsNifPhysics, NiType};
+use bevy_nif::{loader::Nif, spawner::NifScene};
+use bevy_rapier3d::{parry::math::Isometry, prelude::*};
+use crate::defs::ColliderEntityLink;
+
+/// This system runs once for each newly spawned `NifScene` entity which
+/// also has a NeedsNifPhysic component.
+/// It creates and attaches the appropriate Rapier physics components, handling
+/// local collider offsets by spawning a dedicated child entity for the collider.
+pub fn setup_nif_physics(
+    mut commands: Commands,
+    nif_assets: Res<Assets<Nif>>,
+    query: Query<(Entity, &NifScene, &NeedsNifPhysics, &CreatureControllerLink)>,
+) {
+    for (top_level_entity, nif_scene, needs_physics, creature_controller_link) in query.iter() {
+        let Some(nif_asset) = nif_assets.get(&nif_scene.0) else {
+            continue;
+        };
+        // Mark the top-level entity so we don't process it again.
+        commands
+            .entity(top_level_entity)
+            .remove::<NeedsNifPhysics>();
+        let mut bounding_volumes = Vec::new();
+        dbg!(&needs_physics.0);
+        for (entity, key) in &needs_physics.0 {
+            dbg!("entity {}", entity);
+            if let Some(ni_type) = nif_asset.objects.get(*key) {
+                match ni_type {
+                    NiType::NiNode(ni_node) => {
+                        // Guaranteed to have one otherwise it wouldn't be in this list
+                        let bounding_volume = ni_node.bounding_volume.as_ref().unwrap().clone();
+                        bounding_volumes.push(bounding_volume);
+                    }
+                    _ => {
+                        dbg!(ni_type);
+                    }
+                }
+            }
+        }
+        // TEMPORARY
+        let mut compound_parts = Vec::new();
+        for bounding_volume in bounding_volumes {
+            match bounding_volume.bound_data {
+                BoundData::NiBoxBV(box_bv) => {
+                    let bevy_center = Vec3::new(-box_bv.center.x, box_bv.center.z, box_bv.center.y);
+                    let bevy_extents = Vec3::new(
+                        box_bv.extents.x.abs(),
+                        box_bv.extents.z.abs(),
+                        box_bv.extents.y.abs(),
+                    );
+
+                    let scale = NIF_SCALE_MULTIPLIER;
+                    compound_parts.push((
+                        bevy_center * scale,
+                        Quat::IDENTITY,
+                        Collider::cuboid(
+                            bevy_extents.x * scale,
+                            bevy_extents.y * scale,
+                            bevy_extents.z * scale,
+                        ),
+                    ));
+                }
+                _ => {
+                    //TODO::
+                }
+            }
+        }
+
+        // --- Determine RigidBody Type
+        /*let mut compound_parts: Vec<(Vec3, Quat, Collider)> = Vec::new();
+         for collision_shape in &nif_asset.collision_shapes {
+            collect_shapes_recursively(collision_shape, &mut compound_parts);
+        }
+
+        if compound_parts.is_empty() {
+            continue;
+        }
+        */
+        // TEMPORARY
+        let compound_collider = Collider::compound(compound_parts);
+
+        let collider_entity = commands
+            .spawn((
+                Name::new("PhysicsCollider"),
+                Visibility::default(),
+                Transform::default(),
+                GlobalTransform::default(),
+                Sleeping::disabled(),
+                compound_collider.clone(), // Attach the collider here
+                CollisionGroups::new(Group::GROUP_1, Group::ALL),
+                ActiveEvents::COLLISION_EVENTS | ActiveEvents::CONTACT_FORCE_EVENTS,
+            ))
+            .id();
+        let aabb = compound_collider.raw.compute_aabb(&Isometry::identity());
+        // This assumes the entity's transform origin is at its feet. The physics collider's
+        // origin is its geometric center, so we must offset it vertically by half its
+        // height to align its base with the entity's transform.
+        //let vertical_offset = aabb.half_extents().y;
+        let vertical_offset = aabb.half_extents().y;
+        commands.entity(creature_controller_link.0).insert((
+            CreaturePhysicsState {
+                // Also add a copy of the collider to our state component for easy access
+                // in the movement system. This avoids having to query for children.
+                collision_shape: compound_collider,
+                vertical_offset,
+                on_ground: false,
+                ..default()
+            },
+            ColliderEntityLink(collider_entity),
+        ));
+
+        // Parent the collider entity to the actor root ---
+        commands
+            .entity(creature_controller_link.0)
+            .add_child(collider_entity);
+    }
+}
+/*
+/// A recursive helper function to flatten nested collision shapes (like Unions)
+/// into a single list of colliders and their local transforms.
+fn collect_shapes_recursively(
+    nif_shape: &NifCollisionShape,
+    parts: &mut Vec<(Vec3, Quat, Collider)>,
+) {
+    let scale = NIF_SCALE_MULTIPLIER;
+
+    match nif_shape {
+        NifCollisionShape::Box { center, extents } => {
+            parts.push((
+                *center * scale,
+                Quat::IDENTITY,
+                Collider::cuboid(extents.x * scale, extents.y * scale, extents.z * scale),
+            ));
+        }
+        NifCollisionShape::Capsule {
+            extent,
+            radius,
+            center,
+            ..
+        } => {
+            // The NIF "Capsule" is treated as a cylinder, as in OpenMW
+            // Rapier's cylinder function takes the half-height.
+            let half_height = (*extent / 2.0) * scale;
+            parts.push((
+                *center * scale,
+                Quat::IDENTITY,
+                Collider::cylinder(half_height, *radius * scale),
+            ));
+        }
+        NifCollisionShape::Sphere { center, radius } => {
+            parts.push((
+                *center * scale,
+                Quat::IDENTITY,
+                Collider::ball(*radius * scale),
+            ));
+        }
+        NifCollisionShape::Union(shapes) => {
+            for sub_shape in shapes {
+                collect_shapes_recursively(sub_shape, parts);
+            }
+        }
+        NifCollisionShape::TriangleMesh { .. } => {
+            warn!("TriangleMesh in character collision is not recommended.");
+        }
+    }
+}*/
+use bevy::prelude::*;
+
+use super::components::CreaturePhysicsState;
+use crate::actor::{AnimationDisplacement, get_current_speed};
+use crate::defs::{IsThirdPerson, LocalPlayer, PlayerInput};
+use common::{ActorState, CharacterState, JumpingStateKind};
+
+const JUMP_IMPULSE: f32 = 8.0;
+
+/// This system runs before the main movement solver.
+/// Its job is to determine the character's desired velocity for this frame
+/// based on player input, gravity, and current state (like flying or swimming).
+pub fn prepare_character_velocity_system(
+    time: Res<Time<Fixed>>,
+    mut player_input: ResMut<PlayerInput>,
+    mut query: Query<
+        (
+            &mut ActorState, // Changed to mutable
+            &mut CreaturePhysicsState,
+            &AnimationDisplacement,
+            &Transform,
+        ),
+        With<LocalPlayer>,
+    >,
+    is_third_person: Res<IsThirdPerson>,
+) {
+    let delta_time = time.delta_secs();
+    if delta_time == 0.0 {
+        return;
+    }
+
+    if let Ok((mut actor_state, mut physics_state, local_anim_displacement, root_transform)) =
+        query.single_mut()
+    {
+        let forward = -root_transform.forward().xz().normalize_or_zero();
+        let right = -root_transform.right().xz().normalize_or_zero();
+
+        // Step 1: Determine the desired horizontal velocity.
+        let horizontal_vel = if physics_state.on_ground {
+            // --- ON-GROUND LOGIC ---
+            if is_third_person.0 {
+                // 3rd Person: Use root motion from the animation.
+                // Discard y movement since we handle it with gravity/jumping
+                let local_space_delta = Vec3::new(
+                    local_anim_displacement.0.x,
+                    0.0,
+                    local_anim_displacement.0.z,
+                );
+
+                // Get the desired world-space direction from the camera and player input.
+                let target_direction = (forward * player_input.move_direction.y
+                    + right * player_input.move_direction.x)
+                    .normalize_or_zero();
+                // Convert that direction to a rotation angle.
+                let target_angle = if target_direction.length_squared() > 0.0 {
+                    target_direction.x.atan2(target_direction.y)
+                } else {
+                    let facing_vec = root_transform.forward();
+                    facing_vec.x.atan2(facing_vec.z)
+                };
+                // Get the inherent angle of the animation itself (e.g., a "WalkLeft" anim moves at -PI/2).
+                let anim_angle = get_animation_movement_direction(actor_state.movement.state);
+                // Find the rotational difference to align the animation's motion with the desired world direction.
+                let rotation = Quat::from_rotation_y(target_angle - anim_angle);
+
+                let world_space_displacement = rotation * local_space_delta;
+                if delta_time > 0.0 {
+                    world_space_displacement / delta_time
+                } else {
+                    Vec3::ZERO
+                }
+            } else {
+                // 1st Person: Use player input directly.
+                let move_speed = get_current_speed(&actor_state);
+                let vel_2d = (forward * player_input.move_direction.y
+                    + right * player_input.move_direction.x)
+                    .normalize_or_zero()
+                    * move_speed;
+                Vec3::new(vel_2d.x, 0.0, vel_2d.y)
+            }
+        } else {
+            // --- IN-AIR LOGIC (for both 1st and 3rd person) ---
+            // Air control is always derived from player input, not root motion.
+            let move_speed = get_current_speed(&actor_state);
+            let vel_2d = (forward * player_input.move_direction.y
+                + right * player_input.move_direction.x)
+                .normalize_or_zero()
+                * move_speed;
+            Vec3::new(vel_2d.x, 0.0, vel_2d.y)
+        };
+
+        // Step 2: Handle jump input to get the full intended movement for this frame.
+        let mut intended_movement = horizontal_vel;
+        if player_input.jump {
+            if physics_state.on_ground && !physics_state.on_slope {
+                intended_movement.y = JUMP_IMPULSE;
+                actor_state.jumping.handled_jump_animation = false;
+                actor_state.jumping.state = JumpingStateKind::Jumping;
+            }
+            player_input.jump = false;
+        }
+
+        // Step 3: Combine intended movement with inertia based on the physics state.
+        let final_vel_for_frame =
+            if actor_state.jumping.state == JumpingStateKind::Jumping && physics_state.on_ground {
+                // Condition 2: In the air or sliding. Player input provides air control,
+                // which is added to the existing inertia (from gravity and momentum).
+
+                physics_state.inertia = intended_movement;
+                physics_state.inertia
+            } else if !physics_state.on_ground || physics_state.on_slope {
+                // Condition 2: In the air or sliding. Player input provides air control,
+                // which is added to the existing inertia (from gravity and momentum).
+
+                let air_control_velocity = Vec3::new(intended_movement.x, 0.0, intended_movement.z);
+                air_control_velocity + physics_state.inertia
+            } else {
+                // Condition 3: On solid ground and not jumping. Velocity is determined
+                // entirely by player input and animation for this frame
+                intended_movement
+            };
+
+        physics_state.velocity_for_frame = final_vel_for_frame;
+    }
+}
+/// Returns the inherent angle of motion for an animation in a right-handed Y-up coordinate
+/// system where +X is right and -Z is forward. This is used to counteract the animation's
+/// built-in direction so it can be rotated to match player input.
+/// For example, a "WalkForward" animation moves in the engine's -Z direction, which corresponds
+/// to an angle of PI radians (180 degrees).
+fn get_animation_movement_direction(state: CharacterState) -> f32 {
+    use std::f32::consts::PI;
+    match state {
+        CharacterState::RunLeft
+        | CharacterState::SneakLeft
+        | CharacterState::SwimWalkLeft
+        | CharacterState::SwimRunLeft
+        | CharacterState::WalkLeft => -PI / 2.0,
+
+        CharacterState::RunRight
+        | CharacterState::SneakRight
+        | CharacterState::SwimWalkRight
+        | CharacterState::SwimRunRight
+        | CharacterState::WalkRight => PI / 2.0,
+
+        CharacterState::RunForward
+        | CharacterState::SneakForward
+        | CharacterState::SwimWalkForward
+        | CharacterState::SwimRunForward
+        | CharacterState::WalkForward => PI,
+
+        // All other states, including Forward, are considered to have a base direction of 0 degrees.
+        _ => 0.0,
+    }
+}
+use bevy_ecs::{
+    query::With,
+    system::{Commands, Query, ResMut},
+};
+use crate::{
+    AnimationEvent, NetworkEvent,
+    client::{
+        actor::actor_defs::{ActorState, CharacterState, JumpingStateKind},
+        defs::{LocalPlayer, PlayerInput},
+    },
+};
+
+use crate::physics::CreaturePhysicsState;
+
+/// This system reads player input and physics state to determine the high-level
+/// `CharacterState` and `JumpingStateKind` required by the animation system.
+/// It acts as the bridge between the physics simulation and animation playback.
+pub fn determine_character_state_system(
+    mut player_input: ResMut<PlayerInput>,
+    mut query: Query<(&mut ActorState, &CreaturePhysicsState), With<LocalPlayer>>,
+    mut commands: Commands,
+) {
+    for (mut actor_state, physics_state) in query.iter_mut() {
+        // --- Jumping and Landing State Transitions ---
+
+        // Check for landing: If we were in the air, but now we're on the ground, we have landed.
+        if (actor_state.jumping.state == JumpingStateKind::InAir
+            || actor_state.jumping.state == JumpingStateKind::Jumping)
+            && physics_state.on_ground
+        {
+            actor_state.jumping.state = JumpingStateKind::Landing;
+            // Signal the animation system to play the landing animation.
+            actor_state.jumping.handled_landing_animation = false;
+            commands.trigger(NetworkEvent::Animation(AnimationEvent::Landed));
+        }
+        // Check for liftoff: If we were on the ground and are now not, we are in the air.
+        else if (actor_state.jumping.state == JumpingStateKind::None
+            || actor_state.jumping.state == JumpingStateKind::Jumping)
+            && !physics_state.on_ground
+        {
+            actor_state.jumping.state = JumpingStateKind::InAir;
+        }
+
+        // --- Ground Movement State Determination ---
+
+        // This logic only runs if we are on the ground and not in the process of landing.
+        if physics_state.on_ground {
+            const MOVE_THRESHOLD: f32 = 0.001;
+            const TURN_THRESHOLD: f32 = 0.001;
+            let move_vec = player_input.move_direction;
+            let turn_delta = player_input.rotation_z;
+
+            // This logic is the same as your original file, determining the correct
+            // walk/run/sneak/idle/turn state based on input.
+            let new_state = if actor_state.is_sneaking {
+                if move_vec.y > MOVE_THRESHOLD {
+                    CharacterState::SneakForward
+                } else if move_vec.y < -MOVE_THRESHOLD {
+                    CharacterState::SneakBack
+                } else if move_vec.x > MOVE_THRESHOLD {
+                    CharacterState::SneakRight
+                } else if move_vec.x < -MOVE_THRESHOLD {
+                    CharacterState::SneakLeft
+                } else {
+                    CharacterState::IdleSneak
+                }
+            } else if actor_state.is_in_water {
+                // ... (your existing water logic)
+                if move_vec.y > MOVE_THRESHOLD {
+                    if actor_state.is_running {
+                        CharacterState::SwimRunForward
+                    } else {
+                        CharacterState::SwimWalkForward
+                    }
+                } else if move_vec.y < -MOVE_THRESHOLD {
+                    if actor_state.is_running {
+                        CharacterState::SwimRunBack
+                    } else {
+                        CharacterState::SwimWalkBack
+                    }
+                } else if move_vec.x > MOVE_THRESHOLD {
+                    if actor_state.is_running {
+                        CharacterState::SwimRunRight
+                    } else {
+                        CharacterState::SwimWalkRight
+                    }
+                } else if move_vec.x < -MOVE_THRESHOLD {
+                    if actor_state.is_running {
+                        CharacterState::SwimRunLeft
+                    } else {
+                        CharacterState::SwimWalkLeft
+                    }
+                } else if turn_delta.abs() > TURN_THRESHOLD {
+                    if turn_delta > 0.0 {
+                        CharacterState::SwimTurnRight
+                    } else {
+                        CharacterState::SwimTurnLeft
+                    }
+                } else {
+                    CharacterState::IdleSwim
+                }
+            } else {
+                // Default ground movement
+                if move_vec.y > MOVE_THRESHOLD {
+                    if actor_state.is_running {
+                        CharacterState::RunForward
+                    } else {
+                        CharacterState::WalkForward
+                    }
+                } else if move_vec.y < -MOVE_THRESHOLD {
+                    if actor_state.is_running {
+                        CharacterState::RunBack
+                    } else {
+                        CharacterState::WalkBack
+                    }
+                } else if move_vec.x > MOVE_THRESHOLD {
+                    if actor_state.is_running {
+                        CharacterState::RunRight
+                    } else {
+                        CharacterState::WalkRight
+                    }
+                } else if move_vec.x < -MOVE_THRESHOLD {
+                    if actor_state.is_running {
+                        CharacterState::RunLeft
+                    } else {
+                        CharacterState::WalkLeft
+                    }
+                } else if turn_delta.abs() > TURN_THRESHOLD {
+                    if turn_delta > 0.0 {
+                        CharacterState::TurnRight
+                    } else {
+                        CharacterState::TurnLeft
+                    }
+                } else {
+                    CharacterState::Idle
+                }
+            };
+            // Consume the turn input that was used to determine the TurnLeft/TurnRight state.
+            // This prevents it from being processed again in the next frame.
+            player_input.rotation_z = 0.0;
+            actor_state.movement.state = new_state;
+        }
+    }
+}
+// In src/client/physics/unstuck.rs
+
+use bevy::prelude::*;
+use bevy_rapier3d::{
+    na::RealField,
+    parry::query::contact as parry_contact,
+    prelude::{Collider, QueryFilter, RapierContext},
+    rapier::prelude::Isometry,
+};
+
+use common::ActorState;
+
+use super::{
+    CreaturePhysicsState,
+    constants::{ALLOWED_PENETRATION, COLLISION_MARGIN, FAILSAFE_UNSTUCK_UPWARD_DISTANCE},
+};
+
+#[derive(Debug, Default, Clone, Copy)]
+struct UnstuckContactData {
+    deepest_penetration: f32,
+    contact_sum: Vec3,
+    max_x: f32,
+    max_y: f32,
+    max_z: f32,
+}
+
+/// Queries a hypothetical position for penetrations using direct, stateless geometry queries.
+fn query_potential_position(
+    context: &RapierContext,
+    collider_query: &Query<(&GlobalTransform, &Collider, Option<&ActorState>)>,
+    root_entity: Entity,
+    controller: &CreaturePhysicsState,
+    test_pos: Vec3,
+    test_rot: Quat,
+) -> UnstuckContactData {
+    let mut contact_data = UnstuckContactData::default();
+    let character_shape = &controller.collision_shape;
+    let character_iso: Isometry<f32> = (test_pos, test_rot).into();
+
+    // Broad-phase: Find all shapes we are potentially overlapping with.
+    context.intersect_shape(
+        test_pos,
+        test_rot,
+        character_shape.into(),
+        QueryFilter::new().exclude_rigid_body(root_entity),
+        |hit_entity| {
+            // Narrow-phase: For each potential overlap, get its shape and transform.
+            if let Ok((hit_transform, hit_collider, _)) = collider_query.get(hit_entity) {
+                let (_scale, rot, trans) = hit_transform.to_scale_rotation_translation();
+                let hit_iso: Isometry<f32> = (trans, rot).into();
+
+                // Perform the direct, stateless contact query using the Parry library function.
+                if let Ok(Some(contact)) = parry_contact(
+                    &character_iso,
+                    character_shape.raw.as_ref(),
+                    &hit_iso,
+                    hit_collider.raw.as_ref(),
+                    0.0, // Prediction distance. 0.0 checks for actual penetration.
+                ) {
+                    let normal = Vec3::from(contact.normal1); // Use the normal on the object we hit
+                    let dist = contact.dist;
+                    if dist < 0.0 {
+                        // Negative distance is penetration.
+
+                        // Optimization: If we are penetrating but moving away from the surface,
+                        // ignore this contact. This can prevent fighting with the depenetration logic
+                        if normal.dot(controller.velocity_for_frame) > 0.0 {
+                            return true;
+                        }
+                        let delta = normal * -dist;
+                        contact_data.contact_sum += delta;
+                        contact_data.max_x = contact_data.max_x.max(delta.x.abs());
+                        contact_data.max_y = contact_data.max_y.max(delta.y.abs());
+                        contact_data.max_z = contact_data.max_z.max(delta.z.abs());
+                        if dist < contact_data.deepest_penetration {
+                            contact_data.deepest_penetration = dist;
+                        }
+                    }
+                }
+            }
+            true // Continue checking for other intersections.
+        },
+    );
+
+    contact_data
+}
+
+pub fn unstuck_character(
+    context: &RapierContext,
+    collider_query: &Query<(&GlobalTransform, &Collider, Option<&ActorState>)>,
+    root_entity: Entity,
+    collider_entity: Entity,
+    transform: &mut Transform,
+    controller: &mut CreaturePhysicsState,
+) {
+    // Guard clauses remain the same.
+    if controller.velocity_for_frame.length_squared() == 0.0 {
+        return;
+    }
+    if controller.stuck_frames >= 10 {
+        if (transform.translation - controller.last_stuck_position).length_squared() < 1.0 {
+            return;
+        } else {
+            controller.stuck_frames = 0;
+        }
+    }
+
+    // --- Stateful Initial Penetration Check ---
+    let mut deepest_penetration = 0.0;
+    let mut contact_sum = Vec3::ZERO;
+    let mut max_x = 0.0;
+    let mut max_y = 0.0;
+    let mut max_z = 0.0;
+    let mut contacts_found = 0;
+
+    // Use `contact_pairs_with` with the now-provided `collider_entity`.
+    for contact_pair in context.contact_pairs_with(collider_entity) {
+        for manifold in contact_pair.manifolds() {
+            for contact_point in manifold.points() {
+                // `dist` is negative if there is a penetration.
+                if contact_point.dist() < deepest_penetration {
+                    deepest_penetration = contact_point.dist();
+                }
+
+                let normal = if contact_pair.collider1() == Some(collider_entity) {
+                    -manifold.normal()
+                } else {
+                    manifold.normal()
+                };
+
+                let delta = normal * -contact_point.dist();
+                contact_sum += delta;
+                max_x = max_x.max(delta.x.abs());
+                max_y = max_y.max(delta.y.abs());
+                max_z = max_z.max(delta.z.abs());
+                contacts_found += 1;
+            }
+        }
+    }
+
+    if contacts_found > 0 {
+        contact_sum /= contacts_found as f32;
+    }
+
+    if deepest_penetration >= -ALLOWED_PENETRATION {
+        controller.stuck_frames = 0;
+        return;
+    }
+
+    // --- The rest of the unstuck logic remains the same ---
+    controller.stuck_frames += 1;
+    controller.last_stuck_position = transform.translation;
+
+    let collision_shape_offset = Vec3::Y * controller.vertical_offset;
+    let initial_shape_position = transform.translation + collision_shape_offset;
+    let mut final_shape_position = initial_shape_position;
+
+    let mut ejection_delta = contact_sum;
+    if ejection_delta.x.abs() > max_x {
+        ejection_delta *= max_x / ejection_delta.x.abs();
+    }
+    if ejection_delta.y.abs() > max_y {
+        ejection_delta *= max_y / ejection_delta.y.abs();
+    }
+    if ejection_delta.z.abs() > max_z {
+        ejection_delta *= max_z / ejection_delta.z.abs();
+    }
+
+    // --- Attempt 1: Ejection via Clamped Summed Deltas ---
+    let test_pos_1 = initial_shape_position + add_margin_to_delta(ejection_delta);
+    let contacts_after_attempt_1 = query_potential_position(
+        context,
+        collider_query,
+        root_entity,
+        controller,
+        test_pos_1,
+        transform.rotation,
+    );
+
+    if contacts_after_attempt_1.deepest_penetration > deepest_penetration {
+        final_shape_position = test_pos_1;
+    } else {
+        // --- Attempt 2 ---
+        let upward_ejection = Vec3::Y * ejection_delta.y.abs();
+        let test_pos_2 = initial_shape_position + add_margin_to_delta(upward_ejection);
+        let contacts_after_attempt_2 = query_potential_position(
+            context,
+            collider_query,
+            root_entity,
+            controller,
+            test_pos_2,
+            transform.rotation,
+        );
+        if contacts_after_attempt_2.deepest_penetration > deepest_penetration {
+            final_shape_position = test_pos_2;
+        } else {
+            // --- Attempt 3 ---
+            let fixed_upward_ejection = Vec3::Y * FAILSAFE_UNSTUCK_UPWARD_DISTANCE;
+            let test_pos_3 = initial_shape_position + add_margin_to_delta(fixed_upward_ejection);
+            let contacts_after_attempt_3 = query_potential_position(
+                context,
+                collider_query,
+                root_entity,
+                controller,
+                test_pos_3,
+                transform.rotation,
+            );
+            if contacts_after_attempt_3.deepest_penetration > deepest_penetration {
+                final_shape_position = test_pos_3;
+            }
+        }
+    }
+
+    transform.translation = final_shape_position - collision_shape_offset;
+}
+fn add_margin_to_delta(delta: Vec3) -> Vec3 {
+    if delta.length_squared() == 0.0 {
+        //
+        return delta;
+    }
+    delta + delta.normalize_or_zero() * COLLISION_MARGIN
+}

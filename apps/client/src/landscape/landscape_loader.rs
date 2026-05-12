@@ -1,3 +1,8 @@
+use crate::defs::{
+    AllLandscapes, EsmReaderResource, LandTextureDefinitions, LandscapeAwaitingImages,
+    LandscapeCell, LandscapeLoader,
+};
+use avian3d::prelude::{Collider, RigidBody};
 use bevy::mesh::{Indices, PrimitiveTopology};
 use bevy::prelude::*;
 use bevy::{
@@ -9,16 +14,11 @@ use bevy::{
     render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
     transform::components::Transform,
 };
-use bevy_rapier3d::prelude::*;
 use esm_parser_lib::{
     EsmReader, LAND_NUM_TEXTURES, LAND_NUM_VERTS, LAND_SIDE_VERTICES,
     LAND_TEXTURE_SQUARES_PER_SIDE, LandTexture, LandVertexColor, LandVertexNormal,
 };
 use std::collections::{HashMap, HashSet};
-use crate::defs::{
-    AllLandscapes, EsmReaderResource, LandTextureDefinitions, LandscapeAwaitingImages,
-    LandscapeCell, LandscapeLoader,
-};
 
 use crate::const_defs::MORROWIND_CELL_SIZE;
 
@@ -521,26 +521,24 @@ fn setup_terrain_2d_array(
     texture_array_image
 }
 fn create_heightfield_collider(positions: &[[f32; 3]]) -> Collider {
-    let mut heights = Vec::with_capacity(LAND_SIDE_VERTICES * LAND_SIDE_VERTICES);
+    let mut grid = Vec::with_capacity(LAND_SIDE_VERTICES);
     for x in (0..LAND_SIDE_VERTICES).rev() {
+        let mut row: Vec = Vec::with_capacity(LAND_SIDE_VERTICES);
         for y in 0..LAND_SIDE_VERTICES {
             let vertex_index = y * LAND_SIDE_VERTICES + x;
-            if vertex_index < positions.len() {
-                heights.push(positions[vertex_index][1]); // Use Y as height
+            let height = if vertex_index < positions.len() {
+                positions[vertex_index][1] // Use Y as height
             } else {
-                heights.push(0.0);
-            }
+                0.0
+            };
+            row.push(height);
         }
+        grid.push(row);
     }
     let scale_xz = MORROWIND_CELL_SIZE;
     let scale = Vec3::new(scale_xz, 1.0, scale_xz);
 
-    Collider::heightfield(
-        heights,
-        LAND_SIDE_VERTICES, // num_rows
-        LAND_SIDE_VERTICES, // num_cols
-        scale,
-    )
+    Collider::heightfield(grid, scale)
 }
 fn setup_2d_image_array(mut len: u32, image_array: Vec<Image>) -> Image {
     //concat all images into 1 u8 vec

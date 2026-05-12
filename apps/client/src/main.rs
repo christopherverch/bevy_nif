@@ -1,12 +1,12 @@
 use std::{env, fs};
 
+use avian3d::{PhysicsPlugins, prelude::PhysicsSystems};
 // External imports
 use bevy::{light::DirectionalLightShadowMap, pbr::DefaultOpaqueRendererMethod, prelude::*};
 use bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_kira_audio::{AudioPlugin, SpatialAudioPlugin};
 use bevy_nif::BevyNifPlugin;
-use bevy_rapier3d::prelude::*;
 use bevy_renet::RenetClientPlugin;
 use serde::Deserialize;
 
@@ -39,6 +39,7 @@ mod animation;
 mod camera;
 mod const_defs;
 mod defs;
+mod engine;
 mod equipment;
 mod esm;
 mod events;
@@ -81,10 +82,7 @@ fn main() {
     let mut app = App::new();
     app.insert_resource(DefaultOpaqueRendererMethod::deferred())
         .insert_resource(DirectionalLightShadowMap { size: 4096 })
-        .insert_resource(TimestepMode::Fixed {
-            dt: 1.0,
-            substeps: 60,
-        })
+        .add_plugins(PhysicsPlugins::default())
         .add_plugins((
             DefaultPlugins,
             BevyNifPlugin,
@@ -93,10 +91,6 @@ fn main() {
             MWGuiPlugin,
             LandscapePlugin,
             UiPlugin,
-            RapierPhysicsPlugin::<NoUserData>::default()
-                .in_fixed_schedule()
-                .with_length_unit(1.0),
-            //           RapierDebugRenderPlugin::default(),
             RenetClientPlugin,
             EguiPlugin::default(),
             WorldInspectorPlugin::default(),
@@ -110,9 +104,9 @@ fn main() {
     app.edit_schedule(FixedUpdate, |schedule| {
         schedule.configure_sets(
             (
-                PhysicsSet::SyncBackend,
-                PhysicsSet::StepSimulation,
-                PhysicsSet::Writeback,
+                PhysicsSystems::SyncBackend,
+                PhysicsSystems::StepSimulation,
+                PhysicsSystems::Writeback,
             )
                 .chain(),
         );
@@ -137,13 +131,12 @@ fn main() {
         .add_systems(
             FixedUpdate,
             (
-                // The new controller system takes the place of the old one.
                 calculate_animation_displacement_system,
                 prepare_character_velocity_system,
                 character_movement_system,
             )
                 .chain()
-                .before(PhysicsSet::SyncBackend),
+                .before(PhysicsSystems::SyncBackend),
         )
         .add_systems(
             Update,

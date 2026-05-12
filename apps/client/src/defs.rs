@@ -18,6 +18,7 @@ pub struct CreatureStats {
     pub entity_id: EntityId,
     pub health: f32,
     pub nif_animator_link: Option<Entity>,
+    pub fall_height: f32,
 }
 #[derive(Component, Debug)]
 pub struct FirstPersonMeshEntityLinks(pub Vec<Entity>);

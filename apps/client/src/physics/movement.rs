@@ -1,15 +1,14 @@
 use std::collections::HashSet;
 
 use crate::defs::{ColliderEntityLink, LocalPlayer};
+use avian3d::prelude::{
+    Collider, CollisionLayers, Collisions, ContactPairFlags, ShapeCastConfig, ShapeHitData,
+    SpatialQuery, SpatialQueryFilter,
+};
 use common::ActorState;
+use mwphysics::{Actor, ActorTracer, CollisionShapeType, PtrHolder, trace_down};
 
 use bevy::prelude::*;
-use bevy_rapier3d::{
-    plugin::ReadRapierContext,
-    prelude::{
-        Collider, QueryFilter, RapierContext, ShapeCastHit, ShapeCastHitDetails, ShapeCastOptions,
-    },
-};
 
 use super::{components::CreaturePhysicsState, helpers::reject, unstuck::unstuck_character};
 use super::{constants, helpers::project};
@@ -20,10 +19,13 @@ pub struct SweepHit {
     pub world_normal: Vec3,
     pub point: Vec3,
 }
-
+pub fn init_position(actor_q: Query<&mut Actor>) {
+    for mut actor in actor_q {
+        actor.apply_offset_change();
+    }
+}
 pub fn character_movement_system(
     time: Res<Time<Fixed>>,
-    rapier_context: ReadRapierContext,
     mut character_query: Query<
         (
             Entity,
@@ -33,12 +35,11 @@ pub fn character_movement_system(
         ),
         With<LocalPlayer>,
     >,
-
-    collider_query: Query<(
-        &GlobalTransform,
-        &Collider,
-        Option<&ActorState>, // Use ActorState to identify actors
-    )>,
+    spatial_query: &SpatialQuery,
+    colliders_q: Query<(&Transform, &Collider)>,
+    collisions: Collisions,
+    actor_q: Query<&ActorState>,
+    collision_layers_q: Query<&CollisionLayers>,
 ) {
     let delta_time = time.delta_secs();
     if delta_time == 0.0 {
@@ -46,13 +47,10 @@ pub fn character_movement_system(
     }
 
     let actor_entities: HashSet<Entity> = character_query.iter().map(|(e, _, _, _)| e).collect();
-    let Ok(rapier_context) = rapier_context.single() else {
-        return;
-    };
     for (root_entity, mut transform, mut controller, collider_link) in character_query.iter_mut() {
         unstuck_character(
-            &rapier_context,
-            &collider_query,
+            &spatial_query,
+            &colliders_q,
             root_entity,
             collider_link.0,
             &mut transform,
@@ -74,71 +72,71 @@ pub fn character_movement_system(
                 break;
             }
 
-            let sweep_options = ShapeCastOptions {
-                max_time_of_impact: 1.0,
-                stop_at_penetration: true,
+            let sweep_config = ShapeCastConfig {
+                max_distance: move_vector.length(),
+                compute_contact_on_penetration: true,
+                ignore_origin_penetration: false, //
                 ..default()
             };
+            let move_dir = Dir3::new_unchecked(move_vector.normalize());
             dbg!("ignoring", root_entity);
-            let sweep_result = rapier_context.cast_shape(
+            let sweep_result = spatial_query.cast_shape(
+                character_shape,
                 current_pos,
                 Quat::IDENTITY,
-                move_vector,
-                character_shape.into(),
-                sweep_options, // Pass the struct here
-                QueryFilter::new().exclude_rigid_body(root_entity),
+                move_dir,
+                &sweep_config,
+                &SpatialQueryFilter::from_excluded_entities([root_entity]),
             );
             dbg!(sweep_result);
 
-            if let Some((hit_entity, hit)) = sweep_result {
+            if let Some(hit) = sweep_result {
+                let travel_dist = move_vector.length();
+                let normalized_toi = if travel_dist > 0.0 {
+                    hit.distance / travel_dist
+                } else {
+                    0.0
+                };
                 let mut sweep_hit = SweepHit {
-                    entity: hit_entity,
-                    toi: hit.time_of_impact,
-                    world_normal: if let Some(ShapeCastHitDetails {
-                        witness1: _witness1,
-                        witness2: _witness2,
-                        normal1,
-                        normal2: _normal2,
-                    }) = hit.details
-                    {
-                        normal1.into()
-                    } else {
-                        -move_vector.normalize_or_zero()
-                    },
-                    point: current_pos + move_vector * hit.time_of_impact,
+                    entity: hit.entity,
+                    toi: normalized_toi,
+                    // In Avian, hit.normal is the normal at the hit point
+                    world_normal: hit.normal1,
+                    point: hit.point1,
                 };
                 // Actor collision
-                if let Ok((hit_transform, _, Some(_))) = collider_query.get(hit_entity) {
-                    // Check for existing penetration before overriding the collision normal.
-                    if rapier_context
-                        .contact_pair(root_entity, hit_entity)
-                        .is_some()
-                    {
-                        let my_origin = transform.translation;
-                        let other_origin = hit_transform.translation();
+                if actor_q.get(hit.entity).is_ok() {
+                    if let Ok((hit_transform, _)) = colliders_q.get(hit.entity) {
+                        // Check for existing penetration before overriding the collision normal.
+                        if let Some(contact_pair) = collisions.get(root_entity, hit.entity) {
+                            if contact_pair.flags.contains(ContactPairFlags::TOUCHING) {
+                                let my_origin = current_pos; // Use current loop position
+                                let other_origin = hit_transform.translation;
+                                // Calculate horizontal push-out vector
+                                let mut horizontal_normal = my_origin - other_origin;
+                                horizontal_normal.y = 0.0;
+                                horizontal_normal = horizontal_normal.normalize_or_zero();
 
-                        // Calculate horizontal push-out vector
-                        let mut horizontal_normal = my_origin - other_origin;
-                        horizontal_normal.y = 0.0; // In Bevy, Y is vertical.
-                        horizontal_normal = horizontal_normal.normalize_or_zero();
-
-                        // Only apply the override if moving towards the other actor.
-                        if horizontal_normal.dot(move_vector) < 0.0 {
-                            sweep_hit.world_normal = horizontal_normal;
-                            sweep_hit.toi = 0.0; // Force immediate collision response
-                        } else {
-                            // If moving away from an overlapping actor, ignore the collision entirely
-                            // to prevent getting stuck.
-                            current_pos += move_vector;
-                            remaining_time = 0.0;
-                            continue;
+                                // Check if moving towards the other actor
+                                if horizontal_normal.dot(move_vector) < 0.0 {
+                                    // Overriding the hit data to force us to "slide" away from the
+                                    // actor we are colliding with
+                                    sweep_hit.world_normal = horizontal_normal;
+                                    sweep_hit.toi = 0.0; // In Avian logic, this means distance = 0
+                                } else {
+                                    // If moving away from an overlapping actor, ignore the collision
+                                    current_pos += move_vector;
+                                    remaining_time = 0.0;
+                                    continue;
+                                }
+                            }
+                            // If not overlapping, proceed with the normal sweep_hit result.
                         }
                     }
-                    // If not overlapping, proceed with the normal sweep_hit result.
                 }
 
                 let was_stepped = try_step_up(
-                    &rapier_context,
+                    &spatial_query,
                     root_entity,
                     character_shape,
                     &mut current_pos,
@@ -159,19 +157,30 @@ pub fn character_movement_system(
                 current_pos += move_vector.normalize_or_zero() * safe_move_dist;
 
                 let ejection_vector = sweep_hit.world_normal * constants::COLLISION_MARGIN * 2.0;
-                if let Some((_, ejection_hit)) = rapier_context.cast_shape(
+                let ejection_dist = ejection_vector.length();
+                let ejection_dir = Dir3::new_unchecked(ejection_vector.normalize_or_zero());
+                let ejection_config = ShapeCastConfig {
+                    max_distance: ejection_dist,
+                    compute_contact_on_penetration: true,
+                    ignore_origin_penetration: false,
+                    ..default()
+                };
+                if let Some(hit) = spatial_query.cast_shape(
+                    character_shape,
                     current_pos,
-                    Quat::IDENTITY,
-                    ejection_vector,
-                    character_shape.into(),
-                    sweep_options, // Re-use the same options
-                    QueryFilter::new().exclude_rigid_body(root_entity),
+                    transform.rotation,
+                    ejection_dir,
+                    &ejection_config,
+                    &SpatialQueryFilter::from_excluded_entities([root_entity]),
                 ) {
-                    current_pos += ejection_vector * (ejection_hit.time_of_impact * 0.5);
+                    // If we hit something while trying to eject (e.g., a corner or narrow gap),
+                    // move only as far as the hit allows.
+                    // Avian returns hit.distance in world units.
+                    current_pos += ejection_dir * (hit.distance * 0.5);
                 } else {
+                    // No obstruction, apply half the ejection vector as planned
                     current_pos += ejection_vector * 0.5;
                 }
-
                 // (The rest of the slide logic is unchanged)
                 let time_fraction_consumed = (safe_move_dist / move_vector.length()).min(1.0);
                 remaining_time *= 1.0 - time_fraction_consumed;
@@ -221,21 +230,27 @@ pub fn character_movement_system(
                             let average_normal =
                                 (best_normal + orig_plane_normal).normalize_or_zero();
                             let ejection_vec = average_normal * (constants::COLLISION_MARGIN * 2.0);
-
-                            if let Some((_, ejection_hit)) = rapier_context.cast_shape(
+                            let direction = Dir3::new_unchecked(ejection_vec.normalize_or_zero());
+                            let distance = ejection_vec.length();
+                            let ejection_hit = spatial_query.cast_shape(
+                                character_shape,
                                 current_pos,
                                 Quat::IDENTITY,
-                                ejection_vec,
-                                character_shape.into(),
-                                sweep_options,
-                                QueryFilter::new().exclude_rigid_body(root_entity),
-                            ) {
-                                // Move halfway into the clear space found.
-                                current_pos += ejection_vec * (ejection_hit.time_of_impact * 0.5);
+                                direction,
+                                &ShapeCastConfig {
+                                    max_distance: distance,
+                                    ignore_origin_penetration: false, // Don't ignore the very thing we are stuck in!
+                                    ..default()
+                                },
+                                &SpatialQueryFilter::from_excluded_entities([root_entity]),
+                            );
+                            if let Some(hit) = ejection_hit {
+                                // If the path is partially blocked, move as far as the hit allows (halved)
+                                current_pos += direction * (hit.distance * 0.5);
                             } else {
+                                // Path is clear, apply half the intended nudge
                                 current_pos += ejection_vec * 0.5;
                             }
-
                             used_seam_logic = true;
                         }
                     }
@@ -277,19 +292,33 @@ pub fn character_movement_system(
                 } else {
                     0.0
                 };
-            if let Some(hit) = trace_down(
-                &rapier_context,
+            let mut ground_tracer = ActorTracer::default();
+            let down_target = current_pos + Vec3::NEG_Y * trace_dist;
+
+            let actor = Actor::new(
+                PtrHolder::new(root_entity, transform.translation),
+                // TODO:: all the below args
+                false,
+                true,
+                CollisionShapeType::Aabb,
+                true,
+                Vec3::ZERO,
+                Vec3::ONE,
+            );
+            ground_tracer.find_ground(
                 root_entity,
-                character_shape,
                 current_pos,
-                trace_dist,
-                &actor_entities,
-            ) {
+                down_target,
+                &spatial_query,
+                &colliders_q,
+                &collision_layers_q,
+            );
+            if ground_tracer.fraction < 1.0 {
                 let max_slope_cos = constants::MAX_SLOPE_DEGREES.to_radians().cos();
-                let hit_is_walkable = hit.world_normal.y > max_slope_cos;
+                let hit_is_walkable = ground_tracer.plane_normal.y > max_slope_cos;
                 if hit_is_walkable {
                     final_on_ground = true;
-                    current_pos.y = hit.point.y + constants::GROUND_OFFSET;
+                    current_pos.y = ground_tracer.end_pos.y + constants::GROUND_OFFSET;
                 } else {
                     final_on_slope = true;
                 }
@@ -307,95 +336,62 @@ pub fn character_movement_system(
     }
 }
 
-/// A downward trace to find the ground beneath the character.
-fn trace_down(
-    rapier_context: &RapierContext,
-    character_entity: Entity,
-    character_shape: &Collider,
-    position: Vec3,
-    max_dist: f32,
-    actor_entities: &HashSet<Entity>,
-) -> Option<SweepHit> {
-    let down_vector = Vec3::NEG_Y * max_dist;
-    let predicate = |e| !actor_entities.contains(&e);
-    let filter = QueryFilter::new()
-        .exclude_rigid_body(character_entity)
-        .predicate(&predicate);
-    let sweep_options = ShapeCastOptions {
-        max_time_of_impact: 1.0,
-        stop_at_penetration: true,
-        ..default()
-    };
-    let sweep_result = rapier_context.cast_shape(
-        position,
-        Quat::IDENTITY,
-        down_vector,
-        character_shape.into(),
-        sweep_options,
-        filter,
-    );
-
-    if let Some((hit_entity, hit)) = sweep_result {
-        return Some(SweepHit {
-            entity: hit_entity,
-            toi: hit.time_of_impact,
-            world_normal: if let Some(ShapeCastHitDetails {
-                witness1: _witness1,
-                witness2: _witness2,
-                normal1,
-                normal2: _normal2,
-            }) = hit.details
-            {
-                normal1.into()
-            } else {
-                Vec3::Y
-            },
-            point: position + down_vector * hit.time_of_impact,
-        });
+fn can_step_down(hit_normal: Vec3) -> bool {
+    // 1. Check if we hit anything at all.
+    // If trace_down returns Vec3::ZERO on a miss, we can't step down.
+    if hit_normal == Vec3::ZERO {
+        return false;
     }
 
-    None
-}
-
-fn can_step_down(hit: &SweepHit) -> bool {
+    // 2. Slope check
     let max_slope_cos = constants::MAX_SLOPE_DEGREES.to_radians().cos();
-    hit.world_normal.y > max_slope_cos
-}
 
+    // hit_normal.y is the "steepness."
+    // 1.0 is flat ground, 0.0 is a vertical wall.
+    hit_normal.y > max_slope_cos
+}
 fn try_step_up(
-    rapier_context: &RapierContext,
+    spatial_query: &SpatialQuery,
     entity: Entity,
     character_shape: &Collider,
     current_pos: &mut Vec3,
+    current_rotation: Quat,
     current_velocity: &mut Vec3,
     remaining_time: &mut f32,
     controller: &mut CreaturePhysicsState,
     first_iteration: bool,
+    colliders_q: &Query<(&Transform, &Collider)>,
+    collision_layers_q: &Query<&CollisionLayers>,
+    actor: &mut Actor,
 ) -> bool {
     if current_velocity.xz().length_squared() == 0.0 {
         return false;
     }
 
-    let filter = QueryFilter::new().exclude_rigid_body(entity);
-    let sweep_options = ShapeCastOptions {
-        max_time_of_impact: 1.0,
-        stop_at_penetration: true,
+    let filter = SpatialQueryFilter::from_excluded_entities([entity]);
+    let step_height = constants::STEP_SIZE_UP;
+    let up_direction = Dir3::new_unchecked(Vec3::Y);
+    // 1. Upward Cast
+    let up_cast_vector = Vec3::Y * constants::STEP_SIZE_UP;
+    let up_sweep_config = ShapeCastConfig {
+        max_distance: step_height,
+        // IMPORTANT: We set this to true so we don't get stuck on the floor
+        // we are currently standing on while trying to cast upward.
+        ignore_origin_penetration: true,
+        compute_contact_on_penetration: true,
         ..default()
     };
 
-    // 1. Upward Cast
-    let up_cast_vector = Vec3::Y * constants::STEP_SIZE_UP;
-    let up_hit = rapier_context.cast_shape(
+    let up_hit = spatial_query.cast_shape(
+        character_shape,
         *current_pos,
-        Quat::IDENTITY,
-        up_cast_vector,
-        character_shape.into(),
-        sweep_options,
-        filter,
+        current_rotation,
+        up_direction,
+        &up_sweep_config,
+        &filter,
     );
-
-    let up_distance = if let Some((_, hit)) = up_hit {
-        let dist = hit.time_of_impact * constants::STEP_SIZE_UP;
+    let up_distance = if let Some(hit) = up_hit {
+        let dist = hit.distance;
         if dist <= constants::COLLISION_MARGIN {
             return false;
         }
@@ -407,7 +403,13 @@ fn try_step_up(
     let elevated_base_pos = *current_pos + Vec3::Y * up_distance;
 
     // 2. Multi-Attempt Forward/Down Trace Loop
-    let mut successful_step_info: Option<(SweepHit, Option<ShapeCastHit>)> = None;
+    // A small helper struct to hold the results of a valid step
+    struct StepResult {
+        final_pos: Vec3,
+        ground_normal: Vec3,
+        forward_hit: Option<ShapeHitData>,
+    }
+    let mut successful_step_info: Option<StepResult> = None;
     let move_direction = current_velocity.normalize_or_zero();
 
     for attempt in 1..=3 {
@@ -427,19 +429,30 @@ fn try_step_up(
             }
             _ => unreachable!(),
         };
+        let forward_distance = forward_cast_vector.length();
+        // Early out if movement is effectively zero
+        if forward_distance < 0.00001 {
+            break;
+        }
+        let forward_direction = Dir3::new_unchecked(forward_cast_vector / forward_distance);
 
-        let forward_hit = rapier_context.cast_shape(
+        let forward_hit = spatial_query.cast_shape(
+            character_shape,
             elevated_base_pos,
-            Quat::IDENTITY,
-            forward_cast_vector,
-            character_shape.into(),
-            sweep_options,
-            filter,
+            current_rotation,
+            forward_direction,
+            &ShapeCastConfig {
+                max_distance: forward_distance,
+                // Use false here, we want to hit the wall/stair riser if it's there
+                ignore_origin_penetration: false,
+                compute_contact_on_penetration: true,
+                ..default()
+            },
+            &filter,
         );
-
         // --- MODIFIED BLOCK: This now includes the ejection logic from the C++ source. ---
-        let (step_forward_pos, forward_hit_details) = if let Some((_, hit)) = forward_hit {
-            let dist = hit.time_of_impact * forward_cast_vector.length();
+        let (step_forward_pos, forward_hit_details) = if let Some(hit) = forward_hit {
+            let dist = hit.distance;
             if dist <= constants::COLLISION_MARGIN {
                 continue; // Not enough space to move, try next attempt.
             }
@@ -447,30 +460,31 @@ fn try_step_up(
             let pre_ejection_pos = elevated_base_pos + move_direction * final_dist;
 
             // Safely eject from the wall we hit to avoid penetration before the downward trace.
-            let forward_hit_normal = if let Some(details) = &hit.details {
-                details.normal1.into()
-            } else {
-                -move_direction
-            };
+            let forward_hit_normal = hit.normal1;
 
             let ejection_cast_vector = forward_hit_normal * constants::COLLISION_MARGIN * 2.0;
-
-            let ejection_hit = rapier_context.cast_shape(
+            let ejection_dist_max = ejection_cast_vector.length();
+            let ejection_dir = Dir3::new_unchecked(ejection_cast_vector / ejection_dist_max);
+            let ejection_hit = spatial_query.cast_shape(
+                character_shape,
                 pre_ejection_pos,
-                Quat::IDENTITY,
-                ejection_cast_vector,
-                character_shape.into(),
-                sweep_options,
-                filter,
+                current_rotation,
+                ejection_dir,
+                &ShapeCastConfig {
+                    max_distance: ejection_dist_max,
+                    ignore_origin_penetration: false,
+                    ..default()
+                },
+                &filter,
             );
-
-            let final_step_forward_pos = if let Some((_, ejection_details)) = ejection_hit {
+            let final_step_forward_pos = if let Some(ejection_details) = ejection_hit {
                 // We hit something during our ejection trace.
-                if ejection_details.time_of_impact > 0.5 {
-                    // There's more than COLLISION_MARGIN of free space, so we can push out safely.
-                    let effective_fraction = ejection_details.time_of_impact * 2.0 - 1.0;
-                    pre_ejection_pos
-                        + forward_hit_normal * constants::COLLISION_MARGIN * effective_fraction
+                if hit.distance > constants::COLLISION_MARGIN {
+                    // Calculate how much space beyond the first margin we actually have.
+                    let space_available = hit.distance - constants::COLLISION_MARGIN;
+
+                    // Push out by that available space (up to one full COLLISION_MARGIN).
+                    pre_ejection_pos + (forward_hit_normal * space_available)
                 } else {
                     // Not enough free space, stay put.
                     pre_ejection_pos
@@ -488,19 +502,21 @@ fn try_step_up(
 
         let actor_entities = HashSet::new();
         let down_hit = trace_down(
-            rapier_context,
-            entity,
-            character_shape,
-            step_forward_pos, // Use the new, potentially ejected position.
+            actor,
+            *current_pos,
             up_distance + constants::STEP_SIZE_DOWN,
-            &actor_entities,
+            spatial_query,
+            colliders_q,
+            collision_layers_q,
         );
 
-        if let Some(hit) = down_hit {
-            if can_step_down(&hit) {
-                successful_step_info = Some((hit, forward_hit_details));
-                break;
-            }
+        if actor.on_ground && !actor.on_slope {
+            successful_step_info = Some(StepResult {
+                final_pos: down_pos,
+                ground_normal: down_normal,
+                forward_hit: forward_hit_details,
+            });
+            break;
         }
     }
 

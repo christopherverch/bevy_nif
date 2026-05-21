@@ -1,7 +1,7 @@
 use esm_parser_lib::{
     EsmError, EsmReader, LandTexture, Landscape, Weapon,
     types::{
-        bodypart::Bodypart, cell::Cell, cell_ref::CellRef, gmst::GameSetting,
+        bodypart::Bodypart, cell::Cell, cell_ref::CellRef, creature::Creature, gmst::GameSetting,
         magic_effect::MagicEffect, race::Race, reference::Reference, skill::Skill,
         static_object::Static,
     },
@@ -77,6 +77,10 @@ where
         b"SKIL" => {
             let skill = Skill::load(reader, &mut is_deleted)?;
             on_load(name, &skill);
+        }
+        b"CREA" => {
+            let creature = Creature::load(reader, &mut is_deleted)?;
+            on_load(name, &creature);
         }
         _ => {
             reader.skip_record()?;

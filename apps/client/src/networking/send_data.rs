@@ -9,7 +9,7 @@ use crate::defs::{
 use bevy::prelude::*;
 use bevy_renet::RenetClient;
 use common::SoundSource;
-use common::{ActorState, JumpingStateKind, UpperBodyState};
+use common::mechanics::{CharacterController, JumpingStateKind, UpperBodyState};
 use networking::{
     AnimationEvent, ClientMessage, NetworkEvent, NetworkEventWithId, NetworkedActorState,
     ServerAcknowledgment, ServerRelayMessage,
@@ -37,7 +37,7 @@ pub fn client_sync_players(
     mut networked_entity_q: Query<&mut NetworkedEntity>,
     mut interpolation_speeds: ResMut<InterpolationSpeeds>,
     mut id_to_entity_map: ResMut<IdToEntityMap>,
-    mut actor_state_query: Query<&mut ActorState, Without<LocalPlayer>>,
+    mut actor_state_query: Query<&mut CharacterController, Without<LocalPlayer>>,
     mut local_entity_id: ResMut<ClientEntityId>,
 ) {
     // Process server messages (player creation, removal)
@@ -67,7 +67,7 @@ fn process_server_messages(
     lobby: &mut EntityIdToEntityMap,
     commands: &mut Commands,
     mut id_to_entity_map: &mut IdToEntityMap,
-    actor_state_query: &mut Query<&mut ActorState, Without<LocalPlayer>>,
+    actor_state_query: &mut Query<&mut CharacterController, Without<LocalPlayer>>,
     local_entity_id: &mut ClientEntityId,
 ) {
     while let Some(message) = client.receive_message(ServerChannel::ServerMessages) {
@@ -97,11 +97,8 @@ fn process_server_messages(
                     // Get the ActorState component for that entity from our new query parameter
                     if let Ok(mut actor_state) = actor_state_query.get_mut(*client_entity) {
                         // Apply the received animation state
-                        actor_state.is_running = state.is_running;
-                        actor_state.is_sneaking = state.is_sneaking;
-                        actor_state.is_in_water = state.is_in_water;
                         actor_state.movement.state = state.character_state;
-                        actor_state.combat.upper_body_state = state.upper_body_state;
+                        actor_state.combat.upper_body = state.upper_body_state;
                         actor_state.combat.weapon_type = state.weapon_type;
                         actor_state.jumping.state = state.jumping_state;
                     }
@@ -174,7 +171,7 @@ fn update_other_player_transforms(
 pub fn send_local_player_state_system(
     mut client: ResMut<RenetClient>,
     // Query for the entity that has both LocalPlayer and a changed ActorState
-    query: Query<&ActorState, (With<LocalPlayer>, Changed<ActorState>)>,
+    query: Query<&CharacterController, (With<LocalPlayer>, Changed<CharacterController>)>,
 ) {
     // If it has changed
     if let Ok(actor_state) = query.single() {
@@ -310,7 +307,7 @@ pub fn client_handle_relayed_actions_system(
     mut client: ResMut<RenetClient>,
     mut commands: Commands,
     lobby: Res<EntityIdToEntityMap>,
-    mut remote_player_query: Query<&mut ActorState, Without<LocalPlayer>>,
+    mut remote_player_query: Query<&mut CharacterController, Without<LocalPlayer>>,
 ) {
     while let Some(message_bytes) = client.receive_message(ServerChannel::CriticalRelay) {
         match bincode::deserialize::<ServerRelayMessage>(&message_bytes) {
@@ -337,13 +334,13 @@ pub fn client_handle_relayed_actions_system(
                                 match animation_event {
                                     AnimationEvent::JumpStarted => {
                                         // This tells the animation system into playing the jump intro
-                                        actor_state.jumping.handled_jump_animation = false;
+                                        actor_state.jumping.in_jump = false;
                                     }
                                     AnimationEvent::Landed => {
                                         dbg!("triggering landing for");
                                         dbg!(target_entity);
                                         // 1. Set the one-shot trigger for the animation system.
-                                        actor_state.jumping.handled_landing_animation = false;
+                                        actor_state.jumping.in_jump = false;
 
                                         // 2. Also set the jumping state to ensure the animation
                                         //    system is in the correct state, regardless of when
@@ -352,7 +349,7 @@ pub fn client_handle_relayed_actions_system(
                                     }
                                     AnimationEvent::AttackStarted { attack_type } => {
                                         // This kicks off the attack state machine on the remote client
-                                        actor_state.combat.upper_body_state =
+                                        actor_state.combat.upper_body =
                                             UpperBodyState::AttackWindUp;
                                         actor_state.combat.attack_type = attack_type;
                                         actor_state.combat.ready_to_hit = true; // Ensure hit logic can run

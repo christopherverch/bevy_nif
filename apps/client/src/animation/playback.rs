@@ -2,11 +2,11 @@ use bevy::animation::AnimationPlayer;
 use bevy::{log, prelude::*};
 use bevy_nif::nif_animation::bevy_types::{ActiveAnimation, Priority};
 use bevy_nif::nif_animation::{NUM_DISCRETE_REGIONS, NifAnimator};
-use common::ActorState;
+use common::mechanics::CharacterController;
 pub struct AnimationContext<'w> {
     pub animation_player: &'w mut AnimationPlayer,
     pub nif_animator: &'w mut NifAnimator,
-    pub actor_state: &'w mut ActorState,
+    pub character_controller: &'w mut CharacterController,
     pub anim_graphs: &'w mut Assets<AnimationGraph>,
     pub graph_handle: &'w AnimationGraphHandle,
 }
@@ -64,7 +64,7 @@ impl<'w> AnimationContext<'w> {
     /// Ensures that when an animation group is stopped, its state is correctly removed from:
     /// 1.  Bevy's `AnimationPlayer` (to stop the visual playback).
     /// 2.  The custom `NifAnimator` (to free up animation regions for other priorities).
-    /// 3.  The main `ActorState` component (to prevent stale state bugs).
+    /// 3.  The main `CharacterController` component (to prevent stale state bugs).
     ///
     /// Returns the `ActiveAnimation` struct of the removed animation if it existed.
     /// Stops an animation and triggers a recalculation of all priority-based masks.
@@ -89,15 +89,15 @@ impl<'w> AnimationContext<'w> {
             // After removing, recalculate and apply masks for all remaining animations.
             self.recalculate_and_apply_masks();
 
-            // Prevent stale state by clearing tracking fields in ActorState.
-            if self.actor_state.jumping.current_animation_group == group_name {
-                self.actor_state.jumping.current_animation_group.clear();
+            // Prevent stale state by clearing tracking fields in CharacterController.
+            if self.character_controller.jumping.current_group == group_name {
+                self.character_controller.jumping.current_group.clear();
             }
-            if self.actor_state.movement.current_animation_group == group_name {
-                self.actor_state.movement.current_animation_group.clear();
+            if self.character_controller.movement.current_group == group_name {
+                self.character_controller.movement.current_group.clear();
             }
-            if self.actor_state.combat.current_animation_group == group_name {
-                self.actor_state.combat.current_animation_group.clear();
+            if self.character_controller.combat.current_group == group_name {
+                self.character_controller.combat.current_group.clear();
             }
             return Some(removed_anim);
         }
@@ -106,9 +106,9 @@ impl<'w> AnimationContext<'w> {
 
     /// Clears movement, jumping, and combat animations
     pub fn clear_all_other_animations(&mut self) {
-        self.clear_animation(&self.actor_state.movement.current_animation_group.clone());
-        self.clear_animation(&self.actor_state.jumping.current_animation_group.clone());
-        self.clear_animation(&self.actor_state.combat.current_animation_group.clone());
+        self.clear_animation(&self.character_controller.movement.current_group.clone());
+        self.clear_animation(&self.character_controller.jumping.current_group.clone());
+        self.clear_animation(&self.character_controller.combat.current_group.clone());
     }
 
     /// Recalculates the effective blend mask for every active animation based on priority and applies it.
@@ -120,7 +120,7 @@ impl<'w> AnimationContext<'w> {
         for i in 0..NUM_DISCRETE_REGIONS {
             let region_mask = 1 << i;
             let mut winner_key: Option<String> = None;
-            let mut highest_priority = Priority::Idle;
+            let mut highest_priority = Priority::Default;
 
             for (key, anim) in &self.nif_animator.active_animations {
                 // THIS IS THE KEY CHANGE: We now read the animation's *original*, intended blend mask.

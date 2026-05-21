@@ -1,5 +1,5 @@
+use avian3d::prelude::Collider;
 use bevy::prelude::*;
-use bevy_rapier3d::{parry::shape::SharedShape, prelude::Collider};
 #[derive(Component, Debug)]
 pub struct CreaturePhysicsState {
     /// The final velocity vector calculated by the preparation system for this frame.
@@ -26,7 +26,7 @@ pub struct CreaturePhysicsState {
 
     // The single, compound collider shape for this character.
     // We clone it from the entity when the component is added.
-    pub collision_shape: SharedShape,
+    pub collider: Collider,
     /// Counts consecutive frames where significant geometry penetration is detected.
     pub stuck_frames: u32,
     pub last_stuck_position: Vec3,
@@ -45,7 +45,7 @@ impl Default for CreaturePhysicsState {
             last_slide_normal: Vec3::ZERO,
             last_slide_normal_fallback: Vec3::ZERO,
             times_slid: 0,
-            collision_shape: Collider::default(),
+            collider: Collider::default(),
             stuck_frames: 0,
             last_stuck_position: Vec3::ZERO,
             vertical_offset: 0.0,

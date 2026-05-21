@@ -28,8 +28,10 @@ impl EsmRecord for Race {
 pub struct RaceData {
     pub skill_bonuses: [SkillBonus; 7],
     pub attributes: [i32; 16], // 8 attributes * 2 genders
-    pub heights: [f32; 2],
-    pub weights: [f32; 2],
+    pub male_height: f32,
+    pub female_height: f32,
+    pub male_weight: f32,
+    pub female_weight: f32,
     pub flags: RaceFlags,
 }
 #[repr(C)]

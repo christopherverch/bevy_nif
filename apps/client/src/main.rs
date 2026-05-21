@@ -1,6 +1,9 @@
 use std::{env, fs};
 
-use avian3d::{PhysicsPlugins, prelude::PhysicsSystems};
+use avian3d::{
+    PhysicsPlugins,
+    prelude::{PhysicsDebugPlugin, PhysicsSystems},
+};
 // External imports
 use bevy::{light::DirectionalLightShadowMap, pbr::DefaultOpaqueRendererMethod, prelude::*};
 use bevy_egui::EguiPlugin;
@@ -11,12 +14,21 @@ use bevy_renet::RenetClientPlugin;
 use serde::Deserialize;
 
 use crate::{
-    defs::{GameState, IdToEntityMap, Pause, PlayerInput},
+    defs::{
+        CellLookup, GameSettings, GameState, IdToEntityMap, Pause, PlayerInput, WorldFrameData,
+        WorldSettings,
+    },
     gui::MWGuiPlugin,
     handle_nif_events::handle_nif_event,
+    mechanics::{update_character_components, update_movement_component_from_intent},
+    physics::{
+        interpolate_visual_positions,
+        movement::{init_positions, sync_actor_physics_system, update_positions},
+        prepare_actor_simulation, unstuck_character,
+    },
     setup_scene::setup_scene,
 };
-use actor::{apply_hit, character_controller_system, resolve_final_animation_state_system};
+//use actor::{apply_hit, character_controller_system, resolve_final_animation_state_system};
 use animation::actor_animator::animate_actors_using_state;
 use camera::MWCameraPlugin;
 use equipment::on_player_ready_weapon;
@@ -26,7 +38,7 @@ use landscape::terrain_material::TerrainBlendMaterial;
 use networking::{NetworkingPlugin, connect_to_server};
 use physics::{
     CharacterMotionPlugin, calculate_animation_displacement_system,
-    movement::character_movement_system, preparation::prepare_character_velocity_system,
+    movement::character_movement_system,
 };
 use player_input::*;
 use setup_funcs::*;
@@ -37,6 +49,7 @@ use ui::{UiPlugin, despawn_main_menu_ui, setup_main_menu};
 mod actor;
 mod animation;
 mod camera;
+mod class_traits;
 mod const_defs;
 mod defs;
 mod engine;
@@ -47,15 +60,20 @@ mod gui;
 mod handle_nif_events;
 mod initial_esm_parse;
 mod landscape;
+mod live_cell_ref;
+mod magic_effects;
+mod mechanics;
 mod networking;
 mod physics;
 mod player_input;
 mod setup_funcs;
 mod setup_scene;
 mod sound;
+mod stat;
 mod temporary_funcs;
 mod ui;
 mod utils;
+mod world;
 
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct Connected;
@@ -82,7 +100,7 @@ fn main() {
     let mut app = App::new();
     app.insert_resource(DefaultOpaqueRendererMethod::deferred())
         .insert_resource(DirectionalLightShadowMap { size: 4096 })
-        .add_plugins(PhysicsPlugins::default())
+        .add_plugins((PhysicsPlugins::default(), PhysicsDebugPlugin))
         .add_plugins((
             DefaultPlugins,
             BevyNifPlugin,
@@ -104,7 +122,7 @@ fn main() {
     app.edit_schedule(FixedUpdate, |schedule| {
         schedule.configure_sets(
             (
-                PhysicsSystems::SyncBackend,
+                PhysicsSystems::Prepare,
                 PhysicsSystems::StepSimulation,
                 PhysicsSystems::Writeback,
             )
@@ -114,13 +132,17 @@ fn main() {
     app.insert_resource(PlayerInput::default())
         .insert_resource(IdToEntityMap::default())
         .insert_resource(NextAvailableSkeletonId(1))
+        .insert_resource(WorldFrameData::default())
+        .insert_resource(WorldSettings::default())
+        .insert_resource(GameSettings::default())
+        .insert_resource(CellLookup::default())
         .init_state::<GameState>()
         .add_systems(Startup, setup_scene)
         .add_systems(Update, setup_player)
         .add_systems(Startup, populate_esm_resources)
         .add_observer(generate_sound)
         .add_observer(handle_nif_event)
-        .add_observer(apply_hit)
+        //   .add_observer(apply_hit)
         .add_observer(on_player_ready_weapon)
         .add_observer(insert_nif_animator_links)
         .add_systems(OnEnter(GameState::MainMenu), setup_main_menu)
@@ -131,22 +153,29 @@ fn main() {
         .add_systems(
             FixedUpdate,
             (
-                calculate_animation_displacement_system,
-                prepare_character_velocity_system,
+                update_movement_component_from_intent,
+                update_character_components,
+                prepare_actor_simulation,
+                init_positions,
+                // unstuck_character,
                 character_movement_system,
+                update_positions,
+                sync_actor_physics_system,
+                calculate_animation_displacement_system,
             )
                 .chain()
-                .before(PhysicsSystems::SyncBackend),
+                .before(PhysicsSystems::Prepare),
         )
         .add_systems(
             Update,
             (
-                character_controller_system,
-                resolve_final_animation_state_system,
+                // character_controller_system,
+                //resolve_final_animation_state_system,
                 animate_actors_using_state,
             )
                 .chain(),
         )
+        .add_systems(Update, interpolate_visual_positions)
         .add_systems(PostUpdate, clear_player_rotation_input_system)
         .run();
 }

@@ -1,7 +1,7 @@
+use crate::defs::{LandscapeManagementSettings, LoadedLandscapeEntities};
 use bevy::prelude::*;
 use landscape_loader::{load_landscape, setup_landscape_images};
 use landscape_spawning_despawning::spawn_despawn_landscapes;
-use crate::defs::{LandscapeManagementSettings, LoadedLandscapeEntities};
 pub mod landscape_loader;
 pub mod landscape_spawning_despawning;
 pub mod terrain_material;

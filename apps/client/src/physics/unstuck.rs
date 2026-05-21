@@ -1,215 +1,160 @@
-// In src/client/physics/unstuck.rs
-
-use std::ops::Deref;
-
 use avian3d::{
-    parry::{math::Pose3, query::contact},
+    collision::collider::contact_query,
     prelude::{Collider, SpatialQuery, SpatialQueryFilter},
 };
 use bevy::prelude::*;
+use mwphysics::{ActorFrameData, MW_UNITS_PER_METER};
 
-use super::{
-    CreaturePhysicsState,
-    constants::{ALLOWED_PENETRATION, COLLISION_MARGIN, FAILSAFE_UNSTUCK_UPWARD_DISTANCE},
+use crate::{
+    defs::{ColliderEntityLink, LocalPlayer},
+    physics::{constants::ALLOWED_PENETRATION, helpers::get_pitch_yaw_3d_approx_movement},
 };
 
-#[derive(Debug, Default, Clone, Copy)]
-struct UnstuckContactData {
-    deepest_penetration: f32,
-    contact_sum: Vec3,
-    max_x: f32,
-    max_y: f32,
-    max_z: f32,
-}
+use super::constants::COLLISION_MARGIN;
 
-/// Queries a hypothetical position for penetrations using direct, stateless geometry queries.
-fn query_potential_position(
-    spatial_query: &SpatialQuery,
-    collider_query: &Query<(&Transform, &Collider)>,
-    root_entity: Entity,
-    controller: &CreaturePhysicsState,
-    test_pos: Vec3,
-    test_rot: Quat,
-) -> UnstuckContactData {
-    let mut contact_data = UnstuckContactData::default();
-    let character_shape = &controller.collision_shape;
-    let character_pose = Pose3::from_parts(test_pos, test_rot);
+pub fn unstuck_character(
+    mut character_query: Query<
+        (Entity, &Transform, &mut ActorFrameData, &ColliderEntityLink),
+        With<LocalPlayer>,
+    >,
+    spatial_query: SpatialQuery,
+    collider_q: Query<(&Transform, &Collider)>,
+) {
+    for (root_entity, actor_transform, mut actor_fd, collider_link) in character_query.iter_mut() {
+        if actor_fd.skip_collision_detection {
+            return;
+        }
+        // Nothing attempted to move, assume our position is correct
+        if actor_fd.movement.length_squared() == 0.0 {
+            return;
+        }
+        const DIST_TRESHOLD: f32 = (10.0 / MW_UNITS_PER_METER) * (10.0 / MW_UNITS_PER_METER);
+        if actor_fd.stuck_frames >= 10 {
+            if (actor_fd.last_stuck_position - actor_transform.translation).length_squared()
+                < DIST_TRESHOLD
+            {
+                return;
+            } else {
+                actor_fd.stuck_frames = 0;
+                actor_fd.last_stuck_position = Vec3::ZERO;
+            }
+        }
 
-    // Broad-phase: Find all shapes we are potentially overlapping with.
-    spatial_query.shape_intersections_callback(
-        &character_shape,
-        test_pos,
-        test_rot,
-        &SpatialQueryFilter::from_excluded_entities([root_entity]),
-        |hit_entity| {
-            // Narrow-phase: For each potential overlap, get its shape and transform.
-            if let Ok((hit_transform, hit_collider)) = collider_query.get(hit_entity) {
-                let (_scale, rot, trans) = hit_transform.to_scale_rotation_translation();
-                let hit_pose = Pose3::from_parts(trans, rot);
+        // use vanilla-accurate collision hull position hack (do same hitbox offset hack as movement solver)
+        // if vanilla compatibility didn't matter, the "correct" collision hull position would be
+        // physicActor->getScaledMeshTranslation()
+        let vertical_half_extent = Vec3::new(0.0, actor_fd.half_extents_y, 0.0);
 
-                // Perform the direct, stateless contact query using the Parry library function.
-                if let Ok(Some(contact)) = contact(
-                    &character_pose,
-                    character_shape.raw.as_ref(),
-                    &hit_pose,
-                    hit_collider.shape().deref(),
-                    0.0, // Prediction distance. 0.0 checks for actual penetration.
-                ) {
-                    let normal = Vec3::from(contact.normal1); // Use the normal on the object we hit
-                    let dist = contact.dist;
-                    if dist < 0.0 {
-                        // Negative distance is penetration.
+        // use a 3d approximation of the movement vector to better judge player intent
+        let mut velocity = get_pitch_yaw_3d_approx_movement(&actor_fd);
+        if !actor_fd.is_on_ground || actor_fd.is_on_slope {
+            velocity += actor_fd.inertia;
+        }
+        // The collision box is offset so it's not centered on the character's feet, so we have to reverse that
+        let ref_position = actor_fd.position + vertical_half_extent;
+        let mut good_position = ref_position;
+        let Ok((collider_transform, collider)) = collider_q.get(collider_link.0) else {
+            return;
+        };
+        let mut query_transform = *collider_transform;
+        let mut gather_contacts = |new_offset: Vec3| {
+            // Calculate the new origin with margin
+            good_position = ref_position + add_margin_to_delta(new_offset);
+            query_transform.translation = good_position;
 
-                        // Optimization: If we are penetrating but moving away from the surface,
-                        // ignore this contact. This can prevent fighting with the depenetration logic
-                        if normal.dot(controller.velocity_for_frame) > 0.0 {
-                            return true;
+            let mut contact_sum = Vec3::ZERO;
+            let mut max_depth: f32 = 0.0;
+            let mut max_xyz = Vec3::ZERO;
+
+            // 1. Use the callback to find intersecting entities
+            spatial_query.shape_intersections_callback(
+                collider,
+                query_transform.translation,
+                collider_transform.rotation,
+                &SpatialQueryFilter::from_excluded_entities([root_entity]),
+                |entity| {
+                    // 2. For every entity found, perform a low-level contact query
+                    // You need to fetch the other collider and its transform from your Bevy Query
+                    if let Ok((other_transform, other_collider)) = collider_q.get(entity) {
+                        // Use the contact query module you found!
+                        if let Ok(Some(contact)) = contact_query::contact(
+                            collider,
+                            query_transform.translation,
+                            query_transform.rotation,
+                            other_collider,
+                            other_transform.translation,
+                            other_transform.rotation,
+                            0.0,
+                        ) {
+                            // 1. Transform the local normal to world space
+                            // contact.local_normal1 is relative to the actor's orientation.
+                            let world_normal = query_transform.rotation * contact.local_normal1;
+
+                            // 2. Use 'penetration' for depth
+                            let depth = contact.penetration;
+
+                            // 3. 1:1 Intent Filter: Only handle collisions we are moving INTO
+                            // We use the world_normal because velocity is in world space.
+                            if world_normal.dot(velocity) < 0.0 {
+                                contact_sum += world_normal * depth;
+                                max_depth = max_depth.max(depth);
+
+                                // Track individual components (mMaxX, mMaxY, mMaxZ)
+                                max_xyz.x = max_xyz.x.max((world_normal.x * depth).abs());
+                                max_xyz.y = max_xyz.y.max((world_normal.y * depth).abs());
+                                max_xyz.z = max_xyz.z.max((world_normal.z * depth).abs());
+                            }
                         }
-                        let delta = normal * -dist;
-                        contact_data.contact_sum += delta;
-                        contact_data.max_x = contact_data.max_x.max(delta.x.abs());
-                        contact_data.max_y = contact_data.max_y.max(delta.y.abs());
-                        contact_data.max_z = contact_data.max_z.max(delta.z.abs());
-                        if dist < contact_data.deepest_penetration {
-                            contact_data.deepest_penetration = dist;
-                        }
+                    }
+                    true // Continue searching
+                },
+            );
+
+            (-max_depth, contact_sum, max_xyz)
+        };
+        // Step 1: Initial Check
+        let (dist, mut pos_delta, max_xyz) = gather_contacts(Vec3::ZERO);
+
+        if dist < -ALLOWED_PENETRATION {
+            actor_fd.stuck_frames += 1;
+            actor_fd.last_stuck_position = actor_fd.position;
+
+            // Component Limiting (matches OpenMW's positionDelta scaling)
+            if pos_delta.x.abs() > max_xyz.x {
+                pos_delta.x *= max_xyz.x / pos_delta.x.abs();
+            }
+            if pos_delta.y.abs() > max_xyz.y {
+                pos_delta.y *= max_xyz.y / pos_delta.y.abs();
+            }
+            if pos_delta.z.abs() > max_xyz.z {
+                pos_delta.z *= max_xyz.z / pos_delta.z.abs();
+            }
+
+            // Attempt 1: Full Rejection
+            let (dist2, _, _) = gather_contacts(pos_delta);
+            if dist2 > dist {
+                // Use the good_position that was updated inside the closure call above
+                actor_fd.position = good_position - vertical_half_extent;
+            } else {
+                // Attempt 2: Upwards only
+                let upwards = Vec3::new(0.0, pos_delta.y.abs(), 0.0);
+                let (dist3, _, _) = gather_contacts(upwards);
+                if dist3 > dist {
+                    actor_fd.position = good_position - vertical_half_extent;
+                } else {
+                    // Attempt 3: Fixed distance up
+                    let fixed_up = Vec3::new(0.0, 10.0 / MW_UNITS_PER_METER, 0.0);
+                    let (dist4, _, _) = gather_contacts(fixed_up);
+                    if dist4 > dist {
+                        actor_fd.position = good_position - vertical_half_extent;
                     }
                 }
             }
-            true // Continue checking for other intersections.
-        },
-    );
-
-    contact_data
-}
-
-pub fn unstuck_character(
-    spatial_query: &SpatialQuery,
-    collider_query: &Query<(&Transform, &Collider)>,
-    root_entity: Entity,
-    collider_entity: Entity,
-    transform: &mut Transform,
-    controller: &mut CreaturePhysicsState,
-) {
-    // Guard clauses remain the same.
-    if controller.velocity_for_frame.length_squared() == 0.0 {
-        return;
-    }
-    if controller.stuck_frames >= 10 {
-        if (transform.translation - controller.last_stuck_position).length_squared() < 1.0 {
-            return;
         } else {
-            controller.stuck_frames = 0;
+            actor_fd.stuck_frames = 0;
+            actor_fd.last_stuck_position = Vec3::ZERO;
         }
     }
-
-    // --- Stateful Initial Penetration Check ---
-    let mut deepest_penetration = 0.0;
-    let mut contact_sum = Vec3::ZERO;
-    let mut max_x = 0.0;
-    let mut max_y = 0.0;
-    let mut max_z = 0.0;
-    let mut contacts_found = 0;
-
-    // Use `contact_pairs_with` with the now-provided `collider_entity`.
-    for contact_pair in spatial_query.contact_pairs_with(collider_entity) {
-        for manifold in contact_pair.manifolds() {
-            for contact_point in manifold.points() {
-                // `dist` is negative if there is a penetration.
-                if contact_point.dist() < deepest_penetration {
-                    deepest_penetration = contact_point.dist();
-                }
-
-                let normal = if contact_pair.collider1() == Some(collider_entity) {
-                    -manifold.normal()
-                } else {
-                    manifold.normal()
-                };
-
-                let delta = normal * -contact_point.dist();
-                contact_sum += delta;
-                max_x = max_x.max(delta.x.abs());
-                max_y = max_y.max(delta.y.abs());
-                max_z = max_z.max(delta.z.abs());
-                contacts_found += 1;
-            }
-        }
-    }
-
-    if contacts_found > 0 {
-        contact_sum /= contacts_found as f32;
-    }
-
-    if deepest_penetration >= -ALLOWED_PENETRATION {
-        controller.stuck_frames = 0;
-        return;
-    }
-
-    // --- The rest of the unstuck logic remains the same ---
-    controller.stuck_frames += 1;
-    controller.last_stuck_position = transform.translation;
-
-    let collision_shape_offset = Vec3::Y * controller.vertical_offset;
-    let initial_shape_position = transform.translation + collision_shape_offset;
-    let mut final_shape_position = initial_shape_position;
-
-    let mut ejection_delta = contact_sum;
-    if ejection_delta.x.abs() > max_x {
-        ejection_delta *= max_x / ejection_delta.x.abs();
-    }
-    if ejection_delta.y.abs() > max_y {
-        ejection_delta *= max_y / ejection_delta.y.abs();
-    }
-    if ejection_delta.z.abs() > max_z {
-        ejection_delta *= max_z / ejection_delta.z.abs();
-    }
-
-    // --- Attempt 1: Ejection via Clamped Summed Deltas ---
-    let test_pos_1 = initial_shape_position + add_margin_to_delta(ejection_delta);
-    let contacts_after_attempt_1 = query_potential_position(
-        spatial_query,
-        collider_query,
-        root_entity,
-        controller,
-        test_pos_1,
-        transform.rotation,
-    );
-
-    if contacts_after_attempt_1.deepest_penetration > deepest_penetration {
-        final_shape_position = test_pos_1;
-    } else {
-        // --- Attempt 2 ---
-        let upward_ejection = Vec3::Y * ejection_delta.y.abs();
-        let test_pos_2 = initial_shape_position + add_margin_to_delta(upward_ejection);
-        let contacts_after_attempt_2 = query_potential_position(
-            spatial_query,
-            collider_query,
-            root_entity,
-            controller,
-            test_pos_2,
-            transform.rotation,
-        );
-        if contacts_after_attempt_2.deepest_penetration > deepest_penetration {
-            final_shape_position = test_pos_2;
-        } else {
-            // --- Attempt 3 ---
-            let fixed_upward_ejection = Vec3::Y * FAILSAFE_UNSTUCK_UPWARD_DISTANCE;
-            let test_pos_3 = initial_shape_position + add_margin_to_delta(fixed_upward_ejection);
-            let contacts_after_attempt_3 = query_potential_position(
-                spatial_query,
-                collider_query,
-                root_entity,
-                controller,
-                test_pos_3,
-                transform.rotation,
-            );
-            if contacts_after_attempt_3.deepest_penetration > deepest_penetration {
-                final_shape_position = test_pos_3;
-            }
-        }
-    }
-
-    transform.translation = final_shape_position - collision_shape_offset;
 }
 fn add_margin_to_delta(delta: Vec3) -> Vec3 {
     if delta.length_squared() == 0.0 {

@@ -1,23 +1,20 @@
 use crate::{
     actor::{AnimationDisplacement, RootMotionState},
-    defs::{CreatureStats, IdToEntityMap, IsThirdPerson, LocalPlayer, MeshEntityLink},
+    camera::MWCamera,
+    defs::{CreatureStats, IdToEntityMap, LocalPlayer, MeshEntityLink},
 };
 use bevy::prelude::*;
 use bevy_nif::nif_animation::NifAnimator;
-use common::{ActorState, JumpingStateKind};
+use common::mechanics::{CharacterController, JumpingStateKind};
+use mwphysics::MW_UNITS_PER_METER;
 
-use crate::{
-    animation::animation_helpers::get_anim_components_for_creature, const_defs::MW_SCALE_REDUCTION,
-};
+use crate::animation::animation_helpers::get_anim_components_for_creature;
 
 pub fn calculate_animation_displacement_system(
-    is_third_person: Res<IsThirdPerson>,
-
     mut creature_mesh_query: Query<&mut RootMotionState>,
-
     mut actor_query: Query<
         (
-            &ActorState,
+            &CharacterController,
             &CreatureStats,
             &mut AnimationDisplacement,
             &MeshEntityLink,
@@ -29,10 +26,11 @@ pub fn calculate_animation_displacement_system(
         &mut NifAnimator,
         &AnimationGraphHandle,
     )>,
+    cam_settings: Single<&MWCamera>,
     id_to_entity_map: Res<IdToEntityMap>,
 ) {
     // This system only matters in third-person view.
-    if !is_third_person.0 {
+    if cam_settings.first_person {
         // In first-person view, root motion is not applied. We explicitly clear
         // any existing animation displacement to prevent it from affecting the camera.
         if let Ok((_, _, mut animation_displacement, _mesh_entity_link)) = actor_query.single_mut()
@@ -66,7 +64,7 @@ pub fn calculate_animation_displacement_system(
     };
 
     let mut frame_displacement = Vec3::ZERO;
-    let current_move_group = &actor_state.movement.current_animation_group;
+    let current_move_group = &actor_state.movement.current_group;
 
     if !current_move_group.is_empty() {
         if let Some(definition) = animator.animation_definitions.get(current_move_group) {
@@ -108,7 +106,7 @@ pub fn calculate_animation_displacement_system(
                             .map_or(Vec3::ZERO, |(now, prev)| now - prev)
                     };
 
-                    let scaled_delta = (delta / MW_SCALE_REDUCTION) * anim_state.speed();
+                    let scaled_delta = (delta / MW_UNITS_PER_METER) * anim_state.speed();
                     // Transform from NIF's coordinate system (Y-up, X-right) to Bevy's (Y-up, -Z-forward).
                     // The vertical (Y) component of root motion is discarded
                     // since the physics system handles y-motion with gravity

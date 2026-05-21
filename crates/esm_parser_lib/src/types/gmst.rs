@@ -18,6 +18,16 @@ impl GameSetting {
             value,
         })
     }
+    /// Directly get the float value, converting from Int if necessary.
+    /// Returns 0.0 if the variant is not a numeric type.
+    pub fn as_float(&self) -> f32 {
+        self.value.0.as_float()
+    }
+
+    /// Directly get the string value if applicable.
+    pub fn as_str(&self) -> Option<&str> {
+        self.value.0.as_str()
+    }
 }
 impl EsmRecord for GameSetting {
     fn id(&self) -> &RefId {

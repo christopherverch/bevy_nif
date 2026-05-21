@@ -241,7 +241,7 @@ fn finish_landscape_setup(
         Mesh3d(mesh_h),
         MeshMaterial3d(material_handle),
         //Collider::trimesh(positions_vec3_for_collider, indices_vec3_for_collider).unwrap(),
-        RigidBody::Fixed,
+        RigidBody::Static,
         heightfield_collider,
     ));
     let cell_translation = Vec3::new(
@@ -523,7 +523,7 @@ fn setup_terrain_2d_array(
 fn create_heightfield_collider(positions: &[[f32; 3]]) -> Collider {
     let mut grid = Vec::with_capacity(LAND_SIDE_VERTICES);
     for x in (0..LAND_SIDE_VERTICES).rev() {
-        let mut row: Vec = Vec::with_capacity(LAND_SIDE_VERTICES);
+        let mut row = Vec::with_capacity(LAND_SIDE_VERTICES);
         for y in 0..LAND_SIDE_VERTICES {
             let vertex_index = y * LAND_SIDE_VERTICES + x;
             let height = if vertex_index < positions.len() {

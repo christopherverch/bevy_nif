@@ -7,7 +7,7 @@ members = [
     "crates/to_utf8",
     "crates/serializer",
     "crates/networking",
-    "crates/esm_parser_macros", "crates/mwphysics",
+    "crates/esm_parser_macros", "crates/mwphysics", "crates/unordered_map", 
 ]
 resolver = "2"
 
@@ -27,6 +27,7 @@ serializer = { path = "crates/serializer" }
 networking = { path = "crates/networking" }
 to_utf8 = { path = "crates/to_utf8" }
 mwphysics = {path = "crates/mwphysics" }
+glam = "0.30.10"
 
 bevy = {version = "0.18", default-features = false}
 bevy-inspector-egui = "0.36.0"
@@ -34,6 +35,7 @@ bevy_ecs = {version = "0.18"}
 bevy_transform = {version = "0.18"}
 bevy_math = {version = "0.18"}
 avian3d = {version = "0.6.1"}
+unordered_map = { path = "crates/unordered_map"}
 
 # Networking logic
 bevy_renet = "4.0.1"
@@ -49,6 +51,5 @@ bevy_nif = { path = "../bevy_nif/bevy_nif" }
 
 [workspace.lints.rust]
 #warnings = "deny"
-unsafe_code = "forbid"
 #unused = "deny"
 missing_docs = "allow"

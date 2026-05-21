@@ -9,6 +9,9 @@ use std::{
     io::{self},
     mem::MaybeUninit,
 };
+pub trait AsRepr {
+    type Repr;
+}
 
 pub trait Load {
     fn load(reader: &mut EsmReader) -> Result<Self, EsmError>

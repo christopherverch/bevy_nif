@@ -1,20 +1,24 @@
 use crate::{
     MWCollisionGroup,
-    actor::Actor,
+    actor::ActorPhysics,
     const_defs::{SOLVER_GROUND_OFFSET, SOLVER_LARGE_DISTANCE},
     helpers::is_walkable_slope,
     trace::ActorTracer,
 };
 use avian3d::prelude::{Collider, CollisionLayers, LayerMask, SpatialQuery, SpatialQueryFilter};
-use bevy_ecs::{entity::EntityHashSet, system::Query};
+use bevy_ecs::{
+    entity::{Entity, EntityHashSet},
+    system::Query,
+};
 use bevy_math::Dir3;
 use bevy_transform::components::Transform;
 use glam::Vec3;
 /// Finds the distance to the ground below a specific position for an actor.
 /// Returns (Position, Normal)
 pub fn trace_down(
-    actor: &mut Actor,
-    position: Vec3,
+    entity: Entity,
+    actor: &mut ActorPhysics,
+    actor_position: Vec3,
     max_height: f32,
     spatial_query: &SpatialQuery,
     colliders: &Query<(&Transform, &Collider)>,
@@ -24,8 +28,8 @@ pub fn trace_down(
     // This is the difference between the Actor's feet and the center of its Collider
     // We do this because we don't want to accidentally sweep a collider centered in the middle of a
     // character and act like it's centered on their feet
-    let offset = actor.get_collision_object_position();
-    let start = position + offset;
+    let offset = actor.get_collision_object_position(actor_position) - actor_position;
+    let start = actor_position + offset;
     // not actually down, but we use it as the down vec everywhere by negating
     let down_vec = Vec3::new(0.0, max_height, 0.0);
     let end = start - down_vec;
@@ -33,7 +37,7 @@ pub fn trace_down(
     // 2. Perform the Actor Sweep (findGround)
     let mut tracer = ActorTracer::default();
     tracer.find_ground(
-        actor.base.entity,
+        entity,
         start,
         end,
         spatial_query,
@@ -44,13 +48,13 @@ pub fn trace_down(
     // If the shape sweep hit nothing at all
     if tracer.fraction >= 1.0 {
         actor.on_ground = false;
-        return position;
+        return actor_position;
     }
     actor.on_ground = true;
 
     // 3. The Ray Test (Sanity Check)
     // Ray starts exactly at the logical position (feet) and goes down
-    let ray_from = position;
+    let ray_from = actor_position;
 
     // Only collide with the world, not other actors
     let ray_mask = LayerMask((MWCollisionGroup::WORLD | MWCollisionGroup::HEIGHTMAP).bits());

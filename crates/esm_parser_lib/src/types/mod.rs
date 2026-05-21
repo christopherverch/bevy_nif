@@ -4,6 +4,7 @@ pub mod bodypart;
 pub mod cell;
 pub mod cell_id;
 pub mod cell_ref;
+pub mod creature;
 pub mod effect_list;
 pub mod enums;
 pub mod flags;

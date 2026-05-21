@@ -4,20 +4,13 @@ use esm_parser_lib::{
     esm_record::EsmRecord,
     find_interned,
     types::{
-        bodypart::Bodypart, gmst::GameSetting, magic_effect::MagicEffect, npc::Npc, race::Race,
-        skill::Skill, spell::Spell,
+        bodypart::Bodypart, creature::Creature, gmst::GameSetting, magic_effect::MagicEffect,
+        npc::Npc, race::Race, skill::Skill, spell::Spell,
     },
 };
-use std::collections::{HashMap, hash_map::Entry};
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RecordType {
-    Npc,
-    Spell,
-    Item,
-    Cell,
-    // ... all 40+ Morrowind record types
-}
-#[derive(Resource)]
+use unordered_map::UnorderedMap;
+
+#[derive(Resource, Default)]
 pub struct EsmStore {
     pub weapons: Store<Weapon>,
     pub races: Store<Race>,
@@ -26,82 +19,108 @@ pub struct EsmStore {
     pub spells: Store<Spell>,
     pub magic_effects: Store<MagicEffect>,
     pub gamesettings: Store<GameSetting>,
+    pub creatures: Store<Creature>,
     pub skills: Store<Skill>,
-    // A master map for the global "find"
-    pub id_to_type: HashMap<RefId, RecordType>,
 }
 
+// SAFETY: We only populate these stores during loading, never during gameplay
+// The pointers are stable because they point into an unordered_map, which never moves the memory.
+unsafe impl<T: EsmRecord> Send for Store<T> {}
+unsafe impl<T: EsmRecord> Sync for Store<T> {}
+
+#[derive(Debug)]
 pub struct Store<T: EsmRecord> {
-    pub records: Vec<T>,
-    indices: HashMap<RefId, usize>,
-}
-impl<T: EsmRecord> Store<T> {
-    pub fn search(&self, id: &str) -> Option<&T> {
-        // 1. Convert &str to interned pointer
-        dbg!(id);
-        let interned = find_interned(id)?;
+    pub static_rec: UnorderedMap<RefId, T>,
 
-        // 2. Wrap in RefId (Note: You may need to check UnsizedString too
-        // if your ESM parser uses both, but usually SizedString is the standard)
-        let search_key = RefId::SizedString(StringRefId(interned));
-        println!(
-            "Searching for: {} | Generated Hash: 0x{:X}",
-            id,
-            search_key.debug_hash()
-        );
-        // 3. O(1) Lookup
-        let index = self.indices.get(&search_key)?;
+    pub shared: Vec<*const T>,
 
-        Some(&self.records[*index])
-    }
+    // For save-games/other dynamic loading
+    pub dynamic: UnorderedMap<RefId, T>,
 }
-impl EsmStore {
-    pub fn find_type(&self, id: &RefId) -> Option<RecordType> {
-        self.id_to_type.get(id).copied()
-    }
-}
-impl<T: EsmRecord> Store<T> {
-    pub fn new() -> Self {
+
+impl<T: EsmRecord> Default for Store<T> {
+    fn default() -> Self {
         Self {
-            records: Vec::new(),
-            indices: HashMap::new(),
+            static_rec: UnorderedMap::default(),
+            shared: Vec::new(),
+            dynamic: UnorderedMap::default(),
         }
     }
-    pub fn get(&self, id: &RefId) -> Option<&T> {
-        self.indices.get(id).map(|&i| &self.records[i])
-    }
-    pub fn insert(&mut self, id: RefId, record: T) {
-        match self.indices.entry(id) {
-            Entry::Occupied(entry) => {
-                // id exists, overwrite the old data in the vector at that index
-                let index = *entry.get();
-                self.records[index] = record;
-            }
-            Entry::Vacant(entry) => {
-                // new id, push to the end and record the new index
-                let index = self.records.len();
-                self.records.push(record);
-                entry.insert(index);
-            }
-        }
-    }
-    pub fn remove(&mut self, id: &RefId) {
-        if let Some(index) = self.indices.remove(id) {
-            // 1. Remove the record from the vector
-            // This moves the last element into 'index'
-            self.records.swap_remove(index);
+}
 
-            // 2. If the vector wasn't empty and we didn't just remove the last element,
-            // we need to update the index of the element that was moved.
-            if index < self.records.len() {
-                // We need to find which ID belongs to the moved record.
-                // TODO:: get the refid from the record itself, maybe with a trait?
-                let moved_record_id = self.records[index].id();
-                self.indices.insert(moved_record_id.clone(), index);
-            }
-        }
+impl<T: EsmRecord> Store<T> {
+    pub fn get_raw(&self, id: &RefId) -> Option<*const T> {
+        self.dynamic
+            .get_unsafe(id)
+            .or_else(|| self.static_rec.get_unsafe(id))
     }
-    pub fn iter(&self) -> impl Iterator<Item = &T> {
-        self.records.iter()
+
+    /// Public use: returns a safe reference for game systems
+    pub fn get(&self, id: &RefId) -> Option<&T> {
+        self.get_raw(id).map(|ptr| unsafe {
+            // SAFETY: We guarantee that during gameplay,
+            // these records are immutable and the pointers are stable.
+            &*ptr
+        })
+    }
+    /// Searches dynamic overrides and static records, returning an Option containing
+    /// a raw pointer. Safe because nodes are frozen during gameplay
+    pub fn search_raw(&self, id: &str) -> Option<*const T> {
+        let interned = find_interned(id)?;
+        let search_key = RefId::SizedString(StringRefId(interned));
+        self.get_raw(&search_key)
+    }
+
+    pub fn search(&self, id: &str) -> Option<&T> {
+        let interned = find_interned(id)?;
+        let search_key = RefId::SizedString(StringRefId(interned));
+        self.get(&search_key)
+    }
+
+    /// Adds a record to the static store during the file parsing phase.
+    pub fn insert_static(&mut self, id: RefId, record: T) -> *const T {
+        // Because it's a UnorderedMap, this memory slot is permanent.
+        self.static_rec.insert_unsafe(id.clone(), record);
+
+        let ref_to_inserted = self.static_rec.get_unsafe(&id).unwrap();
+        let ptr = ref_to_inserted as *const T;
+        self.shared.push(ptr);
+        ptr
+    }
+    /// Purges a record from the static tree map if a plugin requests a deletion
+    pub fn remove_static(&mut self, id: &RefId) {
+        self.static_rec.remove_unsafe(id);
+        // TODO:: self.shared.remove(id);
+    }
+
+    /// Adds/Overrides a record at runtime (for Save Games or script modifications)
+    /// Returns a raw pointer to the dynamic override record.
+    pub fn insert_dynamic(&mut self, id: RefId, record: T) -> *const T {
+        self.dynamic.insert_unsafe(id.clone(), record);
+
+        // Grab the reference back out
+        let ref_to_inserted = self.dynamic.get_unsafe(&id).unwrap();
+
+        // Return the stable pointer to this dynamic instance
+        ref_to_inserted as *const T
+    }
+    pub fn remove_dynamic(&mut self, id: &RefId) {
+        self.dynamic.remove_unsafe(id);
+        // TODO:: self.shared.remove(id);
+    }
+
+    pub fn iter_shared(&self) -> impl Iterator<Item = &T> {
+        self.shared.iter().map(|&ptr| unsafe {
+            // SAFETY: We assume these pointers were verified during
+            // registration and the records have not been removed.
+            &*ptr
+        })
+    }
+}
+
+impl Store<GameSetting> {
+    pub fn find(&self, str: &str) -> &GameSetting {
+        self.search(str)
+            .expect(&format!("\"{}\" not found in gamesettings", str))
     }
 }

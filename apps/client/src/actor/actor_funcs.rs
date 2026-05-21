@@ -1,6 +1,7 @@
 use crate::animation::{AnimationConfig, RepeatAnim};
+use crate::camera::MWCamera;
 use crate::{
-    defs::{CreatureStats, IdToEntityMap, IsThirdPerson, LocalPlayer},
+    defs::{CreatureStats, IdToEntityMap, LocalPlayer},
     events::RequestAnimation,
 };
 use bevy::prelude::*;
@@ -14,7 +15,7 @@ pub fn apply_hit(
     mut commands: Commands,
     local_player_q: Query<Entity, With<LocalPlayer>>,
     id_to_entity_map: Res<IdToEntityMap>,
-    mut is_third_person: ResMut<IsThirdPerson>,
+    mut cam_settings: Single<&mut MWCamera>,
 ) {
     if event.networked {
         commands.trigger(NetworkEvent::Hit(event.clone()));
@@ -33,8 +34,10 @@ pub fn apply_hit(
     let local_player_entity = local_player_q.single().unwrap();
     let local_player_was_hit = local_player_entity == *receiver_entity;
 
-    receiver_creature_stats.health -= event.damage;
-    if receiver_creature_stats.health <= 0.0 {
+    let mut health = receiver_creature_stats.get_health();
+    health.set_current(health.current - event.damage, false, false);
+    receiver_creature_stats.set_health(health);
+    if receiver_creature_stats.get_health() <= 0.0 {
         commands.trigger(RequestAnimation {
             skeleton_id: event.receiver_id,
             animation_config: AnimationConfig {
@@ -47,8 +50,8 @@ pub fn apply_hit(
         });
         //if it's the local player that died
         if local_player_was_hit {
-            if !is_third_person.0 {
-                is_third_person.0 = !is_third_person.0;
+            if cam_settings.first_person {
+                cam_settings.first_person = false;
             }
             commands
                 .entity(local_player_entity)
@@ -56,7 +59,10 @@ pub fn apply_hit(
         }
     }
 
-    println!("player health: {}", receiver_creature_stats.health);
+    println!(
+        "player health: {:?}",
+        receiver_creature_stats.dynamic_stats[0]
+    );
     let sound_source = if local_player_was_hit {
         SoundSource::LocalPlayer
     } else {

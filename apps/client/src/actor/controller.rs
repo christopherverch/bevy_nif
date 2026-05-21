@@ -1,7 +1,7 @@
-use crate::defs::{CreatureStats, IdToEntityMap, Player, PlayerInput};
+use crate::defs::{CreatureStats, IdToEntityMap, Movement, Player, PlayerInput};
 use bevy::prelude::*;
 use bevy_nif::nif_animation::NifAnimator;
-use common::{ActorState, CharacterState, JumpingStateKind, UpperBodyState};
+use common::mechanics::{CharacterState, JumpingStateKind, UpperBodyState};
 
 use crate::{
     animation::{
@@ -20,6 +20,7 @@ pub fn character_controller_system(
     id_to_entity_map: Res<IdToEntityMap>,
     mut query: Query<(
         &mut ActorState,
+        &Movement,
         &CreatureStats,
         &CreaturePhysicsState,
         Option<&Player>,
@@ -30,7 +31,7 @@ pub fn character_controller_system(
         &AnimationGraphHandle,
     )>,
 ) {
-    for (mut actor_state, creature_stats, physics_state, player_opt) in query.iter_mut() {
+    for (mut actor_state, movement, creature_stats, physics_state, player_opt) in query.iter_mut() {
         let Some((_, animation_player, animator, _graph_handle)) =
             get_anim_components_for_creature(creature_stats, &id_to_entity_map, &mut animator_q)
         else {
@@ -49,7 +50,8 @@ pub fn character_controller_system(
         {
             actor_state.combat.upper_body_state = UpperBodyState::AttackWindUp;
             // We no longer need to track start time.
-            let attack_type = determine_movement_based_attack_type(player_input.move_direction);
+            let attack_type =
+                determine_movement_based_attack_type(movement.desired_movement.truncate());
             actor_state.combat.attack_type = attack_type.to_string();
         } else if actor_state.combat.upper_body_state == UpperBodyState::AttackWindUp
             && !player_input.attack_is_held
@@ -101,7 +103,7 @@ pub fn character_controller_system(
         {
             actor_state.jumping.state = JumpingStateKind::InAir;
         }
-        let raw_move_state = determine_raw_move_state(&player_input, &actor_state);
+        let raw_move_state = determine_raw_move_state(&player_input, &movement, &actor_state);
         actor_state.movement.raw_state = raw_move_state;
         if physics_state.on_ground && actor_state.jumping.state == JumpingStateKind::None {
             // 1. Determine the raw state directly from player input
@@ -125,11 +127,12 @@ pub fn character_controller_system(
 // Helper function containing the logic from your old controller
 fn determine_raw_move_state(
     player_input: &PlayerInput,
+    player_movement: &Movement,
     actor_state: &ActorState,
 ) -> CharacterState {
     const MOVE_THRESHOLD: f32 = 0.001;
     const TURN_THRESHOLD: f32 = 10.0;
-    let move_vec = player_input.move_direction;
+    let move_vec = player_movement.desired_movement.truncate();
     let turn_delta = player_input.rotation_z;
 
     if actor_state.is_sneaking {

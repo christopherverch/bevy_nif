@@ -96,7 +96,7 @@ fn impl_load_save_for_enum(input: &syn::DeriveInput) -> TokenStream {
     let output = quote! {
         const _: () = {
 
-            impl AsRepr for #self_ident {
+            impl crate::traits::AsRepr for #self_ident {
                 type Repr = #repr_ident;
             }
 

@@ -263,7 +263,9 @@ fn get_body_parts(
 ) -> Vec<RefId> {
     let gender_index = 0;
     let mut found_parts = Vec::new();
-    for bodypart in bodyparts.iter() {
+    dbg!(bodyparts);
+    for bodypart in bodyparts.iter_shared() {
+        dbg!(bodypart);
         if bodypart.data.flags.contains(BodypartFlags::NOT_PLAYABLE) {
             continue;
         }
@@ -289,7 +291,7 @@ fn get_body_parts(
 }
 fn get_playable_races(races: &Store<Race>) -> Vec<RefId> {
     let mut playable_races = Vec::new();
-    for race in races.iter() {
+    for race in races.iter_shared() {
         if !race.data.flags.contains(RaceFlags::PLAYABLE) {
             continue;
         }

@@ -1,7 +1,7 @@
 // --- Animation Name Resolution Helpers ---
 
 use bevy_nif::nif_animation::NifAnimator;
-use common::{ActorState, CharacterState};
+use common::mechanics::{CharacterController, CharacterState};
 
 /// Generates a prioritized list of animation names based on a base name and weapon type.
 /// e.g., ("walkforward", weapon_type) -> ["walkforwardaxe", "walkforward1h", "walkforward"]
@@ -33,7 +33,7 @@ fn find_first_valid_animation(candidates: &[String], animator: &NifAnimator) -> 
 /// Resolves a logical idle state into a final, playable animation group name.
 pub fn resolve_idle_anim_name(
     state: CharacterState,
-    actor_state: &ActorState,
+    character_controller: &CharacterController,
     animator: &NifAnimator,
 ) -> Option<String> {
     let base_group = match state {
@@ -42,7 +42,11 @@ pub fn resolve_idle_anim_name(
         CharacterState::IdleSwim => "idleswim",
         _ => return None, // Not an idle state
     };
-    resolve_anim_name(base_group, actor_state.combat.weapon_type, animator)
+    resolve_anim_name(
+        base_group,
+        character_controller.combat.weapon_type,
+        animator,
+    )
 }
 
 /// Resolves the JUMP INTRO animation group name (e.g., "jumphh").
@@ -71,11 +75,11 @@ pub fn resolve_jump_landing_name(weapon_type: i32, animator: &NifAnimator) -> Op
 /// including handling run-to-walk and swim-to-walk fallbacks.
 pub fn resolve_movement_anim_name(
     state: CharacterState,
-    actor_state: &ActorState,
+    character_controller: &CharacterController,
     animator: &NifAnimator,
 ) -> Option<String> {
     // The state is WeaponEquipped, not Equipping or Unequipping.
-    // let weapon_equipped = actor_state.combat.weapon_type > 0;
+    // let weapon_equipped = character_controller.combat.weapon_type > 0;
     let mut base_group = match state {
         CharacterState::WalkForward => "walkforward",
         CharacterState::WalkBack => "walkback",
@@ -104,7 +108,11 @@ pub fn resolve_movement_anim_name(
         _ => return None,
     };
     // Use the generic resolver first. If it finds an animation (like "runforward1h"), return it immediately.
-    if let Some(found) = resolve_anim_name(base_group, actor_state.combat.weapon_type, animator) {
+    if let Some(found) = resolve_anim_name(
+        base_group,
+        character_controller.combat.weapon_type,
+        animator,
+    ) {
         return Some(found);
     }
 

@@ -1,28 +1,37 @@
 use crate::actor::{AnimationDisplacement, RootMotionState};
 use crate::defs::{
-    AnimateableEntity, ClientEntityId, CreatureStats, LocalPlayer, LocalPlayerMesh, MeshEntityLink,
-    NeedsSetup, NetworkedEntity, Player, RootEntityLink,
+    AnimateableEntity, ClientEntityId, CreatureStats, CreatureStatsFlags, CurrentCell, DrawState,
+    LocalPlayer, LocalPlayerMesh, MeshEntityLink, Movement, NeedsSetup, NetworkedEntity, Player,
+    RootEntityLink,
 };
-use avian3d::prelude::RigidBody;
+use crate::esm::EsmStore;
+use crate::gui::setup_race_select;
+use crate::live_cell_ref::{EsmPtr, LiveCellRef};
+use crate::magic_effects::MagicEffects;
+use crate::mechanics::ActorIntent;
+use crate::stat::DynamicStat;
+use avian3d::prelude::{CollisionLayers, RigidBody};
 use bevy::prelude::*;
 use bevy_kira_audio::{SpatialAudioEmitter, SpatialAudioReceiver, SpatialRadius};
 use bevy_nif::attach_parts::AttachmentType;
 use bevy_nif::nif_animation::{NifAnimator, NifAnimatorAdded};
 use bevy_nif::spawner::NifScene;
+use common::mechanics::{CharacterController, CharacterState};
+use esm_parser_lib::RefId;
+use mwphysics::{ActorPhysics, PositionInterpolation};
 use serializer::SerializableTransform;
 use std::f32::consts::{FRAC_PI_2, PI};
 use std::time::Instant;
 
 use crate::camera::MWCameraTarget;
 use crate::const_defs::NIF_SCALE_MULTIPLIER;
-use crate::gui::setup_race_select;
 use crate::physics::CreatureControllerLink;
-use common::{ActorState, CharacterState, CombatState, JumpingState, MovementState, VitalsState};
 
 pub fn setup_player(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut needs_setup_query: Query<(Entity, &NeedsSetup), Added<NeedsSetup>>,
+    esm_store: Res<EsmStore>,
     client_id: Res<ClientEntityId>,
 ) {
     for (player_entity, setup_info) in &mut needs_setup_query {
@@ -34,52 +43,85 @@ pub fn setup_player(
         // spawn the root of the player
         let player_start_location = Vec3::new(190.0, 2.8, -890.0);
         let rotation = Quat::from_euler(EulerRot::YXZ, 0.0, -PI, -PI);
-        commands.entity(player_entity).insert((
-            Player,
-            Name::new(format!("Player {}", setup_info.entity_id)),
-            Transform {
-                translation: player_start_location,
-                rotation,
-                ..default()
-            },
-            CreatureStats {
-                entity_id: setup_info.entity_id,
-                health: 50.0,
-                nif_animator_link: None,
-            },
-            ActorState {
-                movement: MovementState::default(),
-                combat: CombatState::default(),
-                jumping: JumpingState::default(),
-                vitals: VitalsState::default(),
-                idle_state: CharacterState::default(),
-                current_idle_animation: "idle1".to_string(),
-                skip_anim: false,
-                is_running: true,
-                is_sneaking: false,
-                is_flying: false,
-                is_in_water: false,
-                last_stuck_position: Vec3::default(),
-                stuck_frames: 0,
-            },
-            NetworkedEntity {
-                entity_id: setup_info.entity_id,
-                entity: player_entity,
-                serializable_transform: SerializableTransform {
+        let can_water_walk = true;
+        let on_ground = true;
+        let collision_shape_type = mwphysics::CollisionShapeType::RotatingBox;
+        let rotationally_invariant = true;
+        let collision_shape_center = Vec3::ZERO;
+        let collision_shape_extents = Vec3::new(1.0, 5.0, 1.0);
+        let mut character_controller = CharacterController::default();
+        character_controller.vitals.current_idle_group = "idle1".to_string();
+        character_controller.movement.state = CharacterState::RunForward;
+        let player_esm_ref = esm_store
+            .npcs
+            .get_raw(&RefId::from_str("Player"))
+            .expect("Missing player data in esm!");
+        commands
+            .entity(player_entity)
+            .insert((
+                Player { jumping: false },
+                Name::new(format!("Player {}", setup_info.entity_id)),
+                PositionInterpolation::new(Vec3::ZERO, player_start_location),
+                Transform {
                     translation: player_start_location,
-                    rotation: Quat::IDENTITY,
-                    scale: Vec3::splat(1.0),
+                    rotation,
+                    ..default()
                 },
-                last_packet_time: Instant::now(),
-            },
-            // Animation / physics
-            AnimationDisplacement::default(),
-            AnimateableEntity,
-            RigidBody::Kinematic,
-            // Audio
-            SpatialAudioEmitter::default(),
-            SpatialRadius { radius: 12.0 },
-        ));
+                CreatureStats {
+                    entity_id: setup_info.entity_id,
+                    // Filled in later by insert_nif_animator_links
+                    nif_animator_link: None,
+                    magic_effects: MagicEffects::default(),
+                    fall_height: 0.0,
+                    dead: false,
+                    teleported: false,
+                    dynamic_stats: [
+                        DynamicStat::default(),
+                        DynamicStat::default(),
+                        DynamicStat::default(),
+                    ],
+                    death_animation_finished: false,
+                    movement_flags: CreatureStatsFlags::RUN,
+                    max_speed: 10.0,
+                    side_movement_angle: 0.0,
+                    draw_state: DrawState::Nothing,
+                },
+                Movement::default(),
+                ActorPhysics::new(
+                    can_water_walk,
+                    on_ground,
+                    collision_shape_type,
+                    rotationally_invariant,
+                    collision_shape_center,
+                    collision_shape_extents,
+                ),
+                CollisionLayers::default(),
+                character_controller,
+                NetworkedEntity {
+                    entity_id: setup_info.entity_id,
+                    entity: player_entity,
+                    serializable_transform: SerializableTransform {
+                        translation: player_start_location,
+                        rotation: Quat::IDENTITY,
+                        scale: Vec3::splat(1.0),
+                    },
+                    last_packet_time: Instant::now(),
+                },
+                // Animation / physics
+                AnimationDisplacement::default(),
+                AnimateableEntity,
+                RigidBody::Kinematic,
+                // Audio
+                SpatialAudioEmitter::default(),
+                SpatialRadius { radius: 12.0 },
+            ))
+            .insert((
+                ActorIntent::default(),
+                CurrentCell {
+                    coords: UVec2::ZERO,
+                },
+                LiveCellRef::Npc(EsmPtr(player_esm_ref)),
+            ));
 
         //spawn the player's mesh
         let player_mesh = spawn_player_mesh(
@@ -89,6 +131,7 @@ pub fn setup_player(
             setup_info.entity_id,
             Transform::from_scale(Vec3::splat(NIF_SCALE_MULTIPLIER)),
         );
+
         commands.entity(player_mesh).insert((
             // for tracking animation times with the animation system
             RootMotionState::default(),
@@ -100,7 +143,7 @@ pub fn setup_player(
             .entity(player_entity)
             .insert(MeshEntityLink(player_mesh));
 
-        //if this is the local player
+        //if this is the local player, add camera and marker component
         if client_id.0 == setup_info.entity_id {
             commands.entity(player_mesh).insert((
                 //Default to first person, so hide the player's mesh
@@ -116,6 +159,7 @@ pub fn setup_player(
             ));
             // Set up the race select UI
 
+            // TODO:: put this somewhere better
             commands.run_system_cached(setup_race_select);
         }
         commands.entity(player_entity).add_child(player_mesh);

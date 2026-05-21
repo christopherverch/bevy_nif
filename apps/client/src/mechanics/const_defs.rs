@@ -1,0 +1,4 @@
+use mwphysics::MW_UNITS_PER_METER;
+
+pub const IS_MOVING_THRESHOLD: f32 = 0.5 / MW_UNITS_PER_METER;
+

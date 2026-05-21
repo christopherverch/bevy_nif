@@ -4,15 +4,21 @@ mod components;
 mod constants;
 mod helpers;
 pub mod movement;
-pub mod preparation;
+mod prepare_actor_sim_data;
+mod stepper;
 mod unstuck;
+
+mod world_helpers;
 pub struct CharacterMotionPlugin;
 mod apply_animation_motion;
 pub mod physics_setup;
 pub use apply_animation_motion::calculate_animation_displacement_system;
 use bevy::prelude::*;
 pub use components::CreaturePhysicsState;
+pub use movement::interpolate_visual_positions;
 use physics_setup::setup_nif_physics;
+pub use prepare_actor_sim_data::prepare_actor_simulation;
+pub use unstuck::unstuck_character;
 #[derive(Component)]
 pub struct CreatureControllerLink(pub Entity);
 impl Plugin for CharacterMotionPlugin {

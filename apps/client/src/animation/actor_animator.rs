@@ -3,6 +3,8 @@ use bevy_nif::nif_animation::{
     AnimationDefinition, BlendMask, NUM_DISCRETE_REGIONS, NifAnimator,
     bevy_types::{ActiveAnimation, Priority},
 };
+use common::mechanics::{CharacterController, CharacterState, JumpingStateKind, UpperBodyState};
+use mwphysics::MW_UNITS_PER_METER;
 
 use super::{
     animation_helpers::get_anim_components_for_creature,
@@ -14,17 +16,15 @@ use super::{
 };
 use crate::defs::{CreatureStats, IdToEntityMap};
 use crate::{
-    actor::get_current_speed,
     animation::name_resolver::{resolve_jump_intro_name, resolve_jump_landing_name},
-    const_defs::{FRAME_DURATION, MW_SCALE_REDUCTION},
+    const_defs::FRAME_DURATION,
 };
-use common::{ActorState, CharacterState, JumpingStateKind, UpperBodyState};
 
 /// Checks all state variables of the actor and decides how they should be animated for this frame
 /// Also calls functions to handle looping, stopping, etc of animations
 pub fn animate_actors_using_state(
     anim_clips: Res<Assets<AnimationClip>>,
-    mut actor_query: Query<(&CreatureStats, &mut ActorState)>,
+    mut actor_query: Query<(&CreatureStats, &mut CharacterController)>,
     mut animator_q: Query<(
         &mut AnimationPlayer,
         &mut NifAnimator,
@@ -33,7 +33,7 @@ pub fn animate_actors_using_state(
     mut anim_graphs: ResMut<Assets<AnimationGraph>>,
     id_to_entity_map: Res<IdToEntityMap>,
 ) {
-    for (creature_stats, mut actor_state) in actor_query.iter_mut() {
+    for (creature_stats, mut character_controller) in actor_query.iter_mut() {
         let Some((_, mut animation_player, mut animator, graph_handle)) =
             get_anim_components_for_creature(&creature_stats, &id_to_entity_map, &mut animator_q)
         else {
@@ -42,7 +42,7 @@ pub fn animate_actors_using_state(
         let mut animation_context = AnimationContext {
             animation_player: &mut animation_player,
             nif_animator: &mut animator,
-            actor_state: &mut actor_state,
+            character_controller: &mut character_controller,
             anim_graphs: &mut anim_graphs,
             graph_handle,
         };
@@ -80,8 +80,8 @@ fn handle_animation_transitions(
             .animation(active_anim.node_index)
         {
             if let Some(clip) = anim_clips.get(&active_anim.clip_handle) {
-                // We must add the seek_time to elapsed to get the true progress,
-                // otherwise animations started from a non-zero time will never "finish".
+                // We add the seek_time to elapsed to get the true progress,
+                // otherwise animations started from a non-zero time will never finish.
                 // Since `seek_time()` is the current progress, we just need to
                 // check if it has reached the end of the clip.
                 let total_duration = clip.duration();
@@ -98,7 +98,7 @@ fn handle_animation_transitions(
 
     // Step 2: Execute state changes for finished animations.
     for name in animations_to_remove {
-        let finished_state = animation_context.actor_state.combat.upper_body_state;
+        let finished_state = animation_context.character_controller.combat.upper_body;
         // If a windup animation finishes, we must not clear it while the state is
         // AttackWindUp (player is holding) OR AttackRelease (we need its elapsed time).
         if name.ends_with("_windup")
@@ -116,11 +116,12 @@ fn handle_animation_transitions(
             continue;
         }
         if matches!(finished_state, UpperBodyState::Equipping) {
-            animation_context.actor_state.combat.upper_body_state = UpperBodyState::WeaponEquipped;
+            animation_context.character_controller.combat.upper_body =
+                UpperBodyState::WeaponEquipped;
             let movement_group = &animation_context
-                .actor_state
+                .character_controller
                 .movement
-                .current_animation_group;
+                .current_group;
             if !movement_group.is_empty() {
                 if let Some(active_move_anim) = animation_context
                     .nif_animator
@@ -131,15 +132,16 @@ fn handle_animation_transitions(
                 }
             }
         } else if matches!(finished_state, UpperBodyState::Unequipping) {
-            animation_context.actor_state.combat.upper_body_state = UpperBodyState::None;
-            animation_context.actor_state.combat.weapon_type = 0;
+            animation_context.character_controller.combat.upper_body = UpperBodyState::None;
+            animation_context.character_controller.combat.weapon_type = 0;
         // --- Handle attack phase transitions ---
         } else if matches!(finished_state, UpperBodyState::AttackRelease) {
             // The release animation has finished, so move to the follow-through.
-            animation_context.actor_state.combat.upper_body_state = UpperBodyState::AttackEnd;
+            animation_context.character_controller.combat.upper_body = UpperBodyState::AttackEnd;
         } else if matches!(finished_state, UpperBodyState::AttackEnd) {
             // The follow-through is done, return to a neutral ready state.
-            animation_context.actor_state.combat.upper_body_state = UpperBodyState::WeaponEquipped;
+            animation_context.character_controller.combat.upper_body =
+                UpperBodyState::WeaponEquipped;
         }
         // NOTE: AttackWindUp is no longer handled here, as its transition is driven by input, not time.
         animation_context.clear_animation(&name);
@@ -147,9 +149,9 @@ fn handle_animation_transitions(
         if matches!(finished_state, UpperBodyState::Unequipping) {
             animation_context.clear_animation(
                 &animation_context
-                    .actor_state
+                    .character_controller
                     .movement
-                    .current_animation_group
+                    .current_group
                     .clone(),
             );
         }
@@ -170,15 +172,12 @@ fn handle_animation_transitions(
                 transitioning_anim.loop_count = u32::MAX;
                 animation_context.play_animation(&next_anim_name, transitioning_anim, None);
                 if original_priority == Priority::Jump {
-                    animation_context
-                        .actor_state
-                        .jumping
-                        .current_animation_group = next_anim_name;
+                    animation_context.character_controller.jumping.current_group = next_anim_name;
                 } else {
                     animation_context
-                        .actor_state
+                        .character_controller
                         .movement
-                        .current_animation_group = next_anim_name;
+                        .current_group = next_anim_name;
                 }
             }
         }
@@ -190,60 +189,64 @@ fn handle_animation_transitions(
 /// that ground movement logic should be skipped for this frame.
 fn handle_actor_jumping(animation_context: &mut AnimationContext) -> bool {
     // --- 1. Handle a new jump event (from input) ---
-    if !animation_context.actor_state.jumping.handled_jump_animation {
-        animation_context.actor_state.jumping.handled_jump_animation = true;
+    if !animation_context.character_controller.jumping.in_jump
+    //   .handled_jump_animation
+    {
+        animation_context.character_controller.jumping.in_jump = true;
+        //   .handled_jump_animation = true;
 
         if let Some(name) = resolve_jump_intro_name(
-            animation_context.actor_state.combat.weapon_type,
+            animation_context.character_controller.combat.weapon_type,
             animation_context.nif_animator,
         ) {
             // A jump must override any current movement animations.
             animation_context.clear_animation(
                 &animation_context
-                    .actor_state
+                    .character_controller
                     .movement
-                    .current_animation_group
+                    .current_group
                     .clone(),
             );
             animation_context.clear_animation(
                 &animation_context
-                    .actor_state
+                    .character_controller
                     .jumping
-                    .current_animation_group
+                    .current_group
                     .clone(),
             );
             play_jump_animation(animation_context, &name, false);
         }
-        return true; // A jump was initiated, block ground movement this frame.
+        return true; // A jump was initiated, block ground animation
     }
 
     // --- 2. Handle a new landing event ---
-    if !animation_context
-        .actor_state
-        .jumping
-        .handled_landing_animation
+    if !animation_context.character_controller.jumping.in_jump
+        && !animation_context
+            .character_controller
+            .jumping
+            .handled_landing_animation
     {
         animation_context
-            .actor_state
+            .character_controller
             .jumping
             .handled_landing_animation = true;
 
         if let Some(name) = resolve_jump_landing_name(
-            animation_context.actor_state.combat.weapon_type,
+            animation_context.character_controller.combat.weapon_type,
             animation_context.nif_animator,
         ) {
             animation_context.clear_animation(
                 &animation_context
-                    .actor_state
+                    .character_controller
                     .movement
-                    .current_animation_group
+                    .current_group
                     .clone(),
             );
             animation_context.clear_animation(
                 &animation_context
-                    .actor_state
+                    .character_controller
                     .jumping
-                    .current_animation_group
+                    .current_group
                     .clone(),
             );
             play_jump_animation(animation_context, &name, true);
@@ -251,11 +254,11 @@ fn handle_actor_jumping(animation_context: &mut AnimationContext) -> bool {
     }
 
     // --- 3. Handle falling off a ledge ---
-    let final_jump_state = animation_context.actor_state.jumping.state;
+    let final_jump_state = animation_context.character_controller.jumping.state;
     let jump_anim_is_active = animation_context
-        .actor_state
+        .character_controller
         .jumping
-        .current_animation_group
+        .current_group
         .starts_with("jump");
 
     // If we are in the air, but no jump/fall animation is currently active,
@@ -266,14 +269,14 @@ fn handle_actor_jumping(animation_context: &mut AnimationContext) -> bool {
         // 'jump' (falling) animation to ensure a clean visual transition.
         animation_context.clear_animation(
             &animation_context
-                .actor_state
+                .character_controller
                 .movement
-                .current_animation_group
+                .current_group
                 .clone(),
         );
 
         if let Some(name) = resolve_jump_intro_name(
-            animation_context.actor_state.combat.weapon_type,
+            animation_context.character_controller.combat.weapon_type,
             animation_context.nif_animator,
         ) {
             play_jump_animation(animation_context, &name, false);
@@ -281,29 +284,29 @@ fn handle_actor_jumping(animation_context: &mut AnimationContext) -> bool {
     }
 
     // --- 4. Ongoing State Cleanup ---
-    if animation_context.actor_state.jumping.state == JumpingStateKind::Landing {
+    if animation_context.character_controller.jumping.state == JumpingStateKind::Landing {
         let is_playing_landing_outro = animation_context
-            .actor_state
+            .character_controller
             .movement
-            .current_animation_group
+            .current_group
             .ends_with("_outro");
         if !is_playing_landing_outro {
-            animation_context.actor_state.jumping.state = JumpingStateKind::None;
+            animation_context.character_controller.jumping.state = JumpingStateKind::None;
         }
     }
 
     if final_jump_state == JumpingStateKind::None
         && animation_context
-            .actor_state
+            .character_controller
             .jumping
-            .current_animation_group
+            .current_group
             .starts_with("jump")
     {
         animation_context.clear_animation(
             &animation_context
-                .actor_state
+                .character_controller
                 .jumping
-                .current_animation_group
+                .current_group
                 .clone(),
         );
     }
@@ -336,23 +339,20 @@ fn play_jump_animation(
 
         if is_landing {
             animation_context
-                .actor_state
+                .character_controller
                 .movement
-                .current_animation_group = anim_name.to_string();
+                .current_group = anim_name.to_string();
             animation_context
-                .actor_state
+                .character_controller
                 .jumping
-                .current_animation_group
+                .current_group
                 .clear();
         } else {
+            animation_context.character_controller.jumping.current_group = anim_name.to_string();
             animation_context
-                .actor_state
-                .jumping
-                .current_animation_group = anim_name.to_string();
-            animation_context
-                .actor_state
+                .character_controller
                 .movement
-                .current_animation_group
+                .current_group
                 .clear();
         }
     }
@@ -361,7 +361,7 @@ fn play_jump_animation(
 /// Manages idle, walking, running, and turning animations.
 fn handle_actor_ground_movement(animation_context: &mut AnimationContext) {
     let is_in_combat_action = matches!(
-        animation_context.actor_state.combat.upper_body_state,
+        animation_context.character_controller.combat.upper_body,
         UpperBodyState::Equipping
             | UpperBodyState::Unequipping
             | UpperBodyState::AttackWindUp
@@ -370,7 +370,7 @@ fn handle_actor_ground_movement(animation_context: &mut AnimationContext) {
     );
 
     let is_trying_to_idle = matches!(
-        animation_context.actor_state.movement.state,
+        animation_context.character_controller.movement.state,
         CharacterState::Idle | CharacterState::IdleSneak | CharacterState::IdleSwim
     );
 
@@ -380,38 +380,38 @@ fn handle_actor_ground_movement(animation_context: &mut AnimationContext) {
         // We also ensure any previous movement animation is cleared.
         animation_context.clear_animation(
             &animation_context
-                .actor_state
+                .character_controller
                 .movement
-                .current_animation_group
+                .current_group
                 .clone(),
         );
         return;
     }
-    let effective_move_state = animation_context.actor_state.movement.state;
+    let effective_move_state = animation_context.character_controller.movement.state;
 
     let target_anim_name = resolve_movement_anim_name(
         effective_move_state,
-        animation_context.actor_state,
+        animation_context.character_controller,
         animation_context.nif_animator,
     )
     .or_else(|| {
         resolve_idle_anim_name(
             effective_move_state,
-            animation_context.actor_state,
+            animation_context.character_controller,
             animation_context.nif_animator,
         )
     });
 
     let new_name = target_anim_name.as_deref().unwrap_or("").to_string();
     let current_name = &animation_context
-        .actor_state
+        .character_controller
         .movement
-        .current_animation_group
+        .current_group
         .clone();
 
     if current_name.starts_with("jump") && current_name.ends_with("_outro") {
         let wants_to_interrupt_with_movement = matches!(
-            animation_context.actor_state.movement.raw_state, // <-- Use the new raw_state
+            animation_context.character_controller.movement.state,
             CharacterState::WalkForward
                 | CharacterState::WalkBack
                 | CharacterState::WalkLeft
@@ -450,8 +450,9 @@ fn handle_actor_ground_movement(animation_context: &mut AnimationContext) {
         }
     };
     if is_stable_state && !new_name.is_empty() {
-        animation_context.actor_state.movement.last_state = effective_move_state;
-        return; // No change needed, let the current animation continue.
+        if animation_context.character_controller.movement.state == effective_move_state {
+            return; // No change needed, let the current animation continue.
+        }
     }
 
     // State is not stable, so switch animations.
@@ -463,17 +464,17 @@ fn handle_actor_ground_movement(animation_context: &mut AnimationContext) {
             .animation_definitions
             .get(&new_name)
         {
+            // Return a higher value for running
             let speed_multiplier = calculate_anim_speed_multiplier(
                 effective_move_state,
-                animation_context.actor_state.is_running,
-                animation_context.actor_state.is_sneaking,
+                animation_context.character_controller.is_running(),
+                animation_context.character_controller.is_sneaking(),
                 definition,
                 animation_context.nif_animator,
-                animation_context.actor_state,
-                get_current_speed(animation_context.actor_state),
+                animation_context.character_controller,
             );
             let blend_mask = if matches!(
-                animation_context.actor_state.combat.upper_body_state,
+                animation_context.character_controller.combat.upper_body,
                 UpperBodyState::Equipping | UpperBodyState::Unequipping
             ) {
                 BlendMask::LOWER_BODY // Only affect legs if using a weapon
@@ -482,7 +483,7 @@ fn handle_actor_ground_movement(animation_context: &mut AnimationContext) {
             };
             // Idle animations must have Idle priority, not Movement priority.
             let priority = if new_name.starts_with("idle") {
-                Priority::Idle
+                Priority::Default
             } else {
                 Priority::Movement
             };
@@ -505,10 +506,10 @@ fn handle_actor_ground_movement(animation_context: &mut AnimationContext) {
     }
 
     animation_context
-        .actor_state
+        .character_controller
         .movement
-        .current_animation_group = new_name;
-    animation_context.actor_state.movement.last_state = effective_move_state;
+        .current_group = new_name;
+    animation_context.character_controller.movement.state = effective_move_state;
 }
 
 /// Calculates the correct animation speed multiplier based on OpenMW's rules.
@@ -518,8 +519,7 @@ fn calculate_anim_speed_multiplier(
     is_sneaking: bool,
     definition: &AnimationDefinition,
     animator: &NifAnimator,
-    actor_state: &ActorState,
-    character_speed: f32,
+    character_controller: &CharacterController,
 ) -> f32 {
     if !matches!(
         state,
@@ -533,7 +533,7 @@ fn calculate_anim_speed_multiplier(
     // For running, OpenMW uses the 'walk' animation's speed for calculation.
     if is_running {
         let walk_state = run_state_to_walk_state(state);
-        anim_base_speed = resolve_movement_anim_name(walk_state, &actor_state, animator)
+        anim_base_speed = resolve_movement_anim_name(walk_state, &character_controller, animator)
             .and_then(|name| animator.animation_definitions.get(&name))
             .map_or(definition.base_velocity.length(), |def| {
                 def.base_velocity.length()
@@ -553,9 +553,9 @@ fn calculate_anim_speed_multiplier(
         };
     }
 
-    let final_anim_speed = anim_base_speed / MW_SCALE_REDUCTION;
+    let final_anim_speed = anim_base_speed / MW_UNITS_PER_METER;
     if final_anim_speed > 1e-4 {
-        character_speed / final_anim_speed
+        character_controller.movement.applied_movement_anim_speed / final_anim_speed
     } else {
         1.0
     }
@@ -565,25 +565,25 @@ fn calculate_anim_speed_multiplier(
 fn handle_actor_weapon_actions(animation_context: &mut AnimationContext) -> bool {
     // --- NEW: Check if the character is currently moving ---
     let is_moving = !animation_context
-        .actor_state
+        .character_controller
         .movement
-        .current_animation_group
+        .current_group
         .is_empty()
         && !animation_context
-            .actor_state
+            .character_controller
             .movement
-            .current_animation_group
+            .current_group
             .starts_with("idle");
 
     // --- NEW: Update blend mask of the currently active combat animation ---
     if let Some(active_combat_anim) = animation_context
         .nif_animator
         .active_animations
-        .get_mut(&animation_context.actor_state.combat.current_animation_group)
+        .get_mut(&animation_context.character_controller.combat.current_group)
     {
         // An attack is an upper-body action *if* the character is moving.
         let is_attack = matches!(
-            animation_context.actor_state.combat.upper_body_state,
+            animation_context.character_controller.combat.upper_body,
             UpperBodyState::AttackWindUp
                 | UpperBodyState::AttackRelease
                 | UpperBodyState::AttackEnd
@@ -601,14 +601,15 @@ fn handle_actor_weapon_actions(animation_context: &mut AnimationContext) -> bool
             animation_context.recalculate_and_apply_masks();
         }
     }
-    let weapon_group = get_weapon_long_group(animation_context.actor_state.combat.weapon_type);
+    let weapon_group =
+        get_weapon_long_group(animation_context.character_controller.combat.weapon_type);
     if weapon_group.is_empty() {
         return false;
     }
-    if animation_context.actor_state.combat.upper_body_state == UpperBodyState::AttackRelease {
+    if animation_context.character_controller.combat.upper_body == UpperBodyState::AttackRelease {
         let windup_anim_name = format!(
             "{}: {}_windup",
-            weapon_group, animation_context.actor_state.combat.attack_type
+            weapon_group, animation_context.character_controller.combat.attack_type
         );
 
         if let Some(windup_def) = animation_context
@@ -634,27 +635,27 @@ fn handle_actor_weapon_actions(animation_context: &mut AnimationContext) -> bool
             }
         }
     }
-    let (action_part, is_attack) = match animation_context.actor_state.combat.upper_body_state {
+    let (action_part, is_attack) = match animation_context.character_controller.combat.upper_body {
         UpperBodyState::Equipping => ("equip".to_string(), false),
         UpperBodyState::Unequipping => ("unequip".to_string(), false),
         UpperBodyState::AttackWindUp => (
             format!(
                 "{}_windup",
-                animation_context.actor_state.combat.attack_type
+                animation_context.character_controller.combat.attack_type
             ),
             true,
         ),
         UpperBodyState::AttackRelease => (
             format!(
                 "{}_release",
-                animation_context.actor_state.combat.attack_type
+                animation_context.character_controller.combat.attack_type
             ),
             true,
         ),
         UpperBodyState::AttackEnd => (
             format!(
                 "{}{}",
-                animation_context.actor_state.combat.attack_type,
+                animation_context.character_controller.combat.attack_type,
                 get_follow_suffix(0.0)
             ),
             true,
@@ -664,7 +665,7 @@ fn handle_actor_weapon_actions(animation_context: &mut AnimationContext) -> bool
 
     let anim_name = format!("{}: {}", weapon_group, action_part);
 
-    if animation_context.actor_state.combat.current_animation_group == anim_name {
+    if animation_context.character_controller.combat.current_group == anim_name {
         return true;
     }
 
@@ -676,20 +677,20 @@ fn handle_actor_weapon_actions(animation_context: &mut AnimationContext) -> bool
         else {
             warn!("Could not find weapon animation definition: {}", anim_name);
             // Fallback to prevent getting stuck in a state with no animation
-            match animation_context.actor_state.combat.upper_body_state {
+            match animation_context.character_controller.combat.upper_body {
                 UpperBodyState::Equipping => {
-                    animation_context.actor_state.combat.upper_body_state =
+                    animation_context.character_controller.combat.upper_body =
                         UpperBodyState::WeaponEquipped
                 }
                 UpperBodyState::Unequipping => {
-                    animation_context.actor_state.combat.upper_body_state = UpperBodyState::None
+                    animation_context.character_controller.combat.upper_body = UpperBodyState::None
                 }
                 UpperBodyState::AttackRelease => {
-                    animation_context.actor_state.combat.upper_body_state =
+                    animation_context.character_controller.combat.upper_body =
                         UpperBodyState::AttackEnd
                 }
                 UpperBodyState::AttackEnd => {
-                    animation_context.actor_state.combat.upper_body_state =
+                    animation_context.character_controller.combat.upper_body =
                         UpperBodyState::WeaponEquipped
                 }
                 _ => {}
@@ -705,18 +706,21 @@ fn handle_actor_weapon_actions(animation_context: &mut AnimationContext) -> bool
 
     // Determine if we *were* moving and if the *new* attack is an upper-body only animation.
     let was_moving = !animation_context
-        .actor_state
+        .character_controller
         .movement
-        .current_animation_group
+        .current_group
         .is_empty()
         && !animation_context
-            .actor_state
+            .character_controller
             .movement
-            .current_animation_group
+            .current_group
             .starts_with("idle");
     let mut start_time = None;
-    if animation_context.actor_state.combat.upper_body_state == UpperBodyState::AttackRelease {
-        let strength = animation_context.actor_state.combat.attack_strength;
+    if animation_context.character_controller.combat.upper_body == UpperBodyState::AttackRelease {
+        let strength = animation_context
+            .character_controller
+            .combat
+            .attack_strength;
 
         // Interpolate the target start time of the swing release animation
         // For strength=0, this will be min_hit_time. For strength=1, this will be 0.0.
@@ -739,18 +743,18 @@ fn handle_actor_weapon_actions(animation_context: &mut AnimationContext) -> bool
     if blend_mask == BlendMask::ALL {
         animation_context.clear_animation(
             &animation_context
-                .actor_state
+                .character_controller
                 .movement
-                .current_animation_group
+                .current_group
                 .clone(),
         );
     }
     // Always clear the previous combat animation.
     animation_context.clear_animation(
         &animation_context
-            .actor_state
+            .character_controller
             .combat
-            .current_animation_group
+            .current_group
             .clone(),
     );
     let mut priorities = [Priority::WeaponLowerBody; NUM_DISCRETE_REGIONS];
@@ -770,7 +774,7 @@ fn handle_actor_weapon_actions(animation_context: &mut AnimationContext) -> bool
     };
 
     animation_context.play_animation(&anim_name, new_animation, start_time);
-    animation_context.actor_state.combat.current_animation_group = anim_name;
+    animation_context.character_controller.combat.current_group = anim_name;
 
     true
 }
@@ -780,34 +784,39 @@ fn handle_actor_weapon_actions(animation_context: &mut AnimationContext) -> bool
 fn handle_vitals_animations(animation_context: &mut AnimationContext) {
     // If a hit animation is already playing, check if it has finished.
     if !animation_context
-        .actor_state
+        .character_controller
         .vitals
-        .current_hit_animation
+        .current_hit_group
         .is_empty()
     {
         if !animation_context
             .nif_animator
             .active_animations
-            .contains_key(&animation_context.actor_state.vitals.current_hit_animation)
+            .contains_key(
+                &animation_context
+                    .character_controller
+                    .vitals
+                    .current_hit_group,
+            )
         {
             // Animation finished, so clear the state and tracking variable.
-            animation_context.actor_state.vitals.hit_state = CharacterState::None;
+            animation_context.character_controller.vitals.hit_state = CharacterState::None;
             animation_context
-                .actor_state
+                .character_controller
                 .vitals
-                .current_hit_animation
+                .current_hit_group
                 .clear();
         }
         return; // Let the current hit animation finish playing.
     }
 
     // If no hit state is active, there's nothing to do.
-    if animation_context.actor_state.vitals.hit_state == CharacterState::None {
+    if animation_context.character_controller.vitals.hit_state == CharacterState::None {
         return;
     }
 
     // A new hit state is active, so play the corresponding animation.
-    let anim_name = match animation_context.actor_state.vitals.hit_state {
+    let anim_name = match animation_context.character_controller.vitals.hit_state {
         CharacterState::Hit => "hit".to_string(),
         CharacterState::KnockDown => "knockdown".to_string(),
         // Add other hit states here later
@@ -829,6 +838,9 @@ fn handle_vitals_animations(animation_context: &mut AnimationContext) {
             speed_mult: 1.0,
         };
         animation_context.play_animation(&anim_name, new_animation, None);
-        animation_context.actor_state.vitals.current_hit_animation = anim_name;
+        animation_context
+            .character_controller
+            .vitals
+            .current_hit_group = anim_name;
     }
 }

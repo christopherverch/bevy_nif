@@ -2,7 +2,8 @@ use super::CreaturePhysicsState;
 use crate::const_defs::NIF_SCALE_MULTIPLIER;
 use crate::defs::ColliderEntityLink;
 use crate::physics::CreatureControllerLink;
-use avian3d::prelude::{Collider, CollisionLayers, Sleeping};
+use avian3d::parry::math::Pose3;
+use avian3d::prelude::{Collider, CollisionLayers, SleepingDisabled};
 use bevy::prelude::*;
 use bevy_nif::{BoundData, NeedsNifPhysics, NiType};
 use bevy_nif::{loader::Nif, spawner::NifScene};
@@ -89,12 +90,12 @@ pub fn setup_nif_physics(
                 Visibility::default(),
                 Transform::default(),
                 GlobalTransform::default(),
-                Sleeping::disabled(),
+                SleepingDisabled,
                 compound_collider.clone(), // Attach the collider here
                 CollisionLayers::default(),
             ))
             .id();
-        let aabb = compound_collider.raw.compute_aabb(&Isometry2d::identity());
+        let aabb = compound_collider.shape().compute_aabb(&Pose3::IDENTITY);
         // This assumes the entity's transform origin is at its feet. The physics collider's
         // origin is its geometric center, so we must offset it vertically by half its
         // height to align its base with the entity's transform.
@@ -102,9 +103,9 @@ pub fn setup_nif_physics(
         let vertical_offset = aabb.half_extents().y;
         commands.entity(creature_controller_link.0).insert((
             CreaturePhysicsState {
-                // Also add a copy of the collider to our state component for easy access
+                // Also add a "copy" (sharedshape) of the collider to our state component for easy access
                 // in the movement system. This avoids having to query for children.
-                collision_shape: compound_collider.raw,
+                collider: compound_collider.clone(),
                 vertical_offset,
                 on_ground: false,
                 ..default()

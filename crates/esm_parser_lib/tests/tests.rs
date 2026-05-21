@@ -1,6 +1,6 @@
 // src/main.rs
 
-use esm_parser_lib::{EsmReader, Header};
+use esm_parser_lib::EsmReader;
 use std::collections::HashMap;
 use std::path::Path;
 use std::time::Instant;
@@ -61,7 +61,7 @@ fn test_print_samples() {
     run_esm_test(|reader| {
         let mut parsed_counts: HashMap<String, usize> = HashMap::new();
         let target_types = [
-            "SKIL", "LAND", "LTEX", "WEAP", "CELL", "REFR", "RACE", "BODY", "MGEF", "GMST",
+            "SKIL", "LAND", "LTEX", "WEAP", "CELL", "REFR", "RACE", "BODY", "MGEF", "GMST", "CREA",
         ];
 
         while reader.has_more_recs().unwrap() {

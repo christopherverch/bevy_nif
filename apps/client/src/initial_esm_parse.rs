@@ -40,14 +40,7 @@ pub fn run_initial_parse() -> Result<
 > {
     let mut land_textures = HashMap::new();
     let mut landscapes = HashMap::new();
-    let mut weapons = Store::new();
-    let mut races = Store::new();
-    let mut bodyparts = Store::new();
-    let mut npcs = Store::new();
-    let mut spells = Store::new();
-    let mut magic_effects = Store::new();
-    let mut gamesettings = Store::new();
-    let mut skills = Store::new();
+
     let encoder = Utf8Encoder::new(to_utf8::FromType::Windows1252);
     let mut reader = EsmReader::new(encoder);
     reader.set_encoder(Utf8Encoder::new(to_utf8::FromType::Windows1252));
@@ -61,6 +54,7 @@ pub fn run_initial_parse() -> Result<
     let file_path_str = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/test.esp");
     let file_path = Path::new(file_path_str);
     file_paths.push(file_path);
+    let mut esm_store = EsmStore::default();
     for file_path in file_paths {
         match reader.open(file_path) {
             Ok(_) => {
@@ -121,19 +115,12 @@ pub fn run_initial_parse() -> Result<
 
                                     if should_parse_this_type_in_detail {
                                         // Pass the original rec_name (Name struct) to the dispatcher
-                                        try_parse_and_print_record(
+                                        load_record(
                                             &mut reader,
+                                            &mut esm_store,
                                             &record_name_bytes, // Pass the raw bytes for matching
                                             &mut land_textures,
                                             &mut landscapes,
-                                            &mut weapons,
-                                            &mut races,
-                                            &mut bodyparts,
-                                            &mut npcs,
-                                            &mut spells,
-                                            &mut magic_effects,
-                                            &mut gamesettings,
-                                            &mut skills,
                                         )
                                     } else {
                                         if let Err(e) = reader.skip_record() {
@@ -190,20 +177,8 @@ pub fn run_initial_parse() -> Result<
         index: u16::MAX as u32,
     };
     land_textures.insert(default_texture.index, default_texture);
-    finish_magic_effect_setup(&mut magic_effects, &gamesettings);
-    finish_skill_setup(&mut skills, &gamesettings);
-    let esm_store = EsmStore {
-        weapons,
-        races,
-        bodyparts,
-        npcs,
-        spells,
-        magic_effects,
-        gamesettings,
-        skills,
-        //TODO::
-        id_to_type: HashMap::new(),
-    };
+    finish_magic_effect_setup(&mut esm_store.magic_effects, &esm_store.gamesettings);
+    finish_skill_setup(&mut esm_store.skills, &esm_store.gamesettings);
     Ok((reader, landscapes, land_textures, esm_store))
 }
 pub fn print_header_information(header: &Header) {
@@ -233,19 +208,12 @@ pub fn print_header_information(header: &Header) {
     }
 }
 
-pub fn try_parse_and_print_record(
+pub fn load_record(
     reader: &mut EsmReader,
+    esm_store: &mut EsmStore,
     rec_name_bytes: &[u8; 4], // Pass the raw bytes for direct comparison
     textures: &mut HashMap<u32, LandTexture>,
     landscapes: &mut HashMap<(i32, i32), Landscape>,
-    weapons: &mut Store<Weapon>,
-    races: &mut Store<Race>,
-    bodyparts: &mut Store<Bodypart>,
-    npcs: &mut Store<Npc>,
-    spells: &mut Store<Spell>,
-    magic_effects: &mut Store<MagicEffect>,
-    gamesettings: &mut Store<GameSetting>,
-    skills: &mut Store<Skill>,
 ) {
     if *rec_name_bytes == *b"LTEX" {
         match LandTexture::load(reader) {
@@ -270,7 +238,6 @@ pub fn try_parse_and_print_record(
                     // Remove if a mod deleted it.
                     landscapes.remove(&key);
                 } else {
-                    // Your existing logic for texture indices
                     if let Some(indices) = landscape.texture_indices.as_mut() {
                         for index in indices.iter_mut() {
                             *index = index.wrapping_sub(1);
@@ -287,13 +254,9 @@ pub fn try_parse_and_print_record(
         match Weapon::load(reader) {
             Ok(weapon) => {
                 if weapon.flags.contains(ObjectFlags::DELETED) {
-                    // A mod or patch has marked this weapon for deletion.
-                    // Remove it from our map if a previous file added it.
-                    println!("Deleting Weapon ID: {:?}", weapon.id);
-                    weapons.remove(&weapon.id);
+                    esm_store.weapons.remove_static(&weapon.id);
                 } else {
-                    // This is a new weapon or an override of an existing one.
-                    weapons.insert(weapon.id.clone(), weapon);
+                    esm_store.weapons.insert_static(weapon.id.clone(), weapon);
                 }
             }
             Err(e) => {
@@ -306,9 +269,9 @@ pub fn try_parse_and_print_record(
         match Race::load(reader, &mut is_deleted) {
             Ok(race) => {
                 if is_deleted {
-                    races.remove(&race.id);
+                    esm_store.races.remove_static(&race.id);
                 } else {
-                    races.insert(race.id.clone(), race);
+                    esm_store.races.insert_static(race.id.clone(), race);
                 }
             }
             Err(e) => {
@@ -321,9 +284,11 @@ pub fn try_parse_and_print_record(
         match Bodypart::load(reader, &mut is_deleted) {
             Ok(bodypart) => {
                 if is_deleted {
-                    bodyparts.remove(&bodypart.id);
+                    esm_store.bodyparts.remove_static(&bodypart.id);
                 } else {
-                    bodyparts.insert(bodypart.id.clone(), bodypart);
+                    esm_store
+                        .bodyparts
+                        .insert_static(bodypart.id.clone(), bodypart);
                 }
             }
             Err(e) => {
@@ -336,9 +301,9 @@ pub fn try_parse_and_print_record(
         match Npc::load(reader, &mut is_deleted) {
             Ok(npc) => {
                 if is_deleted {
-                    npcs.remove(&npc.id);
+                    esm_store.npcs.remove_static(&npc.id);
                 } else {
-                    npcs.insert(npc.id.clone(), npc);
+                    esm_store.npcs.insert_static(npc.id.clone(), npc);
                 }
             }
             Err(e) => {
@@ -351,9 +316,9 @@ pub fn try_parse_and_print_record(
         match Spell::load(reader, &mut is_deleted) {
             Ok(spell) => {
                 if is_deleted {
-                    spells.remove(&spell.id);
+                    esm_store.spells.remove_static(&spell.id);
                 } else {
-                    spells.insert(spell.id.clone(), spell);
+                    esm_store.spells.insert_static(spell.id.clone(), spell);
                 }
             }
             Err(e) => {
@@ -366,9 +331,11 @@ pub fn try_parse_and_print_record(
         match MagicEffect::load(reader, &mut is_deleted) {
             Ok(magic_effect) => {
                 if is_deleted {
-                    magic_effects.remove(&magic_effect.id);
+                    esm_store.magic_effects.remove_static(&magic_effect.id);
                 } else {
-                    magic_effects.insert(magic_effect.id.clone(), magic_effect);
+                    esm_store
+                        .magic_effects
+                        .insert_static(magic_effect.id.clone(), magic_effect);
                 }
             }
             Err(e) => {
@@ -381,14 +348,14 @@ pub fn try_parse_and_print_record(
         match GameSetting::load(reader, &mut is_deleted) {
             Ok(gmst) => {
                 if is_deleted {
-                    gamesettings.remove(&gmst.id);
+                    esm_store.gamesettings.remove_static(&gmst.id);
                 } else {
                     let hash_val = gmst.id.debug_hash();
                     println!(
                         "Inserting Record ID: {:?} | Hash: 0x{:X}",
                         gmst.id, hash_val
                     );
-                    gamesettings.insert(gmst.id.clone(), gmst);
+                    esm_store.gamesettings.insert_static(gmst.id.clone(), gmst);
                 }
             }
             Err(e) => {
@@ -401,9 +368,9 @@ pub fn try_parse_and_print_record(
         match Skill::load(reader, &mut is_deleted) {
             Ok(skill) => {
                 if is_deleted {
-                    skills.remove(&skill.id);
+                    esm_store.skills.remove_static(&skill.id);
                 } else {
-                    skills.insert(skill.id.clone(), skill);
+                    esm_store.skills.insert_static(skill.id.clone(), skill);
                 }
             }
             Err(e) => {
@@ -416,7 +383,8 @@ fn finish_magic_effect_setup(
     magic_effects: &mut Store<MagicEffect>,
     gamesettings: &Store<GameSetting>,
 ) {
-    for effect in magic_effects.records.iter_mut() {
+    for effect in magic_effects.static_rec.values_mut() {
+        dbg!(&effect.id);
         // Step A: Map RefId to Index (O(1))
         if let Some(&index) = MAGIC_EFFECT_ID_TO_INDEX.get(&effect.id) {
             // Step B: Map Index to GMST Key string (e.g., "sMagicWaterBreathingName")
@@ -431,7 +399,7 @@ fn finish_magic_effect_setup(
     }
 }
 fn finish_skill_setup(skills: &mut Store<Skill>, gamesettings: &Store<GameSetting>) {
-    for skill in skills.records.iter_mut() {
+    for skill in skills.static_rec.values_mut() {
         // Map RefId to Index
         let Some(index) = SkillIndex::refid_to_skillindex(&skill.id) else {
             continue;

@@ -1,13 +1,12 @@
 use crate::{
+    PositionInterpolation,
     collision::{CollisionShapeType, MWCollisionGroup},
-    ptr_holder::PtrHolder,
 };
+use avian3d::prelude::LayerMask;
 use bevy_ecs::{component::Component, entity::Entity};
-use glam::{DVec3, Quat, Vec2, Vec3};
+use glam::{Quat, Vec2, Vec3};
 #[derive(Component)]
-pub struct Actor {
-    pub base: PtrHolder,
-
+pub struct ActorPhysics {
     // Movement Logic
     pub standing_on: Option<Entity>,
     pub force: Vec3,
@@ -37,9 +36,8 @@ pub struct Actor {
     pub skip_simulation: bool,
     pub active: bool,
 }
-impl Actor {
+impl ActorPhysics {
     pub fn new(
-        base: PtrHolder,
         can_water_walk: bool,
         on_ground: bool,
         collision_shape_type: CollisionShapeType,
@@ -51,11 +49,10 @@ impl Actor {
         let scale = Vec3::ONE;
         let rotation = Quat::default();
         let position_offset = Vec3::ZERO;
-        let half_extents = Vec3::ONE;
+        let half_extents = collision_shape_extents / 2.0;
 
         let rendering_half_extents = Vec3::ZERO;
-        Actor {
-            base,
+        ActorPhysics {
             standing_on: None,
             force: Vec3::ZERO,
             on_ground,
@@ -79,19 +76,23 @@ impl Actor {
             active: false,
         }
     }
-    pub fn get_collision_object_position(&self) -> Vec3 {
-        self.get_scaled_mesh_translation() + self.base.position.as_vec3()
-    }
-    /// Moves the actor by a specific offset (usually from scripts) and resets the offset.
-    pub fn apply_offset_change(&mut self) -> DVec3 {
-        if self.position_offset.length_squared() > 1e-6 {
-            let offset_d = self.position_offset.as_dvec3();
-            self.base.position += offset_d;
-            self.base.previous_position += offset_d;
-            self.base.simulation_position += self.position_offset;
-            self.position_offset = Vec3::ZERO;
+    pub fn set_can_water_walk(
+        &mut self,
+        can_water_walk: bool,
+        collision_layer_filters: &LayerMask,
+    ) -> u32 {
+        if can_water_walk != self.can_water_walk {
+            self.can_water_walk = can_water_walk;
+            self.update_collision_mask()
+        } else {
+            collision_layer_filters.0
         }
-        self.base.position
+    }
+    pub fn update_collision_mask(&self) -> u32 {
+        self.get_collision_mask().bits()
+    }
+    pub fn get_collision_object_position(&self, current_translation: Vec3) -> Vec3 {
+        self.get_scaled_mesh_translation() + current_translation
     }
 
     pub fn update_scale_unsafe(&mut self, physics_scale: Vec3, rendering_scale: Vec3) {
@@ -117,10 +118,35 @@ impl Actor {
         // rotation * (translation * scale)
         self.rotation * (self.mesh_translation * self.scale)
     }
+    pub fn set_position(
+        &mut self,
+        position_interpolation: &mut PositionInterpolation,
+        position: Vec3,
+    ) -> bool {
+        let world_position_changed = self.position_offset.length_squared() != 0.0;
+        self.apply_offset_change(position_interpolation);
+        // Position offsets override any actual physics that happened this frame, so we
+        // don't set any positions if there was an offset
+        if world_position_changed {
+            return true;
+        }
+        position_interpolation.previous_position = position_interpolation.current_position;
+        position_interpolation.current_position = position;
+        // true if this new position is different, false if it's the same
+        return position_interpolation.previous_position != position_interpolation.current_position;
+    }
+    pub fn apply_offset_change(&mut self, position_interpolation: &mut PositionInterpolation) {
+        if self.position_offset.length_squared() != 0.0 {
+            position_interpolation.current_position += self.position_offset;
+            position_interpolation.previous_position += self.position_offset;
+            self.position_offset = Vec3::ZERO;
+        }
+    }
 }
 
 /// Scratch board for the physics timestep, so the order the entities are processed doesn't matter
 /// since they use the other actor's Actor struct, and this is only applied at the end of the frame.
+#[derive(Component)]
 pub struct ActorFrameData {
     // Basic state
     pub position: Vec3,
@@ -130,20 +156,18 @@ pub struct ActorFrameData {
     pub walking_on_water: bool,
     pub inert: bool,
 
-    // Physics body reference
-    // In Bevy/Avian, this might just be the Entity with the Collider
-    pub collision_object: Entity,
-
     // Swimming logic
     pub swim_level: f32, // water_level - (rendering_half_extents_z * 2 * swim_height_scale)
-    pub slow_fall: f32,
+    pub slow_fall_mult: f32,
     pub water_level: f32,
 
     // Transform/Movement
     pub rotation: Vec2,
     pub movement: Vec3,
     pub half_extents_y: f32,
+    pub inertia: Vec3,
     pub old_height: f32,
+    pub last_stuck_position: Vec3,
     pub stuck_frames: u32,
 
     // Flags
@@ -157,19 +181,17 @@ pub struct ActorFrameData {
 
 impl ActorFrameData {
     pub fn new(
-        actor: &Actor,
+        actor: &ActorPhysics,
         inert: bool,
         water_collision: bool,
-        slow_fall: f32,
+        slow_fall_mult: f32,
         water_level: f32,
         is_player: bool,
+        swim_height_scale: f32,
+        flying: bool,
+        is_aquatic: bool,
+        velocity: Vec3,
     ) -> Self {
-        // TODO:: MWBase::Environment::get()
-        // .getESMStore()
-        //->get<ESM::GameSetting>()
-        // .find("fSwimHeightScale")
-        //->mValue.getFloat()))
-        let swim_height_scale = 1.0;
         let swim_level = water_level - (actor.rendering_half_extents.y * 2.0 * swim_height_scale);
 
         Self {
@@ -179,22 +201,20 @@ impl ActorFrameData {
             is_on_slope: actor.on_slope,
             walking_on_water: false,
             inert,
-            collision_object: actor.base.entity,
             swim_level,
-            slow_fall,
+            slow_fall_mult,
             rotation: Vec2::ZERO,
-            movement: actor.base.velocity,
+            movement: velocity,
             water_level,
             half_extents_y: actor.half_extents.y,
+            inertia: Vec3::ZERO,
             old_height: 0.0,
+            last_stuck_position: Vec3::ZERO,
             stuck_frames: 0,
 
-            // TODO:: mFlying(MWBase::Environment::get().getWorld()->isFlying(actor.getPtr()))
-            flying: false,
-            // TODO::
-            //mIsAquatic(actor.getPtr().getClass().isPureWaterCreature(actor.getPtr()))
+            flying: flying,
             was_on_ground: actor.on_ground,
-            is_aquatic: false,
+            is_aquatic,
             water_collision,
             skip_collision_detection: !actor.internal_collision_mode,
             is_player,

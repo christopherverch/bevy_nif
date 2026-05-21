@@ -1,8 +1,11 @@
 use crate::animation::AnimationConfig;
+use crate::magic_effects::MagicEffects;
+use crate::stat::DynamicStat;
 use bevy::ecs::lifecycle::HookContext;
 use bevy::ecs::world::DeferredWorld;
 use bevy::prelude::*;
 use bevy_nif::nif_animation::NifEventType;
+use bitflags::bitflags;
 use common::EntityId;
 use esm_parser_lib::{EsmReader, LandTexture, Landscape};
 use networking::NetworkEvent;
@@ -10,16 +13,157 @@ use serde::{Deserialize, Serialize};
 use serializer::SerializableTransform;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-
-// We want this to be its own component so we can add it to actors, creatures, etc
-#[derive(Component, Clone, Debug, Serialize, Deserialize, Resource)]
+#[derive(Component)]
+pub struct Npc;
+#[derive(Component)]
+pub struct Movement {
+    /// Relative to the current orientation
+    /// Length of the vector controls desired speed. 0 - stay, 0.5 - half-speed, 1.0 - max speed.
+    pub desired_movement: Vec3,
+    /// rotation delta (euler) pitch yaw roll
+    pub desired_rotation: Vec3,
+    /// internal and should not be changed
+    pub speed_factor: f32,
+    /// internal and should not be changed
+    pub is_strafing: bool,
+}
+impl Default for Movement {
+    fn default() -> Self {
+        Self {
+            desired_movement: Vec3::ZERO,
+            desired_rotation: Vec3::ZERO,
+            speed_factor: 1.0,
+            is_strafing: false,
+        }
+    }
+}
+pub enum Stance {
+    Run,
+    Sneak,
+}
+bitflags! {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CreatureStatsFlags: u8 {
+    const FORCE_RUN       = 1 << 0; // 1
+    const FORCE_SNEAK     = 1 << 1; // 2
+    const RUN             = 1 << 2; // 4
+    const SNEAK           = 1 << 3; // 8
+    const FORCE_JUMP      = 1 << 4; // 16
+    const FORCE_MOVE_JUMP = 1 << 5; // 32
+}}
+#[derive(Clone, Debug, PartialEq)]
+pub enum DrawState {
+    Nothing,
+    Weapon,
+    Spell,
+}
+#[derive(Component, Clone, Debug, Resource)]
 #[component(on_add = add_creature_to_id_map)]
 pub struct CreatureStats {
     pub entity_id: EntityId,
-    pub health: f32,
     pub nif_animator_link: Option<Entity>,
+    pub magic_effects: MagicEffects,
     pub fall_height: f32,
+    // health, magicka, fatigue
+    pub dynamic_stats: [DynamicStat<f32>; 3],
+    pub dead: bool,
+    pub death_animation_finished: bool,
+    pub teleported: bool,
+    pub movement_flags: CreatureStatsFlags,
+    /// Updated every frame before other systems that use it run
+    pub max_speed: f32,
+    pub side_movement_angle: f32,
+    pub draw_state: DrawState,
 }
+impl CreatureStats {
+    pub fn get_health(&self) -> DynamicStat<f32> {
+        self.dynamic_stats[0].clone()
+    }
+    pub fn get_fatigue(&self) -> DynamicStat<f32> {
+        self.dynamic_stats[2].clone()
+    }
+    pub fn set_health(&mut self, value: DynamicStat<f32>) {
+        self.set_dynamic(0, value);
+    }
+    pub fn set_fatigue(&mut self, value: DynamicStat<f32>) {
+        self.set_dynamic(2, value);
+    }
+    fn set_dynamic(&mut self, index: usize, value: DynamicStat<f32>) {
+        if index > 2 {
+            panic!("dynamic stat index is out of range");
+        }
+        self.dynamic_stats[index] = value;
+        //TODO:: dying
+    }
+    pub fn land(&mut self, player_opt: Option<&mut Player>) -> f32 {
+        if let Some(player) = player_opt {
+            player.jumping = false;
+        }
+        let height = self.fall_height;
+        self.fall_height = 0.0;
+        return height;
+    }
+    pub fn is_stance_active(&self, stance: Stance) -> bool {
+        match stance {
+            Stance::Run => self
+                .movement_flags
+                .intersects(CreatureStatsFlags::RUN | CreatureStatsFlags::FORCE_RUN),
+            Stance::Sneak => self
+                .movement_flags
+                .intersects(CreatureStatsFlags::SNEAK | CreatureStatsFlags::FORCE_SNEAK),
+        }
+    }
+    pub fn set_movement_flag(&mut self, flag: CreatureStatsFlags, state: bool) {
+        if state {
+            self.movement_flags |= flag;
+        } else {
+            self.movement_flags &= !flag;
+        }
+    }
+}
+
+#[derive(Resource, Default)]
+pub struct WorldSettings {
+    pub god_mode: bool,
+    pub levitation_enabled: bool,
+    pub third_person: bool,
+    pub swim_height_scale: f32,
+}
+#[derive(Resource)]
+pub struct GameSettings {
+    pub normalize_race_speed: bool,
+    pub smooth_movement: bool,
+    pub smooth_movement_player_turning_delay: f32,
+    pub turn_to_movement_direction: bool,
+    pub player_movement_ignores_animation: bool,
+}
+impl Default for GameSettings {
+    fn default() -> Self {
+        Self {
+            normalize_race_speed: Default::default(),
+            smooth_movement: Default::default(),
+            smooth_movement_player_turning_delay: 1.0,
+            turn_to_movement_direction: false,
+            player_movement_ignores_animation: false,
+        }
+    }
+}
+#[derive(Resource, Default)]
+pub struct WorldFrameData {
+    pub is_in_storm: bool,
+    pub storm_direction: Vec3,
+}
+#[derive(Component)]
+pub struct Cell {
+    pub has_water: bool,
+    pub water_level: f32,
+}
+#[derive(Component)]
+pub struct CurrentCell {
+    pub coords: UVec2,
+}
+#[derive(Resource, Default)]
+pub struct CellLookup(pub HashMap<UVec2, Entity>);
 #[derive(Component, Debug)]
 pub struct FirstPersonMeshEntityLinks(pub Vec<Entity>);
 
@@ -74,12 +218,12 @@ pub struct SentActionInfo {
 #[derive(Resource, Default, Debug)]
 pub struct PendingServerAcks(pub HashMap<u64, SentActionInfo>);
 #[derive(Component)]
-pub struct Player;
+pub struct Player {
+    pub jumping: bool,
+}
 #[derive(Debug, Resource)]
 pub struct ClientEntityId(pub u64);
 
-#[derive(Component, Resource, Default)]
-pub struct IsThirdPerson(pub bool);
 #[derive(Component)]
 pub struct NeedsSetup {
     pub entity_id: EntityId,
@@ -101,11 +245,9 @@ pub struct LocalPlayerMesh;
 pub struct ServerIP(pub String);
 #[derive(Resource, Default, Debug)]
 pub struct PlayerInput {
-    pub move_direction: Vec2,
     pub rotation_z: f32, // Rotation around the Z axis this frame
     pub attack_is_held: bool,
     pub attack_just_pressed: bool,
-    pub jump: bool,
     pub run: bool,
     pub sneak: bool,
 }

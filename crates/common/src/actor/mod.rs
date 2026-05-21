@@ -3,16 +3,12 @@ use bevy_math::{Vec2, Vec3};
 use serde::{Deserialize, Serialize};
 
 /// The primary state component for any character (player or NPC) that has animations.
-/// This struct holds all the sub-state components.
 #[derive(Component, Debug, Default)]
 pub struct ActorState {
-    // --- Posture/Intent Flags ---
-    // These are set by input/AI systems.
     pub is_running: bool,
     pub is_sneaking: bool,
     pub is_flying: bool,
     pub is_in_water: bool,
-
     // --- Sub-structs for organization ---
     pub movement: MovementState,
     pub combat: CombatState,

@@ -5,6 +5,7 @@ use crate::{
     string_interning::{find_interned, get_or_intern},
 };
 use std::{
+    cmp::Ordering,
     fmt,
     hash::{DefaultHasher, Hash, Hasher},
 };
@@ -269,6 +270,17 @@ impl RefId {
             _ => false,
         }
     }
+    fn variant_index(&self) -> u8 {
+        match self {
+            RefId::Empty(_) => 0,
+            RefId::SizedString(_) => 1,
+            RefId::UnsizedString(_) => 2,
+            RefId::FormId(_) => 3,
+            RefId::Generated(_) => 4,
+            RefId::Index(_) => 5,
+            RefId::ESM3ExteriorCell(_) => 6,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
@@ -508,5 +520,102 @@ impl TryFrom<u8> for RefIdType {
             6 => Ok(RefIdType::ESM3ExteriorCell),
             _ => Err(EsmError::InvalidRefIdType(v)),
         }
+    }
+}
+impl Ord for RefId {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            (RefId::Empty(a), RefId::Empty(b)) => a.cmp(b),
+            (RefId::SizedString(a), RefId::SizedString(b))
+            | (RefId::UnsizedString(a), RefId::UnsizedString(b)) => a.cmp(b),
+            (RefId::FormId(a), RefId::FormId(b)) => a.cmp(b),
+            (RefId::Generated(a), RefId::Generated(b)) => a.cmp(b),
+            (RefId::Index(a), RefId::Index(b)) => a.cmp(b),
+            (RefId::ESM3ExteriorCell(a), RefId::ESM3ExteriorCell(b)) => a.cmp(b),
+            // If variants are different, compare based on their position in the enum
+            _ => self.variant_index().cmp(&other.variant_index()),
+        }
+    }
+}
+impl PartialOrd for RefId {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for ESM3ExteriorCellRefId {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // Compare X, then Y
+        self.x.cmp(&other.x).then(self.y.cmp(&other.y))
+    }
+}
+impl PartialOrd for ESM3ExteriorCellRefId {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for FormId {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.content_file
+            .cmp(&other.content_file)
+            .then(self.index.cmp(&other.index))
+    }
+}
+impl PartialOrd for FormId {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for IndexRefId {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // Compare record type bytes, then the value
+        self.record_type
+            .cmp(&other.record_type)
+            .then(self.value.cmp(&other.value))
+    }
+}
+impl PartialOrd for IndexRefId {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+// Ensure GeneratedRefId and EmptyRefId also get Ord
+impl Ord for GeneratedRefId {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.value.cmp(&other.value)
+    }
+}
+impl PartialOrd for GeneratedRefId {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for EmptyRefId {
+    fn cmp(&self, _other: &Self) -> Ordering {
+        Ordering::Equal
+    }
+}
+impl PartialOrd for EmptyRefId {
+    fn partial_cmp(&self, _other: &Self) -> Option<Ordering> {
+        Some(Ordering::Equal)
+    }
+}
+
+// --- The String Logic ---
+
+impl Ord for StringRefId {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // Case-insensitive comparison without allocation
+        let a = self.0.chars().map(|c| c.to_ascii_lowercase());
+        let b = other.0.chars().map(|c| c.to_ascii_lowercase());
+        a.cmp(b)
+    }
+}
+impl PartialOrd for StringRefId {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }

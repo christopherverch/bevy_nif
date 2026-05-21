@@ -1,552 +1,491 @@
-use std::collections::HashSet;
-
-use crate::defs::{ColliderEntityLink, LocalPlayer};
-use avian3d::prelude::{
-    Collider, CollisionLayers, Collisions, ContactPairFlags, ShapeCastConfig, ShapeHitData,
-    SpatialQuery, SpatialQueryFilter,
+use crate::defs::{ColliderEntityLink, CreatureStats, LocalPlayer, Player, WorldFrameData};
+use crate::esm::EsmStore;
+use crate::physics::helpers::get_pitch_yaw_3d_approx_movement;
+use crate::physics::stepper::Stepper;
+use avian3d::prelude::{Collider, CollisionLayers, SpatialQuery};
+use esm_parser_lib::RefId;
+use mwphysics::{
+    ActorFrameData, ActorPhysics, ActorTracer, MW_UNITS_PER_METER, PositionInterpolation,
+    is_walkable_slope,
 };
-use common::ActorState;
-use mwphysics::{Actor, ActorTracer, CollisionShapeType, PtrHolder, trace_down};
 
 use bevy::prelude::*;
 
-use super::{components::CreaturePhysicsState, helpers::reject, unstuck::unstuck_character};
+use super::helpers::reject;
 use super::{constants, helpers::project};
-#[derive(Debug, Clone, Copy)]
-pub struct SweepHit {
-    pub entity: Entity,
-    pub toi: f32,
-    pub world_normal: Vec3,
-    pub point: Vec3,
+
+pub fn init_positions(
+    actor_q: Query<(
+        &ActorPhysics,
+        &mut ActorFrameData,
+        &mut PositionInterpolation,
+        &Transform,
+    )>,
+) {
+    for (actor, mut frame_data, mut position_interpolation, transform) in actor_q {
+        frame_data.position = transform.translation;
+        if frame_data.water_collision && frame_data.position.y < frame_data.water_level
+        //&& actor->can_move_to_water_surface(..)
+        {
+            let offset = Vec3::new(0.0, frame_data.water_level - frame_data.position.y, 0.0);
+            //  let move_to_active = false;
+            //           move_object_by(actor_entity, offset, move_to_active, &mut transform);
+            position_interpolation.current_position += offset;
+            frame_data.position = position_interpolation.current_position;
+        }
+        frame_data.old_height = frame_data.position.y;
+        let (yaw, pitch, _roll) = transform.rotation.to_euler(EulerRot::YXZ);
+        frame_data.rotation = Vec2::new(pitch, yaw);
+        frame_data.inertia = actor.force;
+        frame_data.stuck_frames = actor.stuck_frames;
+        frame_data.last_stuck_position = actor.last_stuck_position;
+    }
 }
-pub fn init_position(actor_q: Query<&mut Actor>) {
-    for mut actor in actor_q {
-        actor.apply_offset_change();
+/// Updates the position that the visuals will interpolate to, not the actual position
+pub fn update_positions(
+    mut actor_q: Query<(
+        &mut PositionInterpolation,
+        &mut ActorPhysics,
+        &mut ActorFrameData,
+    )>,
+) {
+    for (mut interpolation, mut actor_physics, mut actor_fd) in actor_q.iter_mut() {
+        // Try to set the new physics position. If we had an offset or didn't move, apply the
+        // offset and don't change our physics position otherwise.
+        if actor_physics.set_position(&mut interpolation, actor_fd.position) {
+            // Actor fd still gets updated, not sure why?
+            // account for potential position change made by script
+            actor_fd.position = interpolation.current_position;
+        }
+    }
+}
+pub fn interpolate_visual_positions(
+    interpolation_q: Query<(&mut PositionInterpolation, &mut Transform)>,
+    time: Res<Time>,
+) {
+    for (mut interpolation, mut transform) in interpolation_q {
+        transform.translation = interpolation.get_and_update_interpolated_pos(time.delta_secs());
     }
 }
 pub fn character_movement_system(
     time: Res<Time<Fixed>>,
     mut character_query: Query<
         (
-            Entity,
-            &mut Transform,
-            &mut CreaturePhysicsState,
+            &mut ActorFrameData,
             &ColliderEntityLink,
+            &mut PositionInterpolation,
         ),
         With<LocalPlayer>,
     >,
-    spatial_query: &SpatialQuery,
+    spatial_query: SpatialQuery,
     colliders_q: Query<(&Transform, &Collider)>,
-    collisions: Collisions,
-    actor_q: Query<&ActorState>,
+    actor_q: Query<&ActorPhysics>,
     collision_layers_q: Query<&CollisionLayers>,
+    esm_store: Res<EsmStore>,
+    world_frame_data: Res<WorldFrameData>,
 ) {
     let delta_time = time.delta_secs();
-    if delta_time == 0.0 {
-        return;
-    }
 
-    let actor_entities: HashSet<Entity> = character_query.iter().map(|(e, _, _, _)| e).collect();
-    for (root_entity, mut transform, mut controller, collider_link) in character_query.iter_mut() {
-        unstuck_character(
-            &spatial_query,
-            &colliders_q,
-            root_entity,
-            collider_link.0,
-            &mut transform,
-            &mut controller,
-        );
+    for (mut actor_fd, collider_link, mut position_interpolation) in character_query.iter_mut() {
+        position_interpolation.previous_position = actor_fd.position;
+        actor_fd.walking_on_water = false;
+        if actor_fd.skip_collision_detection {
+            let dist_moved = get_pitch_yaw_3d_approx_movement(&actor_fd) * delta_time;
+            actor_fd.position += dist_moved;
+            continue;
+        }
+        // Adjust for collision mesh offset relative to actor's "location"
+        // (doTrace doesn't take local/interior collision shape translation into account, so we have to do it on our
+        // own) for compatibility with vanilla assets, we have to derive this from the vertical half extent instead of
+        // from internal hull translation if not for this hack, the "correct" collision hull position would be
+        // physicActor->getScaledMeshTranslation()
+        // vanilla-accurate
+        // might need to do +actor_fd.half_extents_y since the collision object is normally on the
+        // feet, right now it's centered and does not do what openmw does
+        actor_fd.position.y;
+
+        let swim_level = actor_fd.swim_level;
+        let mut actor_tracer = ActorTracer::default();
+        let mut velocity;
+
+        // Dead and paralyzed actors underwater will float to the surface,
+        // if the CharacterController tells us to do so
+        if actor_fd.movement.y > 0.0 && actor_fd.inert && actor_fd.position.y < swim_level {
+            const WATER_UPWARDS_FLOAT_VELOCITY: Vec3 =
+                Vec3::new(0.0, 25.0 / MW_UNITS_PER_METER, 0.0);
+            velocity = WATER_UPWARDS_FLOAT_VELOCITY;
+            // Swimming and flying have the same movement
+        } else if actor_fd.position.y < swim_level || actor_fd.flying {
+            velocity = get_pitch_yaw_3d_approx_movement(&actor_fd);
+        } else {
+            let yaw_rotation = Quat::from_rotation_x(-actor_fd.rotation.x);
+            velocity = yaw_rotation * actor_fd.movement;
+            if (velocity.y > 0.0 && actor_fd.is_on_ground && !actor_fd.is_on_slope)
+                || (velocity.y > 0.0
+                    && velocity.y + actor_fd.inertia.y <= -velocity.y
+                    && actor_fd.is_on_slope)
+            {
+                dbg!(actor_fd.inertia);
+                actor_fd.inertia = velocity;
+                dbg!("setting inertia");
+                dbg!(actor_fd.inertia);
+            } else if !actor_fd.is_on_ground || actor_fd.is_on_slope {
+                velocity += actor_fd.inertia;
+            }
+        }
+        // Now that we have the effective movement vector, apply wind forces to it
+
+        if world_frame_data.is_in_storm && velocity.length() > 0.0 {
+            if let Some(storm_walk_mult_gmst) = esm_store
+                .gamesettings
+                .get(&RefId::from_str("fStromWalkMult"))
+            {
+                let storm_walk_mult = storm_walk_mult_gmst.value.0.as_float();
+                let angle_cos = world_frame_data.storm_direction.dot(velocity) / velocity.length();
+                velocity *= 1.0 + storm_walk_mult * angle_cos;
+            }
+        }
+        let orig_velocity = velocity;
+        let mut new_position = actor_fd.position;
+        /*
+         * A loop to find newPosition using tracer, if successful different from the starting position.
+         * nextpos is the local variable used to find potential newPosition, using velocity and remainingTime
+         * The initial velocity was set earlier (see above).
+         */
         let mut remaining_time = delta_time;
+        let mut num_times_slid = 0;
+        let mut last_slide_normal = Vec3::Y;
+        let mut last_slide_normal_fallback = Vec3::Y;
+        let mut force_ground_test = false;
         let mut iterations = 0;
-        let mut current_pos = transform.translation;
-        let mut current_velocity = controller.velocity_for_frame;
-        controller.times_slid = 0;
-        let character_shape = &controller.collision_shape.clone();
-        let on_ground_this_frame = controller.on_ground;
+        let mut stepper = Stepper {
+            collision_layers_q: &collision_layers_q,
+            tracer: ActorTracer::default(),
+            up_stepper: ActorTracer::default(),
+            down_stepper: ActorTracer::default(),
+        };
+        while remaining_time > 0.0001 && iterations < constants::MAX_ITERATIONS {
+            let next_pos = new_position + velocity * remaining_time;
+            let underwater = new_position.y < swim_level;
 
-        while remaining_time > 0.0 && iterations < constants::MAX_ITERATIONS {
-            iterations += 1;
-            let move_vector = current_velocity * remaining_time;
-
-            if move_vector.length_squared() < 0.0001 {
+            // 1. Water Surface Ceiling (Prevent swimming up into air)
+            if !actor_fd.flying && next_pos.y > swim_level && underwater {
+                velocity.y = 0.0;
+                continue;
+            }
+            if new_position.distance_squared(next_pos) > 0.0001 {
+                actor_tracer.do_trace(
+                    collider_link.0,
+                    new_position,
+                    next_pos,
+                    &spatial_query,
+                    &colliders_q,
+                    &collision_layers_q,
+                );
+                // check for obstructions
+                if actor_tracer.fraction >= 1.0 {
+                    new_position = actor_tracer.end_pos; // ok to move, set new_position
+                    break;
+                }
+            } else {
+                // The current position and next position are nearly the same, so just exit.
+                // Since we aren't performing any collision detection, we want to reject the next
+                // position, so that we don't slowly move inside another object.
                 break;
             }
+            let seen_ground = !actor_fd.flying
+                && !underwater
+                && ((actor_fd.is_on_ground && !actor_fd.is_on_slope)
+                    || is_walkable_slope(actor_tracer.plane_normal));
+            let hit_height = actor_tracer.hit_point.y - actor_tracer.end_pos.y;
+            let old_position = new_position;
+            let mut used_step_logic = false;
+            let hit_actor = actor_tracer
+                .hit_entity
+                .map_or(false, |e| actor_q.get(e).is_ok());
+            if !hit_actor {
+                if hit_height < constants::STEP_SIZE_UP {
+                    // Try to step up onto it.
+                    // NOTE: this modifies newPosition and velocity on its own if successful
+                    used_step_logic = stepper.step(
+                        collider_link.0,
+                        &mut new_position,
+                        &mut velocity,
+                        &mut remaining_time,
+                        seen_ground,
+                        iterations == 0,
+                        &spatial_query,
+                        &colliders_q,
+                    );
+                    // TODO:: if the object I hit has scriptedcollisiontype player or actor, trigger
+                    // an event so that the script is notified that we hit the object
+                }
+            }
+            if used_step_logic {
+                if actor_fd.is_aquatic && new_position.y > actor_fd.water_level {
+                    new_position = old_position;
+                } else if !actor_fd.flying && actor_fd.position.y >= swim_level {
+                    force_ground_test = true;
+                }
+            } else {
+                // 1. Calculate remaining time based on how far we traveled before hitting
+                remaining_time *= 1.0 - actor_tracer.fraction;
 
-            let sweep_config = ShapeCastConfig {
-                max_distance: move_vector.length(),
-                compute_contact_on_penetration: true,
-                ignore_origin_penetration: false, //
-                ..default()
-            };
-            let move_dir = Dir3::new_unchecked(move_vector.normalize());
-            dbg!("ignoring", root_entity);
-            let sweep_result = spatial_query.cast_shape(
-                character_shape,
-                current_pos,
-                Quat::IDENTITY,
-                move_dir,
-                &sweep_config,
-                &SpatialQueryFilter::from_excluded_entities([root_entity]),
-            );
-            dbg!(sweep_result);
+                let mut plane_normal = actor_tracer.plane_normal;
+                let orig_plane_normal = plane_normal;
 
-            if let Some(hit) = sweep_result {
-                let travel_dist = move_vector.length();
-                let normalized_toi = if travel_dist > 0.0 {
-                    hit.distance / travel_dist
+                // 2. Snag Prevention (The "Wall-to-Floor" hack)
+                if seen_ground && !is_walkable_slope(plane_normal) && plane_normal.y != 0.0 {
+                    plane_normal.y = 0.0;
+                    plane_normal = plane_normal.normalize_or_zero();
+                }
+
+                // 3. Move to impact point with Collision Margin
+                if new_position.distance_squared(actor_tracer.end_pos)
+                    > constants::COLLISION_MARGIN.powi(2)
+                {
+                    let direction = velocity.normalize_or_zero();
+                    new_position = actor_tracer.end_pos - (direction * constants::COLLISION_MARGIN);
+                }
+                // 4. Basic Slide Velocity
+                let mut new_velocity = if velocity.dot(plane_normal) <= 0.0 {
+                    reject(velocity, plane_normal)
                 } else {
-                    0.0
+                    velocity
                 };
-                let mut sweep_hit = SweepHit {
-                    entity: hit.entity,
-                    toi: normalized_toi,
-                    // In Avian, hit.normal is the normal at the hit point
-                    world_normal: hit.normal1,
-                    point: hit.point1,
-                };
-                // Actor collision
-                if actor_q.get(hit.entity).is_ok() {
-                    if let Ok((hit_transform, _)) = colliders_q.get(hit.entity) {
-                        // Check for existing penetration before overriding the collision normal.
-                        if let Some(contact_pair) = collisions.get(root_entity, hit.entity) {
-                            if contact_pair.flags.contains(ContactPairFlags::TOUCHING) {
-                                let my_origin = current_pos; // Use current loop position
-                                let other_origin = hit_transform.translation;
-                                // Calculate horizontal push-out vector
-                                let mut horizontal_normal = my_origin - other_origin;
-                                horizontal_normal.y = 0.0;
-                                horizontal_normal = horizontal_normal.normalize_or_zero();
-
-                                // Check if moving towards the other actor
-                                if horizontal_normal.dot(move_vector) < 0.0 {
-                                    // Overriding the hit data to force us to "slide" away from the
-                                    // actor we are colliding with
-                                    sweep_hit.world_normal = horizontal_normal;
-                                    sweep_hit.toi = 0.0; // In Avian logic, this means distance = 0
-                                } else {
-                                    // If moving away from an overlapping actor, ignore the collision
-                                    current_pos += move_vector;
-                                    remaining_time = 0.0;
-                                    continue;
-                                }
-                            }
-                            // If not overlapping, proceed with the normal sweep_hit result.
-                        }
-                    }
-                }
-
-                let was_stepped = try_step_up(
-                    &spatial_query,
-                    root_entity,
-                    character_shape,
-                    &mut current_pos,
-                    &mut current_velocity,
-                    &mut remaining_time,
-                    &mut controller,
-                    iterations == 1,
-                );
-
-                if was_stepped {
-                    // If a step-up was successfully performed, the character's position has changed.
-                    // We restart the movement loop from this new position to re-evaluate the next move.
-                    continue;
-                }
-
-                let dist_to_hit = sweep_hit.toi * move_vector.length();
-                let safe_move_dist = (dist_to_hit - constants::COLLISION_MARGIN).max(0.0);
-                current_pos += move_vector.normalize_or_zero() * safe_move_dist;
-
-                let ejection_vector = sweep_hit.world_normal * constants::COLLISION_MARGIN * 2.0;
-                let ejection_dist = ejection_vector.length();
-                let ejection_dir = Dir3::new_unchecked(ejection_vector.normalize_or_zero());
-                let ejection_config = ShapeCastConfig {
-                    max_distance: ejection_dist,
-                    compute_contact_on_penetration: true,
-                    ignore_origin_penetration: false,
-                    ..default()
-                };
-                if let Some(hit) = spatial_query.cast_shape(
-                    character_shape,
-                    current_pos,
-                    transform.rotation,
-                    ejection_dir,
-                    &ejection_config,
-                    &SpatialQueryFilter::from_excluded_entities([root_entity]),
-                ) {
-                    // If we hit something while trying to eject (e.g., a corner or narrow gap),
-                    // move only as far as the hit allows.
-                    // Avian returns hit.distance in world units.
-                    current_pos += ejection_dir * (hit.distance * 0.5);
-                } else {
-                    // No obstruction, apply half the ejection vector as planned
-                    current_pos += ejection_vector * 0.5;
-                }
-                // (The rest of the slide logic is unchanged)
-                let time_fraction_consumed = (safe_move_dist / move_vector.length()).min(1.0);
-                remaining_time *= 1.0 - time_fraction_consumed;
                 let mut used_seam_logic = false;
-                let orig_plane_normal = sweep_hit.world_normal;
-                let max_slope_cos = constants::MAX_SLOPE_DEGREES.to_radians().cos();
-                let hit_is_walkable = orig_plane_normal.y > max_slope_cos;
-                let seen_ground_this_iteration =
-                    (on_ground_this_frame && !controller.on_slope) || hit_is_walkable;
 
-                // --- Crevice/Seam Logic ---
-                // When sliding into an acute interior corner, rejecting from each wall in succession
-                // can cancel out movement and make the character feel "stuck". This logic detects
-                // when we hit a surface that is acute to our last slide plane. If so, it calculates
-                // the "seam" of the two planes and projects velocity along that seam, allowing the
-                // character to slide smoothly along the corner.
-                if controller.times_slid > 0 {
-                    // Check for an acute angle with the last two slide planes.
-                    let dot_a = orig_plane_normal.dot(controller.last_slide_normal);
+                // 5. Seam Logic (Acute Angle / Corner Sliding)
+                if num_times_slid > 0 {
+                    let dot_a = last_slide_normal.dot(orig_plane_normal);
+                    let mut dot_b = last_slide_normal_fallback.dot(orig_plane_normal);
 
-                    // The fallback normal is only relevant after the second slide.
-                    let dot_b = if controller.times_slid > 1 {
-                        orig_plane_normal.dot(controller.last_slide_normal_fallback)
-                    } else {
-                        1.0 // A non-negative value to ensure it's not chosen by default.
-                    };
+                    if num_times_slid <= 1 {
+                        dot_b = 1.0; // Ignore fallback for first few slides
+                    }
 
                     if dot_a <= 0.0 || dot_b <= 0.0 {
-                        // Choose the normal from the plane that is more acute to the current one.
-                        let best_normal = if dot_b < dot_a {
-                            let fallback = controller.last_slide_normal_fallback;
-                            // If we use the fallback, it becomes the new "last" normal for this calculation.
-                            controller.last_slide_normal = fallback;
-                            fallback
-                        } else {
-                            controller.last_slide_normal
-                        };
+                        let mut best_normal = last_slide_normal;
+                        if dot_b < dot_a {
+                            best_normal = last_slide_normal_fallback;
+                            last_slide_normal = last_slide_normal_fallback;
+                        }
 
-                        // The seam is the cross product of the two normals.
-                        let seam_vector = best_normal.cross(orig_plane_normal).normalize_or_zero();
+                        // Cross product gives the "seam" direction (C++ constraintVector = bestNormal ^ origPlaneNormal)
+                        let constraint_vector = best_normal.cross(orig_plane_normal);
+                        if constraint_vector.length_squared() > 0.0 {
+                            let constraint_vector = constraint_vector.normalize();
+                            // Slide ALONG the corner seam
+                            new_velocity = project(velocity, constraint_vector);
 
-                        if seam_vector.length_squared() > 0.001 {
-                            // Project the velocity onto the seam vector to slide along it.
-                            current_velocity = project(current_velocity, seam_vector);
-
-                            // Also apply a small positional ejection out of the crevice to prevent snagging.
+                            // Adjust position to stay outside the crevice
                             let average_normal =
                                 (best_normal + orig_plane_normal).normalize_or_zero();
-                            let ejection_vec = average_normal * (constants::COLLISION_MARGIN * 2.0);
-                            let direction = Dir3::new_unchecked(ejection_vec.normalize_or_zero());
-                            let distance = ejection_vec.length();
-                            let ejection_hit = spatial_query.cast_shape(
-                                character_shape,
-                                current_pos,
-                                Quat::IDENTITY,
-                                direction,
-                                &ShapeCastConfig {
-                                    max_distance: distance,
-                                    ignore_origin_penetration: false, // Don't ignore the very thing we are stuck in!
-                                    ..default()
-                                },
-                                &SpatialQueryFilter::from_excluded_entities([root_entity]),
+                            actor_tracer.do_trace(
+                                collider_link.0,
+                                new_position,
+                                new_position + average_normal * (constants::COLLISION_MARGIN * 2.0),
+                                &spatial_query,
+                                &colliders_q,
+                                &collision_layers_q,
                             );
-                            if let Some(hit) = ejection_hit {
-                                // If the path is partially blocked, move as far as the hit allows (halved)
-                                current_pos += direction * (hit.distance * 0.5);
-                            } else {
-                                // Path is clear, apply half the intended nudge
-                                current_pos += ejection_vec * 0.5;
-                            }
+                            new_position = (new_position + actor_tracer.end_pos) / 2.0;
                             used_seam_logic = true;
                         }
                     }
                 }
+                // 6. Concave Geometry Ejection
                 if !used_seam_logic {
-                    let old_velocity = current_velocity;
-                    let mut effective_normal = orig_plane_normal;
+                    actor_tracer.do_trace(
+                        collider_link.0,
+                        new_position,
+                        new_position + plane_normal * (constants::COLLISION_MARGIN * 2.0),
+                        &spatial_query,
+                        &colliders_q,
+                        &collision_layers_q,
+                    );
+                    new_position = (new_position + actor_tracer.end_pos) / 2.0;
+                }
 
-                    if seen_ground_this_iteration
-                        && !hit_is_walkable
-                        && effective_normal.y.abs() > 0.001
-                    {
-                        effective_normal.y = 0.0;
-                        effective_normal = effective_normal.normalize_or_zero();
-                    }
-                    current_velocity = reject(current_velocity, effective_normal);
-
-                    if !hit_is_walkable {
-                        current_velocity.y = current_velocity.y.min(old_velocity.y);
+                // 7. Backward Movement Short-circuit (Fixes infinite bouncing)
+                if seen_ground && new_velocity.dot(orig_velocity) <= 0.0 {
+                    let perpendicular = new_velocity.cross(orig_velocity);
+                    if perpendicular.length_squared() > 0.0 {
+                        let perpendicular = perpendicular.normalize();
+                        // Bevy/Y-up: Check vertical component (perpendicular.y)
+                        if perpendicular.y.abs() > 0.7071 {
+                            break;
+                        }
                     }
                 }
 
-                controller.last_slide_normal_fallback = controller.last_slide_normal;
-                controller.last_slide_normal = orig_plane_normal;
-                controller.times_slid += 1;
-            } else {
-                current_pos += move_vector;
-                remaining_time = 0.0;
-            }
-        }
+                // 8. Prevent sliding UP steep slopes while in the air (Gravity logic)
+                if new_position.y >= swim_level
+                    && !actor_fd.flying
+                    && !is_walkable_slope(plane_normal)
+                    && !used_seam_logic
+                {
+                    new_velocity.y = new_velocity.y.min(velocity.y);
+                }
 
-        // --- Final Ground Check & State Update (Unchanged) ---
-        let mut final_on_ground = false;
-        let mut final_on_slope = false;
-        if controller.inertia.y <= 0.0 {
-            let trace_dist = constants::GROUND_OFFSET * 2.0
-                + if on_ground_this_frame {
+                // Update state for next iteration
+                num_times_slid += 1;
+                last_slide_normal_fallback = last_slide_normal;
+                last_slide_normal = orig_plane_normal;
+                velocity = new_velocity;
+            }
+            iterations += 1;
+        }
+        // --- Post-Loop Ground Detection ---
+        let mut is_on_ground = false;
+        let mut is_on_slope = false;
+
+        // Only check ground if forced OR if we aren't moving upwards and are above water
+        if force_ground_test || (actor_fd.inertia.y <= 0.0 && new_position.y >= swim_level) {
+            let from = new_position;
+            let drop_distance = (2.0 * constants::GROUND_OFFSET)
+                + if actor_fd.is_on_ground {
                     constants::STEP_SIZE_DOWN
                 } else {
                     0.0
                 };
-            let mut ground_tracer = ActorTracer::default();
-            let down_target = current_pos + Vec3::NEG_Y * trace_dist;
+            let to = new_position - Vec3::new(0.0, drop_distance, 0.0);
 
-            let actor = Actor::new(
-                PtrHolder::new(root_entity, transform.translation),
-                // TODO:: all the below args
-                false,
-                true,
-                CollisionShapeType::Aabb,
-                true,
-                Vec3::ZERO,
-                Vec3::ONE,
-            );
-            ground_tracer.find_ground(
-                root_entity,
-                current_pos,
-                down_target,
+            // Trace downward to find the floor
+            actor_tracer.do_trace(
+                collider_link.0,
+                from,
+                to,
                 &spatial_query,
                 &colliders_q,
                 &collision_layers_q,
             );
-            if ground_tracer.fraction < 1.0 {
-                let max_slope_cos = constants::MAX_SLOPE_DEGREES.to_radians().cos();
-                let hit_is_walkable = ground_tracer.plane_normal.y > max_slope_cos;
-                if hit_is_walkable {
-                    final_on_ground = true;
-                    current_pos.y = ground_tracer.end_pos.y + constants::GROUND_OFFSET;
+
+            if actor_tracer.fraction < 1.0 {
+                let hit_actor = actor_tracer
+                    .hit_entity
+                    .map_or(false, |e| actor_q.contains(e));
+
+                if !hit_actor {
+                    is_on_ground = true;
+                    is_on_slope = !is_walkable_slope(actor_tracer.plane_normal);
+                    actor_fd.standing_on = actor_tracer.hit_entity;
+
+                    // Check for Water Walking (Assumes your collision layers distinguish water)
+                    // if hit_layer == CollisionLayer::Water { actor_fd.walking_on_water = true; }
+
+                    if !actor_fd.flying && !is_on_slope {
+                        // If we are a bit above the floor, snap to it + offset
+                        if actor_tracer.fraction * drop_distance > constants::GROUND_OFFSET {
+                            new_position.y = actor_tracer.end_pos.y + constants::GROUND_OFFSET;
+                        } else {
+                            // Very close to ground: center the actor to prevent jitter
+                            new_position.y = actor_tracer.end_pos.y;
+                            actor_tracer.do_trace(
+                                collider_link.0,
+                                new_position,
+                                new_position + Vec3::new(0.0, 2.0 * constants::GROUND_OFFSET, 0.0),
+                                &spatial_query,
+                                &colliders_q,
+                                &collision_layers_q,
+                            );
+                            new_position = (new_position + actor_tracer.end_pos) / 2.0;
+                        }
+                    }
                 } else {
-                    final_on_slope = true;
+                    // Vanilla Logic: Actors can stand on each other but it doesn't count as "On Ground"
+                    // for the sake of jumping/etc, but prevents them from falling through each other.
+                    if !actor_fd.flying
+                        && is_walkable_slope(actor_tracer.plane_normal)
+                        && (actor_tracer.end_pos.y + constants::GROUND_OFFSET <= new_position.y)
+                    {
+                        new_position.y = actor_tracer.end_pos.y + constants::GROUND_OFFSET;
+                    }
+                    is_on_ground = false;
                 }
+            }
+
+            // Stuck logic: If the engine flagged us as stuck, treat us as on ground to escape the state
+            if actor_fd.stuck_frames > 0 {
+                is_on_ground = true;
+                is_on_slope = false;
             }
         }
 
-        if !final_on_ground {
-            controller.inertia.y -= constants::GRAVITY_CONST * delta_time;
+        // --- Gravity and Inertia Application ---
+        if (is_on_ground && !is_on_slope) || new_position.y < swim_level || actor_fd.flying {
+            // Reset inertia if standing still, swimming, or flying
+            actor_fd.inertia = Vec3::ZERO;
         } else {
-            controller.inertia = Vec3::ZERO;
+            // Apply Gravity (Y-down)
+            // Morrowind uses: gravity * units_per_meter (roughly 9.8 * 21.95)
+            actor_fd.inertia.y -= delta_time * constants::GRAVITY_CONST;
+
+            // Apply SlowFall (Levitation/Spells)
+            if actor_fd.inertia.y < 0.0 {
+                actor_fd.inertia.y *= actor_fd.slow_fall_mult;
+            }
+
+            // SlowFall also affects horizontal air momentum in Morrowind
+            if actor_fd.slow_fall_mult < 1.0 {
+                actor_fd.inertia.x *= actor_fd.slow_fall_mult;
+                actor_fd.inertia.z *= actor_fd.slow_fall_mult;
+            }
         }
-        controller.on_ground = final_on_ground;
-        controller.on_slope = final_on_slope;
-        transform.translation = current_pos;
+
+        dbg!(is_on_ground);
+        // --- Finalize Position ---
+        actor_fd.is_on_ground = is_on_ground;
+        actor_fd.is_on_slope = is_on_slope;
+        // The final subtraction of half_extents_y converts from "Center of Mass"
+        // back to "Foot Position" which Bevy/Morrowind use for the Transform.
+        actor_fd.position = new_position;
+        position_interpolation.velocity = velocity;
     }
 }
 
-fn can_step_down(hit_normal: Vec3) -> bool {
-    // 1. Check if we hit anything at all.
-    // If trace_down returns Vec3::ZERO on a miss, we can't step down.
-    if hit_normal == Vec3::ZERO {
-        return false;
-    }
-
-    // 2. Slope check
-    let max_slope_cos = constants::MAX_SLOPE_DEGREES.to_radians().cos();
-
-    // hit_normal.y is the "steepness."
-    // 1.0 is flat ground, 0.0 is a vertical wall.
-    hit_normal.y > max_slope_cos
-}
-fn try_step_up(
-    spatial_query: &SpatialQuery,
-    entity: Entity,
-    character_shape: &Collider,
-    current_pos: &mut Vec3,
-    current_rotation: Quat,
-    current_velocity: &mut Vec3,
-    remaining_time: &mut f32,
-    controller: &mut CreaturePhysicsState,
-    first_iteration: bool,
-    colliders_q: &Query<(&Transform, &Collider)>,
-    collision_layers_q: &Query<&CollisionLayers>,
-    actor: &mut Actor,
-) -> bool {
-    if current_velocity.xz().length_squared() == 0.0 {
-        return false;
-    }
-
-    let filter = SpatialQueryFilter::from_excluded_entities([entity]);
-    let step_height = constants::STEP_SIZE_UP;
-    let up_direction = Dir3::new_unchecked(Vec3::Y);
-    // 1. Upward Cast
-    let up_cast_vector = Vec3::Y * constants::STEP_SIZE_UP;
-    let up_sweep_config = ShapeCastConfig {
-        max_distance: step_height,
-        // IMPORTANT: We set this to true so we don't get stuck on the floor
-        // we are currently standing on while trying to cast upward.
-        ignore_origin_penetration: true,
-        compute_contact_on_penetration: true,
-        ..default()
-    };
-
-    let up_hit = spatial_query.cast_shape(
-        character_shape,
-        *current_pos,
-        current_rotation,
-        up_direction,
-        &up_sweep_config,
-        &filter,
-    );
-    let up_distance = if let Some(hit) = up_hit {
-        let dist = hit.distance;
-        if dist <= constants::COLLISION_MARGIN {
-            return false;
+pub fn sync_actor_physics_system(
+    actor_q: Query<(
+        &ActorFrameData,
+        &mut ActorPhysics,
+        &mut PositionInterpolation,
+        &mut CreatureStats,
+        Option<&mut Player>,
+    )>,
+) {
+    for (
+        actor_fd,
+        mut actor_physics,
+        mut position_interpolation,
+        mut creature_stats,
+        mut player_opt,
+    ) in actor_q
+    {
+        let height_diff = actor_fd.position.y - actor_fd.old_height;
+        let is_still_on_ground = actor_fd.was_on_ground && actor_fd.is_on_ground;
+        let mut standing_on = None;
+        if is_still_on_ground
+            || actor_fd.flying
+            || actor_fd.position.y < actor_fd.swim_level
+            || actor_fd.slow_fall_mult < 1.0
+        {
+            // Tell the creature to land, which checks/updates fields if it's the player
+            creature_stats.land(player_opt.as_deref_mut());
+        } else if height_diff < 0.0 {
+            creature_stats.fall_height -= height_diff;
         }
-        dist - constants::COLLISION_MARGIN
-    } else {
-        constants::STEP_SIZE_UP
-    };
-
-    let elevated_base_pos = *current_pos + Vec3::Y * up_distance;
-
-    // 2. Multi-Attempt Forward/Down Trace Loop
-    // A small helper struct to hold the results of a valid step
-    struct StepResult {
-        final_pos: Vec3,
-        ground_normal: Vec3,
-        forward_hit: Option<ShapeHitData>,
+        actor_physics.last_stuck_position = actor_fd.last_stuck_position;
+        actor_physics.stuck_frames = actor_fd.stuck_frames;
+        if let Some(entity) = actor_fd.standing_on {
+            standing_on = Some(entity);
+        }
+        actor_physics.standing_on = standing_on;
+        if actor_physics.on_ground == actor_fd.was_on_ground {
+            actor_physics.on_ground = actor_fd.is_on_ground;
+        }
+        actor_physics.on_slope = actor_fd.is_on_slope;
+        actor_physics.walking_on_water = actor_fd.walking_on_water;
+        actor_physics.force = actor_fd.inertia;
+        position_interpolation.current_position = actor_fd.position;
     }
-    let mut successful_step_info: Option<StepResult> = None;
-    let move_direction = current_velocity.normalize_or_zero();
-
-    for attempt in 1..=3 {
-        let (forward_cast_vector, _is_fixed_step) = match attempt {
-            1 => (*current_velocity * *remaining_time, false),
-            2 => {
-                if !constants::DO_EXTRA_STAIR_HACKS || !first_iteration {
-                    break;
-                }
-                (move_direction * constants::S_MIN_STEP, true)
-            }
-            3 => {
-                if !constants::DO_EXTRA_STAIR_HACKS || !first_iteration {
-                    break;
-                }
-                (move_direction * constants::S_MIN_STEP_2, true)
-            }
-            _ => unreachable!(),
-        };
-        let forward_distance = forward_cast_vector.length();
-        // Early out if movement is effectively zero
-        if forward_distance < 0.00001 {
-            break;
-        }
-        let forward_direction = Dir3::new_unchecked(forward_cast_vector / forward_distance);
-
-        let forward_hit = spatial_query.cast_shape(
-            character_shape,
-            elevated_base_pos,
-            current_rotation,
-            forward_direction,
-            &ShapeCastConfig {
-                max_distance: forward_distance,
-                // Use false here, we want to hit the wall/stair riser if it's there
-                ignore_origin_penetration: false,
-                compute_contact_on_penetration: true,
-                ..default()
-            },
-            &filter,
-        );
-        // --- MODIFIED BLOCK: This now includes the ejection logic from the C++ source. ---
-        let (step_forward_pos, forward_hit_details) = if let Some(hit) = forward_hit {
-            let dist = hit.distance;
-            if dist <= constants::COLLISION_MARGIN {
-                continue; // Not enough space to move, try next attempt.
-            }
-            let final_dist = dist - constants::COLLISION_MARGIN;
-            let pre_ejection_pos = elevated_base_pos + move_direction * final_dist;
-
-            // Safely eject from the wall we hit to avoid penetration before the downward trace.
-            let forward_hit_normal = hit.normal1;
-
-            let ejection_cast_vector = forward_hit_normal * constants::COLLISION_MARGIN * 2.0;
-            let ejection_dist_max = ejection_cast_vector.length();
-            let ejection_dir = Dir3::new_unchecked(ejection_cast_vector / ejection_dist_max);
-            let ejection_hit = spatial_query.cast_shape(
-                character_shape,
-                pre_ejection_pos,
-                current_rotation,
-                ejection_dir,
-                &ShapeCastConfig {
-                    max_distance: ejection_dist_max,
-                    ignore_origin_penetration: false,
-                    ..default()
-                },
-                &filter,
-            );
-            let final_step_forward_pos = if let Some(ejection_details) = ejection_hit {
-                // We hit something during our ejection trace.
-                if hit.distance > constants::COLLISION_MARGIN {
-                    // Calculate how much space beyond the first margin we actually have.
-                    let space_available = hit.distance - constants::COLLISION_MARGIN;
-
-                    // Push out by that available space (up to one full COLLISION_MARGIN).
-                    pre_ejection_pos + (forward_hit_normal * space_available)
-                } else {
-                    // Not enough free space, stay put.
-                    pre_ejection_pos
-                }
-            } else {
-                // Ejection trace hit nothing, so we have plenty of space. Eject by one margin.
-                pre_ejection_pos + forward_hit_normal * constants::COLLISION_MARGIN
-            };
-
-            (final_step_forward_pos, Some(hit))
-        } else {
-            // Forward trace hit nothing.
-            (elevated_base_pos + forward_cast_vector, None)
-        };
-
-        let actor_entities = HashSet::new();
-        let down_hit = trace_down(
-            actor,
-            *current_pos,
-            up_distance + constants::STEP_SIZE_DOWN,
-            spatial_query,
-            colliders_q,
-            collision_layers_q,
-        );
-
-        if actor.on_ground && !actor.on_slope {
-            successful_step_info = Some(StepResult {
-                final_pos: down_pos,
-                ground_normal: down_normal,
-                forward_hit: forward_hit_details,
-            });
-            break;
-        }
-    }
-
-    // 3. Finalize Successful Step
-    if let Some((down_hit, forward_hit_details)) = successful_step_info {
-        let final_pos = down_hit.point;
-        if (final_pos.y - current_pos.y) > up_distance && !controller.on_ground {
-            return false;
-        }
-        *current_pos = final_pos + Vec3::Y * constants::GROUND_OFFSET;
-        if let Some(hit) = forward_hit_details {
-            if let Some(details) = hit.details {
-                let mut plane_normal: Vec3 = details.normal1.into();
-                if controller.on_ground
-                    && plane_normal.y <= constants::MAX_SLOPE_DEGREES.to_radians().cos()
-                    && plane_normal.y != 0.0
-                {
-                    plane_normal.y = 0.0;
-                    plane_normal = plane_normal.normalize_or_zero();
-                }
-                *current_velocity = reject(*current_velocity, plane_normal);
-            }
-        }
-        *current_velocity = reject(*current_velocity, down_hit.world_normal);
-
-        let fraction_travelled = forward_hit_details.map_or(1.0, |h| h.time_of_impact);
-        *remaining_time *= 1.0 - fraction_travelled;
-
-        return true;
-    }
-
-    false
 }

@@ -29,6 +29,7 @@ pub fn setup_scene(
     commands.spawn((
         Name::new("head"),
         NifScene(head),
+        Visibility::Visible,
         Transform {
             translation: start_location,
             rotation: Quat::from_rotation_x(-FRAC_PI_2) * Quat::from_rotation_z(PI),
@@ -37,6 +38,7 @@ pub fn setup_scene(
     ));
     commands.spawn((
         Name::new("hair"),
+        Visibility::Visible,
         NifScene(hair),
         Transform {
             translation: start_location,
@@ -128,28 +130,6 @@ pub fn setup_scene(
     commands.spawn((
         SceneRoot(helmet_scene),
         Transform::from_translation(start_location_moved),
-    ));
-    let start_location_moved2 = Vec3::new(190.0, 4.8, -898.0);
-    let woodelf_scene =
-        asset_server.load(GltfAssetLabel::Scene(0).from_asset("models/woodelf.glb"));
-    commands.spawn((
-        SceneRoot(woodelf_scene),
-        Transform::from_translation(start_location_moved2),
-    ));
-    let start_location_moved3 = Vec3::new(190.0, 4.8, -910.0);
-    let darkelf_scene = asset_server
-        .load(GltfAssetLabel::Scene(0).from_asset("models/m2/dark_elf/B_N_Dark_Elf_M_Hair_01.glb"));
-    commands.spawn((
-        Visibility::Visible,
-        SceneRoot(darkelf_scene),
-        Transform::from_translation(start_location_moved3),
-    ));
-    let darkelf_scene = asset_server
-        .load(GltfAssetLabel::Scene(0).from_asset("models/m2/dark_elf/B_N_Dark_Elf_M_Head_01.glb"));
-    commands.spawn((
-        Visibility::Visible,
-        SceneRoot(darkelf_scene),
-        Transform::from_translation(start_location_moved3),
     ));
 
     let mut forward_mat: StandardMaterial = Color::srgb(0.1, 0.2, 0.1).into();

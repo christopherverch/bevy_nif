@@ -1,7 +1,7 @@
 use crate::defs::{LocalPlayer, NetworkedEntity};
 use bevy::prelude::*;
 use bevy_renet::RenetClient;
-use common::ActorState;
+use common::mechanics::CharacterController;
 use networking::{ServerChannel, ServerMessages};
 
 use super::{EntityIdToEntityMap, InterpolationSpeeds};
@@ -37,9 +37,9 @@ pub fn interpolate_players(
 }
 pub fn apply_received_animation_state(
     mut client: ResMut<RenetClient>,
-    lobby: Res<EntityIdToEntityMap>, // Use your existing ClientLobby
-    // We query for the full ActorState on entities that are NOT the LocalPlayer
-    mut player_query: Query<&mut ActorState, Without<LocalPlayer>>,
+    lobby: Res<EntityIdToEntityMap>,
+    // We query for the full CharacterController on entities that are NOT the LocalPlayer
+    mut player_query: Query<&mut CharacterController, Without<LocalPlayer>>,
 ) {
     while let Some(message) = client.receive_message(ServerChannel::StateUpdates) {
         // We attempt to deserialize into a ServerMessage. If it's something else, we ignore it here.
@@ -50,13 +50,10 @@ pub fn apply_received_animation_state(
                     if let Some(client_server_entity) = lobby.players.get(&entity_id) {
                         let client_entity = client_server_entity;
 
-                        // Get the ActorState component for that entity from our query
+                        // Get the CharacterController component for that entity from our query
                         if let Ok(mut actor_state) = player_query.get_mut(*client_entity) {
-                            actor_state.is_running = state.is_running;
-                            actor_state.is_sneaking = state.is_sneaking;
-                            actor_state.is_in_water = state.is_in_water;
                             actor_state.movement.state = state.character_state;
-                            actor_state.combat.upper_body_state = state.upper_body_state;
+                            actor_state.combat.upper_body = state.upper_body_state;
                             actor_state.combat.weapon_type = state.weapon_type;
                             actor_state.jumping.state = state.jumping_state;
                         }

@@ -17,7 +17,7 @@ pub fn sweep_helper(
     spatial_query: &SpatialQuery,
     colliders: &Query<(&Transform, &Collider)>,
     collision_layers: &Query<&CollisionLayers>,
-    actor_entity: Entity,
+    collider_entity: Entity,
     from: Vector3,
     to: Vector3,
 ) -> Option<SweepHit> {
@@ -28,7 +28,7 @@ pub fn sweep_helper(
         return None;
     };
 
-    let (actor_transform, actor_collider) = colliders.get(actor_entity).ok()?;
+    let (collider_transform, collider) = colliders.get(collider_entity).ok()?;
 
     let config = ShapeCastConfig {
         max_distance,
@@ -38,7 +38,7 @@ pub fn sweep_helper(
     };
 
     // Standard filter for the sweep
-    let filter = SpatialQueryFilter::from_excluded_entities([actor_entity]);
+    let filter = SpatialQueryFilter::from_excluded_entities([collider_entity]);
     let mut rejected = Vec::new();
 
     loop {
@@ -49,9 +49,9 @@ pub fn sweep_helper(
 
         // 1. Perform the Sweep
         let cast = spatial_query.cast_shape(
-            actor_collider,
+            collider,
             from,
-            actor_transform.rotation,
+            collider_transform.rotation,
             direction,
             &config,
             &current_filter,
@@ -65,10 +65,10 @@ pub fn sweep_helper(
         if (hit_membership & MWCollisionGroup::ACTOR.bits()) != 0 {
             // Checks if hit.entity is currently intersecting with our actor at 'from'
             let intersections = spatial_query.shape_intersections(
-                actor_collider,
+                collider,
                 from,
                 Quaternion::IDENTITY,
-                &SpatialQueryFilter::from_excluded_entities([actor_entity]),
+                &SpatialQueryFilter::from_excluded_entities([collider_entity]),
             );
 
             if intersections.contains(&hit.entity) {

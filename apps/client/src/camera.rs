@@ -1,6 +1,7 @@
+use crate::defs::{LocalPlayerMesh, TestingComponent};
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
-use crate::defs::{IsThirdPerson, LocalPlayerMesh, TestingComponent};
+use mwphysics::ActorPhysics;
 
 use crate::const_defs::FIRST_PERSON_CAMERA_HEIGHT_OFFSET;
 
@@ -10,8 +11,7 @@ pub struct CameraSyncSet;
 
 impl Plugin for MWCameraPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(IsThirdPerson::default())
-            .configure_sets(PostUpdate, CameraSyncSet) // DO THIS!
+        app.configure_sets(PostUpdate, CameraSyncSet) // DO THIS!
             .add_systems(Update, (toggle_cursor.run_if(toggle_cursor_condition),))
             .add_systems(
                 PostUpdate,
@@ -51,6 +51,7 @@ pub struct MWCamera {
     /// The speed at which the scroll wheel zooms in or out.
     /// Default is 1.0
     pub zoom_sensitivity: f32,
+    pub first_person: bool,
 }
 
 impl Default for MWCamera {
@@ -63,6 +64,7 @@ impl Default for MWCamera {
             offset: Offset(0.0, 1.6),
             zoom: Zoom::new(3.0, 5.0),
             zoom_sensitivity: 1.0,
+            first_person: true,
         }
     }
 }
@@ -90,9 +92,10 @@ pub struct Offset(f32, f32);
 
 #[derive(Component)]
 pub struct MWCameraTarget;
+//TODO:: this should probably happen in the main crate's physics/input handling
 fn sync_camera_and_player(
     mut player_q: Query<
-        &mut Transform,
+        (&mut Transform, &mut ActorPhysics),
         (
             With<MWCameraTarget>,
             Without<LocalPlayerMesh>,
@@ -109,9 +112,8 @@ fn sync_camera_and_player(
     >,
     keyboard_input: Res<ButtonInput<KeyCode>>,
     testing_query: Query<&Transform, (Without<LocalPlayerMesh>, With<TestingComponent>)>,
-    is_third_person: Res<IsThirdPerson>,
 ) {
-    let Ok(mut player) = player_q.single_mut() else {
+    let Ok((mut player, mut player_actor)) = player_q.single_mut() else {
         return;
     };
     let Ok((cam, mut cam_transform)) = cam_q.single_mut() else {
@@ -122,7 +124,7 @@ fn sync_camera_and_player(
     let rotation_matrix = Mat3::from_quat(cam_transform.rotation);
 
     let offset = rotation_matrix.mul_vec3(Vec3::new(cam.offset.0, cam.offset.1, 0.0));
-    let cam_zoom_radius = if is_third_person.0 {
+    let cam_zoom_radius = if !cam.first_person {
         cam.zoom.radius
     } else {
         0.4
@@ -139,13 +141,14 @@ fn sync_camera_and_player(
     if !keyboard_input.pressed(KeyCode::AltLeft) {
         player.rotation = Quat::from_rotation_arc(Vec3::NEG_Z, target_forward);
     }
-    if is_third_person.0 {
+    if !cam.first_person {
         cam_transform.translation = player.translation + desired_translation;
     } else {
         //const XZ_OFFSET: f32 = 0.07;
 
         cam_transform.translation =
             player.translation + Vec3::new(0.0, FIRST_PERSON_CAMERA_HEIGHT_OFFSET, 0.0);
+        player_actor.rotation = cam_transform.rotation;
     }
 }
 fn toggle_cursor(

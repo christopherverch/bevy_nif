@@ -1,5 +1,5 @@
 pub type EntityId = u64;
 mod actor;
 mod events;
-pub use actor::*;
+pub mod mechanics;
 pub use events::*;

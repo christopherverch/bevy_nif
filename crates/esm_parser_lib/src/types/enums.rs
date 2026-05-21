@@ -1,3 +1,4 @@
+use esm_parser_macros::LoadSave;
 #[repr(u32)]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Default)]
 pub enum FileType {
@@ -463,7 +464,7 @@ pub enum ClothingType {
 }
 
 #[repr(u32)]
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Default)]
+#[derive(LoadSave, Clone, Copy, Debug, Eq, Hash, PartialEq, Default)]
 pub enum CreatureType {
     #[default]
     Normal = 0,

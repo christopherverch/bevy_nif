@@ -7,8 +7,8 @@ use bevy_renet::renet::{ChannelConfig, ConnectionConfig, SendType};
 use serde::{Deserialize, Serialize};
 
 use common::{
-    ActorState, CharacterState, EntityId, JumpingStateKind, SetAnimSpeedSeekEvent, SoundEvent,
-    TriggerHit, UpperBodyState,
+    EntityId, SetAnimSpeedSeekEvent, SoundEvent, TriggerHit,
+    mechanics::{CharacterController, CharacterState, JumpingStateKind, UpperBodyState},
 };
 use serializer::SerializableTransform;
 
@@ -172,14 +172,14 @@ pub struct NetworkedActorState {
     pub jumping_state: JumpingStateKind,
 }
 // Helper function to convert from full ActorState to the smaller NetworkedActorState
-impl From<&ActorState> for NetworkedActorState {
-    fn from(actor_state: &ActorState) -> Self {
+impl From<&CharacterController> for NetworkedActorState {
+    fn from(actor_state: &CharacterController) -> Self {
         Self {
-            is_running: actor_state.is_running,
-            is_sneaking: actor_state.is_sneaking,
-            is_in_water: actor_state.is_in_water,
+            is_running: actor_state.is_running(),
+            is_sneaking: actor_state.is_sneaking(),
+            is_in_water: false,
             character_state: actor_state.movement.state,
-            upper_body_state: actor_state.combat.upper_body_state,
+            upper_body_state: actor_state.combat.upper_body,
             weapon_type: actor_state.combat.weapon_type,
             jumping_state: actor_state.jumping.state,
         }

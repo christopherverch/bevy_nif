@@ -10,10 +10,11 @@ impl<T> Stat<T>
 where
     T: Copy + Default + PartialOrd + Add<Output = T>,
 {
-    pub fn get_modifier(&self, capped: bool) -> T {
+    pub fn get_modified(&self, capped: bool) -> T {
         let sum = self.base + self.modifier;
         let zero = T::default();
 
+        // Can't use max without further restricting T
         if capped && sum < zero { zero } else { sum }
     }
 }

@@ -1,20 +1,21 @@
-use crate::defs::Cell;
+use crate::defs::{Cell, WorldSettings};
 use bevy::prelude::*;
 
 pub fn is_swimming(
     pos: Vec3,
-    f_swim_height_scale: f32,
-    rendering_half_extents_y: f32,
+    world_settings: &WorldSettings,
+    rendering_half_extents_y_opt: Option<f32>,
     current_cell: &Cell,
 ) -> bool {
-    is_underwater(
+    let rendering_half_extents_y = rendering_half_extents_y_opt.unwrap_or(0.0);
+    is_underwater_f32(
         pos,
-        f_swim_height_scale,
+        world_settings.swim_height_scale,
         rendering_half_extents_y,
         current_cell,
     )
 }
-pub fn is_underwater(
+pub fn is_underwater_f32(
     mut pos: Vec3,
     height_ratio: f32,
     rendering_half_extents_y: f32,

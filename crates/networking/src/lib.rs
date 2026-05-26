@@ -4,6 +4,7 @@ use bevy_ecs::{component::Component, entity::Entity, event::Event, resource::Res
 use bevy_math::Vec3;
 use bevy_nif::nif_animation::NifEventType;
 use bevy_renet::renet::{ChannelConfig, ConnectionConfig, SendType};
+use esm_parser_lib::types::enums::WeaponType;
 use serde::{Deserialize, Serialize};
 
 use common::{
@@ -168,7 +169,7 @@ pub struct NetworkedActorState {
     pub is_in_water: bool,
     pub character_state: CharacterState,
     pub upper_body_state: UpperBodyState,
-    pub weapon_type: i32,
+    pub weapon_type: WeaponType,
     pub jumping_state: JumpingStateKind,
 }
 // Helper function to convert from full ActorState to the smaller NetworkedActorState

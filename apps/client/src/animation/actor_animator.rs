@@ -4,6 +4,7 @@ use bevy_nif::nif_animation::{
     bevy_types::{ActiveAnimation, Priority},
 };
 use common::mechanics::{CharacterController, CharacterState, JumpingStateKind, UpperBodyState};
+use esm_parser_lib::types::enums::WeaponType;
 use mwphysics::MW_UNITS_PER_METER;
 
 use super::{
@@ -34,6 +35,7 @@ pub fn animate_actors_using_state(
     id_to_entity_map: Res<IdToEntityMap>,
 ) {
     for (creature_stats, mut character_controller) in actor_query.iter_mut() {
+        if character_controller.jumping.handled_jumping_animation == false {}
         let Some((_, mut animation_player, mut animator, graph_handle)) =
             get_anim_components_for_creature(&creature_stats, &id_to_entity_map, &mut animator_q)
         else {
@@ -72,6 +74,7 @@ fn handle_animation_transitions(
 
     // Step 1: Identify finished animations.
     for (group_name, active_anim) in animation_context.nif_animator.active_animations.iter() {
+        // Looping animations continue forever
         if active_anim.loop_count == u32::MAX {
             continue;
         }
@@ -79,18 +82,11 @@ fn handle_animation_transitions(
             .animation_player
             .animation(active_anim.node_index)
         {
-            if let Some(clip) = anim_clips.get(&active_anim.clip_handle) {
-                // We add the seek_time to elapsed to get the true progress,
-                // otherwise animations started from a non-zero time will never finish.
-                // Since `seek_time()` is the current progress, we just need to
-                // check if it has reached the end of the clip.
-                let total_duration = clip.duration();
-                if anim_state.seek_time() >= total_duration - 0.001 {
-                    if let Some(next_clip_name) = &active_anim.next_clip_name {
-                        transitions_to_perform.push((group_name.clone(), next_clip_name.clone()));
-                    } else if active_anim.loop_count == 0 {
-                        animations_to_remove.push(group_name.clone());
-                    }
+            if NifAnimator::is_finished(active_anim.clip_handle.clone(), anim_clips, anim_state) {
+                if let Some(next_clip_name) = &active_anim.next_clip_name {
+                    transitions_to_perform.push((group_name.clone(), next_clip_name.clone()));
+                } else if active_anim.loop_count == 0 {
+                    animations_to_remove.push(group_name.clone());
                 }
             }
         }
@@ -133,7 +129,7 @@ fn handle_animation_transitions(
             }
         } else if matches!(finished_state, UpperBodyState::Unequipping) {
             animation_context.character_controller.combat.upper_body = UpperBodyState::None;
-            animation_context.character_controller.combat.weapon_type = 0;
+            animation_context.character_controller.combat.weapon_type = WeaponType::HandToHand;
         // --- Handle attack phase transitions ---
         } else if matches!(finished_state, UpperBodyState::AttackRelease) {
             // The release animation has finished, so move to the follow-through.
@@ -189,12 +185,17 @@ fn handle_animation_transitions(
 /// that ground movement logic should be skipped for this frame.
 fn handle_actor_jumping(animation_context: &mut AnimationContext) -> bool {
     // --- 1. Handle a new jump event (from input) ---
-    if !animation_context.character_controller.jumping.in_jump
-    //   .handled_jump_animation
+    if animation_context.character_controller.jumping.in_jump
+        && animation_context
+            .character_controller
+            .jumping
+            .handled_jumping_animation
+            == false
     {
-        animation_context.character_controller.jumping.in_jump = true;
-        //   .handled_jump_animation = true;
-
+        animation_context
+            .character_controller
+            .jumping
+            .handled_jumping_animation = true;
         if let Some(name) = resolve_jump_intro_name(
             animation_context.character_controller.combat.weapon_type,
             animation_context.nif_animator,
@@ -481,7 +482,7 @@ fn handle_actor_ground_movement(animation_context: &mut AnimationContext) {
             } else {
                 BlendMask::ALL // Affect the whole body otherwise
             };
-            // Idle animations must have Idle priority, not Movement priority.
+            // Idle animations have Idle priority, not Movement priority.
             let priority = if new_name.starts_with("idle") {
                 Priority::Default
             } else {
@@ -521,9 +522,12 @@ fn calculate_anim_speed_multiplier(
     animator: &NifAnimator,
     character_controller: &CharacterController,
 ) -> f32 {
-    if !matches!(
+    if matches!(
         state,
-        CharacterState::WalkForward | CharacterState::RunForward /* etc. */
+        CharacterState::Hit
+            | CharacterState::KnockDown
+            | CharacterState::None
+            | CharacterState::Idle /* etc. */
     ) {
         return 1.0; // Non-linear movements are not scaled.
     }
@@ -545,17 +549,19 @@ fn calculate_anim_speed_multiplier(
     // If the animation data speed is too low, use a hardcoded fallback.
     if anim_base_speed <= 1.0 {
         anim_base_speed = if is_sneaking {
-            33.5452
+            33.5452 / MW_UNITS_PER_METER
         } else if is_running {
-            222.857
+            222.857 / MW_UNITS_PER_METER
         } else {
-            154.064
+            154.064 / MW_UNITS_PER_METER
         };
     }
 
-    let final_anim_speed = anim_base_speed / MW_UNITS_PER_METER;
-    if final_anim_speed > 1e-4 {
-        character_controller.movement.applied_movement_anim_speed / final_anim_speed
+    let scaled_anim_base_speed = anim_base_speed / MW_UNITS_PER_METER;
+    if scaled_anim_base_speed > 1e-4 {
+        // Vanilla caps the played animation speed.
+        const MAX_SPEED_MULT: f32 = 10.0;
+        (character_controller.movement.curr_move_speed / scaled_anim_base_speed).min(MAX_SPEED_MULT)
     } else {
         1.0
     }
@@ -758,14 +764,12 @@ fn handle_actor_weapon_actions(animation_context: &mut AnimationContext) -> bool
             .clone(),
     );
     let mut priorities = [Priority::WeaponLowerBody; NUM_DISCRETE_REGIONS];
-    // Assuming UpperBody is regions 1, 2, 3 (Torso, Left Arm, Right Arm)
-    // Adjust these indices to match your BlendMask definition.
     priorities[1] = Priority::Weapon; // Torso
     priorities[2] = Priority::Weapon; // Left Arm
     priorities[3] = Priority::Weapon; // Right Arm
     let new_animation = ActiveAnimation {
-        clip_handle, // Use the copied handle
-        node_index,  // Use the copied index
+        clip_handle,
+        node_index,
         next_clip_name: None,
         loop_count: 0,
         speed_mult: 1.0,
@@ -779,7 +783,7 @@ fn handle_actor_weapon_actions(animation_context: &mut AnimationContext) -> bool
     true
 }
 
-/// Plays the hit animation if a vitals state is active. This now runs *after*
+/// Plays the hit animation if a vitals state is active. This runs after
 /// the controller has already suppressed other states.
 fn handle_vitals_animations(animation_context: &mut AnimationContext) {
     // If a hit animation is already playing, check if it has finished.
@@ -819,7 +823,7 @@ fn handle_vitals_animations(animation_context: &mut AnimationContext) {
     let anim_name = match animation_context.character_controller.vitals.hit_state {
         CharacterState::Hit => "hit".to_string(),
         CharacterState::KnockDown => "knockdown".to_string(),
-        // Add other hit states here later
+        // TODO:: other states
         _ => return,
     };
 

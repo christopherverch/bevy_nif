@@ -1,6 +1,7 @@
 use std::f32::consts::PI;
 
 use crate::{
+    animation::{AnimationContext, show_creature_weapons, show_npc_weapons},
     camera::MWCamera,
     defs::{CellLookup, LocalPlayer, WorldSettings},
     mechanics::ActorIntent,
@@ -8,7 +9,7 @@ use crate::{
 use crate::{
     defs::{
         Cell, CreatureStats, CreatureStatsFlags, CurrentCell, DrawState, GameSettings, Movement,
-        Npc, Player, Stance,
+        Player, Stance,
     },
     esm::EsmStore,
     live_cell_ref::LiveCellRef,
@@ -16,22 +17,35 @@ use crate::{
     world::is_swimming,
 };
 use bevy::prelude::*;
-use common::mechanics::{CharacterController, CharacterState, JumpingStateKind};
-use esm_parser_lib::types::{flags::CreatureFlags, magic_effect::MagicEffect};
+use bevy_nif::nif_animation::{
+    BlendMask, NUM_DISCRETE_REGIONS, NifAnimator, REGION_INDEX_LEFT_ARM, REGION_INDEX_LOWER_BODY,
+    bevy_types::{ActiveAnimation, Priority},
+};
+use common::{
+    SoundEvent, SoundSource,
+    mechanics::{CharacterController, CharacterState, JumpingStateKind, UpperBodyState},
+};
+use esm_parser_lib::types::{enums::WeaponType, flags::CreatureFlags, magic_effect::MagicEffect};
 use mwphysics::{ActorPhysics, PositionInterpolation};
+use rand::{Rng, RngExt};
 pub fn update_movement_component_from_intent(
     actor_q: Query<(&mut ActorIntent, &mut Movement, &mut CreatureStats), Changed<ActorIntent>>,
 ) {
     for (mut actor_intent, mut movement, mut creature_stats) in actor_q {
-        movement.desired_movement.x = actor_intent.movement.x;
+        movement.desired_movement.x = -actor_intent.movement.x;
         movement.desired_movement.z = actor_intent.movement.y;
         if actor_intent.jump {
             movement.desired_movement.y = 1.0;
-            // Reset this here because we poll on Update, so we can't know if it has been used in input
-            // collection
+            // We have to reset this here rather than in input collection, because input collection runs on update
+            // so the input might have changed before it gets to this fixedupdate function
             actor_intent.jump = false;
         }
         movement.speed_factor = actor_intent.movement.length();
+        if actor_intent.run {
+            creature_stats.max_speed = 4.0;
+        } else {
+            creature_stats.max_speed = 2.0;
+        }
         creature_stats.set_movement_flag(CreatureStatsFlags::RUN, actor_intent.run);
         creature_stats.set_movement_flag(CreatureStatsFlags::SNEAK, actor_intent.sneak);
     }
@@ -39,6 +53,7 @@ pub fn update_movement_component_from_intent(
 pub fn update_character_components(
     time: Res<Time<Fixed>>,
     character_controller_q: Query<(
+        Entity,
         &mut CharacterController,
         &mut CreatureStats,
         &LiveCellRef,
@@ -49,7 +64,6 @@ pub fn update_character_components(
         Option<&mut Player>,
         Option<&LocalPlayer>,
         Option<&ActorPhysics>,
-        Option<&Npc>,
     )>,
     cell_entity_lookup: Res<CellLookup>,
     cells: Query<&Cell>,
@@ -57,9 +71,11 @@ pub fn update_character_components(
     cam_settings: Single<&MWCamera>,
     world_settings: Res<WorldSettings>,
     game_settings: Res<GameSettings>,
+    mut commands: Commands,
 ) {
     let delta_secs = time.delta_secs();
     for (
+        character_entity,
         mut character_controller,
         mut creature_stats,
         live_cell_ref,
@@ -70,7 +86,6 @@ pub fn update_character_components(
         mut player_opt,
         local_player_opt,
         actor_physics_opt,
-        npc_opt,
     ) in character_controller_q
     {
         let mut movement = Vec3::ZERO;
@@ -110,8 +125,8 @@ pub fn update_character_components(
                     let cell = cells.get(*cell_entity).ok()?;
                     Some(is_swimming(
                         transform.translation,
-                        world_settings.swim_height_scale,
-                        actor_physics.rendering_half_extents.y,
+                        &world_settings,
+                        Some(actor_physics.rendering_half_extents.y),
                         cell,
                     ))
                 })
@@ -152,7 +167,6 @@ pub fn update_character_components(
             let rot = character_movement.desired_rotation;
             character_movement.desired_rotation = Vec3::ZERO;
             let mut move_vec = character_movement.desired_movement;
-            dbg!(move_vec);
             character_movement.speed_factor = move_vec.length().min(1.0);
             move_vec = move_vec.normalize_or_zero();
             if game_settings.smooth_movement {
@@ -169,14 +183,12 @@ pub fn update_character_components(
             }
             let mut effective_rotation = rot.y;
             let can_move = creature_stats.max_speed > 0.0;
-            let is_biped = if npc_opt.is_some() {
-                true
-            } else {
+            let is_biped = {
                 match live_cell_ref {
+                    LiveCellRef::Npc(_npc) => true,
                     LiveCellRef::Creature(creature) => {
                         creature.flags.contains(CreatureFlags::BIPED)
                     }
-                    _ => false,
                 }
             };
             if !is_biped || !game_settings.turn_to_movement_direction || is_first_person_player {
@@ -209,6 +221,7 @@ pub fn update_character_components(
                 effective_rotation += delta;
             }
             let speed = get_current_speed(is_actor, &character_movement, &creature_stats);
+            character_controller.movement.curr_move_speed = speed;
             move_vec.x *= speed;
             move_vec.z *= speed;
             if character_controller.is_knocked_out()
@@ -275,14 +288,12 @@ pub fn update_character_components(
                     character_controller.jumping.in_jump = true;
                     if move_vec.x == 0.0 && move_vec.z == 0.0 {
                         move_vec.y = jump_height;
-                        dbg!(move_vec);
                     } else {
                         let mut lateral_movement = move_vec.xz();
                         lateral_movement = lateral_movement.normalize_or_zero();
                         move_vec = Vec3::new(lateral_movement.x, 1.0, lateral_movement.y)
                             * jump_height
                             * 0.707;
-                        dbg!(move_vec);
                     }
                 }
             }
@@ -293,7 +304,6 @@ pub fn update_character_components(
                     && was_in_jump
                 {
                     jump_state = JumpingStateKind::Landing;
-                    character_controller.jumping.handled_landing_animation = false;
                     let height = creature_stats.land(player_opt.as_deref_mut());
                     // TODO::
                     let mut health_lost = 0.0 / height;
@@ -303,8 +313,16 @@ pub fn update_character_components(
                     if health_lost > 0.0 {
                         //TODO::
                     }
-                    if npc_opt.is_some() {
-                        //TODO:: play land sound
+                    if matches!(live_cell_ref, LiveCellRef::Npc(_)) {
+                        let sound_source = if is_local_player {
+                            SoundSource::LocalPlayer
+                        } else {
+                            SoundSource::Attached(character_entity)
+                        };
+                        commands.trigger(SoundEvent {
+                            sound_source,
+                            sound_path: "sounds/bodyfallMED.wav".to_string(),
+                        });
                     }
                 }
                 move_vec.y = 0.0;
@@ -361,30 +379,27 @@ pub fn update_character_components(
                 if in_water {
                     idle_state = CharacterState::IdleSwim;
                 }
+                // TODO:: the split of this part -> animation -> part 2 goes here
+
                 if character_controller.is_turning() {
                     if delta_secs > 0.0 {
                         let turn_speed = (rot.y.abs() / delta_secs / PI).min(1.5);
                         character_controller.movement.applied_turn_anim_speed = turn_speed;
                     }
-                } else if character_controller.movement.state != CharacterState::None
-                    && character_controller.movement.adjust_anim_speed
-                {
-                    // Vanilla caps the played animation speed.
-                    const MAX_SPEED_MULT: f32 = 10.0;
-                    let speed_mult = speed / character_controller.movement.anim_speed;
-                    character_controller.movement.applied_movement_anim_speed =
-                        speed_mult.min(MAX_SPEED_MULT);
-                    if character_controller.is_movement_animation_controlled(
-                        game_settings.player_movement_ignores_animation,
-                        player_opt.is_some(),
-                    ) {
-                        scale *= (speed_mult / MAX_SPEED_MULT).max(1.0);
-                    }
                 }
             }
             character_controller.movement.state = move_state;
             character_controller.vitals.idle_state = idle_state;
-            character_controller.jumping.state = jump_state;
+            if character_controller.jumping.state != jump_state {
+                // Have to set either the landing or jumping animation as not being handled,
+                // so we don't double-trigger them
+                if jump_state == JumpingStateKind::InAir {
+                    character_controller.jumping.handled_jumping_animation = false;
+                } else {
+                    character_controller.jumping.handled_landing_animation = false;
+                }
+                character_controller.jumping.state = jump_state;
+            }
             movement = move_vec;
         } else if creature_stats.dead {
             // initial start of death animation for actors that started the game as dead
@@ -398,7 +413,6 @@ pub fn update_character_components(
             }
             // TODO::
         }
-        dbg!(movement);
         position_interpolation.velocity = movement;
         //        let movement_from_animation;
     }
@@ -653,4 +667,200 @@ fn get_character_state(
     }
 
     CharacterState::Idle
+}
+
+pub fn refresh_hit_recoil_anims(
+    creature_stats: &mut CreatureStats,
+    char_cont: &mut CharacterController,
+    animation_context: &mut AnimationContext,
+    actor_physics_opt: Option<&ActorPhysics>,
+    world_settings: &mut WorldSettings,
+    current_cell: &Cell,
+    current_pos: Vec3,
+    is_actor: bool,
+    is_npc: bool,
+    is_player: bool,
+) {
+    if !is_actor {
+        return;
+    };
+    let knockout = creature_stats.stats.fatigue.current < 0.0
+        || creature_stats.stats.fatigue.static_stat.base == 0.0;
+    let recovery = creature_stats.hit_recovery;
+    let knockdown = creature_stats.knocked_down;
+    let block = creature_stats.block && !knockout && !recovery && !knockdown;
+    let rendering_half_extents_y_opt =
+        actor_physics_opt.map(|actor_physics| actor_physics.rendering_half_extents.y);
+    let is_swimming = is_swimming(
+        current_pos,
+        world_settings,
+        rendering_half_extents_y_opt,
+        current_cell,
+    );
+    creature_stats.block = false;
+    if is_player && char_cont.vitals.hit_state == CharacterState::Block && block {
+        char_cont.vitals.hit_state = CharacterState::None;
+        reset_current_idle_state(char_cont, animation_context);
+    }
+    if char_cont.vitals.hit_state != CharacterState::None {
+        if !animation_context
+            .nif_animator
+            .active_animations
+            .contains_key(&char_cont.vitals.current_hit_group)
+        {
+            if char_cont.is_knocked_out()
+                && char_cont.vitals.current_hit_group.is_empty()
+                && knockout
+            {
+                char_cont.vitals.hit_state = CharacterState::None;
+                char_cont.vitals.current_hit_group.clear();
+                creature_stats.knocked_down = false;
+                creature_stats.hit_recovery = false;
+                reset_current_idle_state(char_cont, animation_context);
+            }
+        } else if char_cont.is_knocked_out() {
+            animation_context.set_repeating(&char_cont.vitals.current_hit_group);
+        }
+    }
+    if !knockout && !knockdown && !recovery && !block {
+        return;
+    }
+    let mut priorities = [Priority::Knockdown; NUM_DISCRETE_REGIONS];
+    let mut anim = "";
+    if knockout {
+        char_cont.vitals.hit_state = if is_swimming {
+            CharacterState::SwimKnockOut
+        } else {
+            CharacterState::KnockOut
+        };
+        creature_stats.knocked_down = true;
+    } else if knockdown {
+        char_cont.vitals.hit_state = if is_swimming {
+            CharacterState::SwimKnockOut
+        } else {
+            CharacterState::KnockOut
+        };
+    } else if recovery {
+        char_cont.vitals.hit_state = if is_swimming {
+            CharacterState::SwimHit
+        } else {
+            CharacterState::Hit
+        };
+    } else if block {
+        char_cont.vitals.hit_state = CharacterState::Block;
+        priorities = [Priority::Hit; NUM_DISCRETE_REGIONS];
+        priorities[REGION_INDEX_LEFT_ARM] = Priority::Block;
+        priorities[REGION_INDEX_LOWER_BODY] = Priority::Block;
+        anim = "block";
+    }
+    char_cont.vitals.current_hit_group = hit_state_to_anim_group(char_cont.vitals.hit_state);
+    if char_cont.is_recovery() {
+        char_cont.vitals.current_hit_group = choose_random_group(
+            &char_cont.vitals.current_hit_group,
+            animation_context.nif_animator,
+            &mut world_settings.rng,
+        )
+        .0;
+        if char_cont.vitals.hit_state == CharacterState::SwimHit
+            && !animation_context.has_animation(&char_cont.vitals.current_hit_group)
+        {
+            char_cont.vitals.current_hit_group = choose_random_group(
+                &char_cont.vitals.current_hit_group,
+                animation_context.nif_animator,
+                &mut world_settings.rng,
+            )
+            .0;
+        }
+    }
+    // Cancel upper body animations
+    if char_cont.is_knocked_out() || char_cont.is_knocked_down() {
+        if !char_cont.combat.current_weapon.is_empty() {
+            animation_context.clear_animation(&char_cont.combat.current_weapon);
+        }
+        if char_cont.combat.upper_body > UpperBodyState::WeaponEquipped {
+            char_cont.combat.upper_body = UpperBodyState::WeaponEquipped;
+            if char_cont.combat.weapon_type > WeaponType::None {
+                if is_npc {
+                    show_npc_weapons(true);
+                } else {
+                    // assume it's a creature
+                    show_creature_weapons(true);
+                }
+            }
+        } else if char_cont.combat.upper_body < UpperBodyState::WeaponEquipped {
+            char_cont.combat.upper_body = UpperBodyState::None;
+        }
+    }
+    if !animation_context.has_animation(&char_cont.vitals.current_hit_group) {
+        char_cont.vitals.current_hit_group.clear();
+        return;
+    }
+
+    animation_context.play_animation_2(
+        &char_cont.vitals.current_hit_group,
+        priorities,
+        BlendMask::all(),
+        true,
+        1.0,
+        0.0,
+        u32::MAX,
+    );
+}
+
+fn reset_current_idle_state(
+    character_controller: &mut CharacterController,
+    animation_context: &mut AnimationContext,
+) {
+    clear_state_animation(
+        &mut character_controller.vitals.current_idle_group,
+        animation_context,
+    );
+    character_controller.vitals.idle_state = CharacterState::None;
+}
+fn clear_state_animation(anim_group: &mut String, animation_context: &mut AnimationContext) {
+    if anim_group.is_empty() {
+        return;
+    }
+
+    animation_context.clear_animation(anim_group);
+    anim_group.clear();
+}
+fn hit_state_to_anim_group(state: CharacterState) -> String {
+    match state {
+        CharacterState::SwimHit => "swimhit",
+        CharacterState::SwimKnockDown => "swimknockdown",
+        CharacterState::SwimKnockOut => "swimknockout",
+        CharacterState::Hit => "hit",
+        CharacterState::KnockDown => "knockdown",
+        CharacterState::KnockOut => "knockout",
+        CharacterState::Block => "shield",
+        _ => "",
+    }
+    .to_string()
+}
+
+/// Returns the animation, and the roll that got us the animation
+fn choose_random_group(
+    prefix: &str,
+    animator: &NifAnimator,
+    rng: &mut impl RngExt,
+) -> (String, usize) {
+    let mut num_anims = 0;
+
+    // Count how many variations exist (prefix1, prefix2, etc.)
+    while animator
+        .animation_definitions
+        .contains_key(&format!("{}{}", prefix, num_anims + 1))
+    {
+        num_anims += 1;
+    }
+
+    if num_anims == 0 {
+        return (prefix.to_string(), 0);
+    }
+
+    // Roll 1..=num_anims
+    let roll = rng.random_range(1..=num_anims);
+
+    (format!("{}{}", prefix, roll), roll)
 }

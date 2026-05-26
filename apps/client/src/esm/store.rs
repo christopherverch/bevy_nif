@@ -77,15 +77,16 @@ impl<T: EsmRecord> Store<T> {
         self.get(&search_key)
     }
 
-    /// Adds a record to the static store during the file parsing phase.
-    pub fn insert_static(&mut self, id: RefId, record: T) -> *const T {
+    /// Adds a record to the static store during loading phases, Should never be used during
+    /// active gameplay
+    pub fn insert_static(&mut self, id: RefId, record: T) {
         // Because it's a UnorderedMap, this memory slot is permanent.
-        self.static_rec.insert_unsafe(id.clone(), record);
-
-        let ref_to_inserted = self.static_rec.get_unsafe(&id).unwrap();
-        let ptr = ref_to_inserted as *const T;
-        self.shared.push(ptr);
-        ptr
+        // Only insert into shared if this wasn't an update on an existing record
+        if self.static_rec.insert_unsafe(id.clone(), record) == true {
+            let ref_to_inserted = self.static_rec.get_unsafe(&id).unwrap();
+            let ptr = ref_to_inserted as *const T;
+            self.shared.push(ptr);
+        }
     }
     /// Purges a record from the static tree map if a plugin requests a deletion
     pub fn remove_static(&mut self, id: &RefId) {

@@ -12,7 +12,6 @@ pub use actor::ActorPhysics;
 pub use collision::*;
 pub use const_defs::MW_UNITS_PER_METER;
 pub use helpers::is_walkable_slope;
-pub use movementsolver::*;
 pub use position_interpolate::PositionInterpolation;
-pub use trace::ActorTracer;
+pub use trace::*;
 pub use types::*;

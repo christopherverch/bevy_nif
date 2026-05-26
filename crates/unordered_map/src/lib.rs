@@ -37,9 +37,9 @@ where
             }
         }
     }
-    /// Unsafe because this should never be used while in active gameplay, only during setup/loading
+    /// Returns true if not a duplicate. Unsafe because this should never be used while in active gameplay, only during setup/loading
     /// of saves
-    pub fn insert_unsafe(&mut self, key: K, value: V) {
+    pub fn insert_unsafe(&mut self, key: K, value: V) -> bool {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         key.hash(&mut hasher);
         let hash = std::hash::Hasher::finish(&hasher) as usize;
@@ -53,7 +53,7 @@ where
                 if (*curr).key == key {
                     // Key exists: update value in place and return
                     (*curr).value = value;
-                    return;
+                    return false;
                 }
                 curr = (*curr).next;
             }
@@ -62,14 +62,9 @@ where
             let old_head = *self.buckets.add(bkt);
 
             (*new_node).next = old_head;
-            println!("DEBUG: Bucket {} head is {:p}", bkt, *self.buckets.add(bkt));
-            println!(
-                "DEBUG: New node is {:p}, next is {:p}",
-                new_node,
-                (*new_node).next
-            );
             *self.buckets.add(bkt) = new_node;
         }
+        true
     }
     pub fn get_unsafe(&self, key: &K) -> Option<*const V> {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();

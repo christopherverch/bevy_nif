@@ -9,7 +9,7 @@ use send_data::{
 
 use super::Connected;
 use crate::defs::{
-    ClientEntityId, LocalPlayer, NetworkEventWithIdCounter, PendingServerAcks, ServerIP,
+    ClientEntityId, GameState, LocalPlayer, NetworkEventWithIdCounter, PendingServerAcks, ServerIP,
 };
 use bevy_renet::client_connected;
 use bevy_renet::netcode::NetcodeClientPlugin;
@@ -28,14 +28,15 @@ pub struct InterpolationSpeeds(HashMap<Entity, f32>);
 impl Plugin for NetworkingPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(NetcodeClientPlugin)
-            .configure_sets(Update, Connected.run_if(client_connected))
-            .configure_sets(FixedUpdate, Connected.run_if(client_connected))
             .insert_resource(EntityIdToEntityMap::default())
             .insert_resource(InterpolationSpeeds::default())
             .insert_resource(ServerIP(("127.0.0.1").to_string())) // Default IP Address
             .insert_resource(NetworkEventWithIdCounter(0))
             .insert_resource(PendingServerAcks(HashMap::new()))
-            .insert_resource(ClientEntityId(0));
+            .insert_resource(ClientEntityId(0))
+            .configure_sets(Update, Connected.run_if(client_connected))
+            .configure_sets(FixedUpdate, Connected.run_if(client_connected))
+            .add_systems(OnEnter(GameState::Connecting), connect_to_server);
 
         app.add_systems(
             FixedUpdate,

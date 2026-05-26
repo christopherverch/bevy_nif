@@ -24,4 +24,6 @@ strum_macros = "0.27.2"
 dashmap = "6.1.0"
 esm_parser_macros= {path = "../esm_parser_macros"}
 lazy_static = "1.5.0"
+num_enum = "0.7.6"
+serde.workspace = true
 

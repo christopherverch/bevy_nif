@@ -28,6 +28,11 @@ pub fn handle_nif_event(
                     sound_source,
                     sound_path: "sounds/walkr_br.wav".to_string(),
                 });
+            } else if sound_name.contains("Land") {
+                commands.trigger(SoundEvent {
+                    sound_source,
+                    sound_path: "sounds/bodyfallMED.wav".to_string(),
+                });
             }
         }
     }

@@ -15,5 +15,6 @@ serde = { workspace = true }
 common = {workspace = true} 
 serializer = { workspace = true }
 bitflags = { workspace = true }
+esm_parser_lib.workspace = true
 [lints]
 workspace = true

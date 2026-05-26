@@ -2,38 +2,17 @@ use crate::Load;
 use crate::esm_reader::{ConsumptionType, EsmError, EsmReader};
 use crate::esm_record::EsmRecord;
 use crate::refid_types::RefId;
+use crate::types::enums::WeaponType;
 use bitflags::bitflags;
 
 use super::flags::ObjectFlags;
-// --- Enums, Flags, and Structs from loadweap.hpp ---
 
 bitflags! {
-    /// Corresponds to the enum Weapon::Flags, now as a typesafe bitflag.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
     pub struct WeaponFlags: i32 {
         const MAGICAL = 0x01;
         const SILVER = 0x02;
     }
-}
-
-/// Corresponds to the enum Weapon::Type
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(i16)]
-pub enum WeaponType {
-    ShortBladeOneHand = 0,
-    LongBladeOneHand = 1,
-    LongBladeTwoHand = 2,
-    BluntOneHand = 3,
-    BluntTwoClose = 4,
-    BluntTwoWide = 5,
-    SpearTwoWide = 6,
-    AxeOneHand = 7,
-    AxeTwoHand = 8,
-    MarksmanBow = 9,
-    MarksmanCrossbow = 10,
-    MarksmanThrown = 11,
-    Arrow = 12,
-    Bolt = 13,
 }
 
 /// Corresponds to the WPDTstruct.
@@ -42,7 +21,7 @@ pub enum WeaponType {
 pub struct WeaponData {
     pub weight: f32,
     pub value: i32,
-    pub weapon_type: i16, // Can be mapped to WeaponType enum
+    pub weapon_type: WeaponType,
     pub health: u16,
     pub speed: f32,
     pub reach: f32,
@@ -59,7 +38,10 @@ impl Load for WeaponData {
         Ok(Self {
             weight: reader.read_typed(ConsumptionType::SubrecordPayload)?,
             value: reader.read_typed(ConsumptionType::SubrecordPayload)?,
-            weapon_type: reader.read_typed(ConsumptionType::SubrecordPayload)?,
+            weapon_type: {
+                let raw_val: i16 = reader.read_typed(ConsumptionType::SubrecordPayload)?;
+                WeaponType::try_from(raw_val).unwrap_or(WeaponType::None)
+            },
             health: reader.read_typed(ConsumptionType::SubrecordPayload)?,
             speed: reader.read_typed(ConsumptionType::SubrecordPayload)?,
             reach: reader.read_typed(ConsumptionType::SubrecordPayload)?,
@@ -76,7 +58,6 @@ impl Load for WeaponData {
                 reader.read_typed(ConsumptionType::SubrecordPayload)?,
                 reader.read_typed(ConsumptionType::SubrecordPayload)?,
             ],
-            // Read the raw i32 and convert it into the WeaponFlags type.
             // from_bits_truncate is used to safely ignore any unknown flags from the file.
             flags: WeaponFlags::from_bits_truncate(
                 reader.read_typed(ConsumptionType::SubrecordPayload)?,
@@ -94,7 +75,7 @@ pub struct Weapon {
     pub id: RefId,
     /// From MODL subrecord: The model file for this weapon.
     pub model: String,
-    /// From FNAM subrecord: The friendly name of the weapon.
+    /// From FNAM subrecord: The in-game name of the weapon.
     pub name: String,
     /// From WPDT subrecord: Core weapon statistics.
     pub data: WeaponData,
@@ -116,15 +97,8 @@ impl Weapon {
     pub fn get_record_type() -> &'static str {
         "Weapon"
     }
-
-    /// Sets the record to a default state, similar to the C++ blank() method.
-    pub fn blank(&mut self) {
-        *self = Self::default();
-    }
 }
 impl Load for Weapon {
-    /// Loads weapon data from an EsmReader.
-    /// The reader is expected to be at the start of the subrecords for a WEAP record.
     fn load(esm_reader: &mut EsmReader) -> Result<Self, EsmError> {
         let mut weapon = Weapon::default();
         weapon.flags = esm_reader.get_record_flags();

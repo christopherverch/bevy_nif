@@ -1,5 +1,5 @@
 use crate::{
-    EsmError, EsmReader, RefId, StringRefId, esm_record::EsmRecord, types::flags::ObjectFlags,
+    EsmError, EsmReader, Load, RefId, StringRefId, esm_record::EsmRecord, types::flags::ObjectFlags,
 };
 use esm_parser_macros::LoadSave;
 #[derive(Default, Debug)]
@@ -36,13 +36,13 @@ impl Skill {
 
         let mut has_index = false;
         let mut has_data = false;
-        let mut raw_index: i32 = -1;
+        let mut skill_index = SkillIndex::HandToHand;
 
         while reader.has_more_subs() {
             let sub_name = reader.get_or_read_sub_name()?;
             match sub_name.as_bytes() {
                 b"INDX" => {
-                    raw_index = reader.read_typed_header_load()?;
+                    skill_index = reader.read_typed_header_load()?;
                     has_index = true;
                 }
                 b"SKDT" => {
@@ -62,14 +62,11 @@ impl Skill {
         if !has_index {
             return Err(reader.fail("Missing INDX subrecord for Skill"));
         }
-        if raw_index < 0 || raw_index >= SkillIndex::NUM_SKILLS as i32 {
-            return Err(reader.fail(&format!("Invalid Skill Index: {}", raw_index)));
-        }
         if !has_data {
             return Err(reader.fail("Missing SKDT subrecord for Skill"));
         }
-        skill.index = raw_index.try_into().unwrap();
-        skill.id = SkillIndex::index_to_refid(raw_index);
+        skill.index = skill_index;
+        skill.id = skill.index.index_to_refid();
 
         Ok(skill)
     }
@@ -166,6 +163,20 @@ pub enum SkillIndex {
     Speechcraft = 25,
     HandToHand = 26,
 }
+impl Load for SkillIndex {
+    fn load(reader: &mut EsmReader) -> Result<Self, EsmError>
+    where
+        Self: Sized,
+    {
+        let raw_index: i32 = reader.load()?;
+
+        if raw_index < 0 || raw_index >= SkillIndex::NUM_SKILLS as i32 {
+            return Err(reader.fail(&format!("Invalid Skill Index: {}", raw_index)));
+        }
+        let skill_index = raw_index.try_into().unwrap();
+        Ok(skill_index)
+    }
+}
 impl TryFrom<i32> for SkillIndex {
     type Error = ();
 
@@ -213,11 +224,11 @@ impl SkillIndex {
         RefId::SizedString(StringRefId("Speechcraft")),
         RefId::SizedString(StringRefId("HandToHand")),
     ];
-    pub fn index_to_refid(index: i32) -> RefId {
-        if index < 0 || index >= Self::NUM_SKILLS as i32 {
+    pub fn index_to_refid(self) -> RefId {
+        if (self as i32) < 0 || (self as i32) >= Self::NUM_SKILLS as i32 {
             return RefId::default();
         }
-        Self::SKILL_IDS.get(index as usize).unwrap().clone()
+        Self::SKILL_IDS.get(self as usize).unwrap().clone()
     }
     pub fn refid_to_skillindex(id: &RefId) -> Option<usize> {
         for (index, skill_id) in Self::SKILL_IDS.iter().enumerate() {
@@ -257,6 +268,6 @@ impl MagicSchool {
         }
         let skill_enum = Self::SCHOOL_SKILLS[index as usize];
         // Now convert that specific SkillIndex to its RefId
-        SkillIndex::index_to_refid(skill_enum as i32)
+        skill_enum.index_to_refid()
     }
 }

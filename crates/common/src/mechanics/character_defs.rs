@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 
 use bevy_ecs::{component::Component, entity::Entity};
 use bevy_math::{Vec2, Vec3};
+use esm_parser_lib::types::enums::WeaponType;
 use serde::{Deserialize, Serialize};
 
 /// Attached to an entity to manage all movement, combat, and animation states.
@@ -122,9 +123,8 @@ impl CharacterController {
 pub struct MovementState {
     pub state: CharacterState,
     pub current_group: String,
-    pub anim_speed: f32,
     pub applied_turn_anim_speed: f32,
-    pub applied_movement_anim_speed: f32,
+    pub curr_move_speed: f32,
     pub adjust_anim_speed: bool,
     pub animation_has_movement: bool,
     pub turn_animation_threshold: f32,
@@ -139,7 +139,7 @@ pub struct CombatState {
     pub upper_body: UpperBodyState,
     pub current_group: String,
     pub reset_idle_on_attack_end: bool,
-    pub weapon_type: i32,
+    pub weapon_type: WeaponType,
     pub current_weapon: String,
     pub attack_strength: f32,
     pub ready_to_hit: bool,
@@ -155,6 +155,7 @@ pub struct JumpingState {
     pub current_group: String,
     pub in_jump: bool,
     pub handled_landing_animation: bool,
+    pub handled_jumping_animation: bool,
 }
 
 #[derive(Debug, Default)]
@@ -241,7 +242,7 @@ pub enum CharacterState {
 }
 
 /// Tracks the state of the upper body, primarily for combat and spellcasting.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, PartialOrd)]
 pub enum UpperBodyState {
     #[default]
     None,

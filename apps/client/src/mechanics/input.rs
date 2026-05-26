@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use common::mechanics::{CharacterController, CharacterState};
+use esm_parser_lib::types::enums::WeaponType;
 
 use crate::{
     camera::MWCamera,
@@ -15,6 +16,7 @@ pub struct ActorIntent {
     pub jump: bool,
     pub run: bool,
     pub sneak: bool,
+    pub autorun: bool,
     pub attack_intent: AttackIntentKind,
 }
 
@@ -58,6 +60,15 @@ pub fn get_local_player_intent(
     if keyboard_input.just_pressed(KeyCode::CapsLock) {
         player_intent.run = !player_intent.run;
     }
+    if move_direction.length_squared() > 0.0 {
+        player_intent.autorun = false;
+    }
+    if player_intent.autorun {
+        move_direction.y = 1.0;
+    }
+    if keyboard_input.just_pressed(KeyCode::KeyQ) {
+        player_intent.autorun = true;
+    }
     player_intent.movement = move_direction.normalize_or_zero();
     if keyboard_input.just_pressed(KeyCode::ControlLeft) {
         player_intent.sneak = !player_intent.sneak;
@@ -68,8 +79,8 @@ pub fn get_local_player_intent(
         // Increment the index, wrapping around if it goes past the end of the array.
         *current_weapon_index = (*current_weapon_index + 1) % WEAPON_TYPES.len();
 
-        let new_weapon_type = WEAPON_TYPES[*current_weapon_index];
-        character_controller.combat.weapon_type = new_weapon_type;
+        let new_weapon_type: i16 = WEAPON_TYPES[*current_weapon_index];
+        character_controller.combat.weapon_type = WeaponType::try_from(new_weapon_type).unwrap();
         info!("Switched to weapon type: {}", new_weapon_type);
     }
     // DEBUG
@@ -90,7 +101,7 @@ pub fn get_local_player_intent(
     }
 }
 // A constant array of weapon types to cycle through for testing.
-const WEAPON_TYPES: [i32; 8] = [
+const WEAPON_TYPES: [i16; 8] = [
     0,  // Hand-to-hand
     1,  // 1h (Shortblade)
     5,  // 2h (Longblade)

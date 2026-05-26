@@ -48,13 +48,15 @@ pub fn setup_nif_physics(
             match bounding_volume.bound_data {
                 BoundData::NiBoxBV(box_bv) => {
                     let bevy_center = Vec3::new(-box_bv.center.x, box_bv.center.z, box_bv.center.y);
-                    let bevy_extents = Vec3::new(
+                    let mut bevy_extents = Vec3::new(
                         box_bv.extents.x.abs(),
                         box_bv.extents.z.abs(),
                         box_bv.extents.y.abs(),
                     );
 
                     let scale = NIF_SCALE_MULTIPLIER;
+                    //multiplied by 2 for half extents
+                    bevy_extents *= 2.0;
                     compound_parts.push((
                         bevy_center * scale,
                         Quat::IDENTITY,

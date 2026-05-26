@@ -118,17 +118,14 @@ pub fn character_movement_system(
         } else if actor_fd.position.y < swim_level || actor_fd.flying {
             velocity = get_pitch_yaw_3d_approx_movement(&actor_fd);
         } else {
-            let yaw_rotation = Quat::from_rotation_x(-actor_fd.rotation.x);
+            let yaw_rotation = Quat::from_rotation_y(actor_fd.rotation.y);
             velocity = yaw_rotation * actor_fd.movement;
             if (velocity.y > 0.0 && actor_fd.is_on_ground && !actor_fd.is_on_slope)
                 || (velocity.y > 0.0
                     && velocity.y + actor_fd.inertia.y <= -velocity.y
                     && actor_fd.is_on_slope)
             {
-                dbg!(actor_fd.inertia);
                 actor_fd.inertia = velocity;
-                dbg!("setting inertia");
-                dbg!(actor_fd.inertia);
             } else if !actor_fd.is_on_ground || actor_fd.is_on_slope {
                 velocity += actor_fd.inertia;
             }
@@ -433,7 +430,6 @@ pub fn character_movement_system(
             }
         }
 
-        dbg!(is_on_ground);
         // --- Finalize Position ---
         actor_fd.is_on_ground = is_on_ground;
         actor_fd.is_on_slope = is_on_slope;

@@ -9,6 +9,7 @@ license.workspace = true
 [dependencies]
 bevy_ecs = { workspace = true, features = ["serialize"] }
 bevy_math = { workspace = true, features = ["serialize"] }
+esm_parser_lib.workspace = true
 serde = { workspace = true }
 bitflags = { workspace = true }
 [lints]

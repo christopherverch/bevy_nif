@@ -68,7 +68,11 @@ fn from_binary(src: &EsmENAMStruct) -> Result<ENAMStruct, EsmError> {
     }
     Ok(ENAMStruct {
         effect_id: MagicEffect::index_to_refid(index.into()),
-        skill: SkillIndex::index_to_refid(src.skill.into()),
+        skill: {
+            let skill_i32 = src.skill as i32;
+            let src_skill_index: SkillIndex = skill_i32.try_into().unwrap();
+            src_skill_index.index_to_refid()
+        },
         attribute: Attribute::index_to_refid(src.attribute.into()),
         range: src.range,
         area: src.area,

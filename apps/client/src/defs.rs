@@ -9,6 +9,8 @@ use bitflags::bitflags;
 use common::EntityId;
 use esm_parser_lib::{EsmReader, LandTexture, Landscape};
 use networking::NetworkEvent;
+use rand::SeedableRng;
+use rand::rngs::StdRng;
 use serde::{Deserialize, Serialize};
 use serializer::SerializableTransform;
 use std::collections::HashMap;
@@ -57,43 +59,39 @@ pub enum DrawState {
     Weapon,
     Spell,
 }
+#[derive(Clone, Debug)]
+pub struct DynamicStats {
+    // Health is private since setting it can cause outside changes, like the creature dying
+    health: DynamicStat<f32>,
+    pub magicka: DynamicStat<f32>,
+    pub fatigue: DynamicStat<f32>,
+}
 #[derive(Component, Clone, Debug, Resource)]
 #[component(on_add = add_creature_to_id_map)]
 pub struct CreatureStats {
     pub entity_id: EntityId,
     pub nif_animator_link: Option<Entity>,
+    pub stats: DynamicStats,
     pub magic_effects: MagicEffects,
-    pub fall_height: f32,
-    // health, magicka, fatigue
-    pub dynamic_stats: [DynamicStat<f32>; 3],
-    pub dead: bool,
-    pub death_animation_finished: bool,
-    pub teleported: bool,
+    pub draw_state: DrawState,
     pub movement_flags: CreatureStatsFlags,
+    pub fall_height: f32,
     /// Updated every frame before other systems that use it run
     pub max_speed: f32,
     pub side_movement_angle: f32,
-    pub draw_state: DrawState,
+    pub knocked_down: bool,
+    pub death_animation_finished: bool,
+    pub block: bool,
+    pub dead: bool,
+    pub hit_recovery: bool,
+    pub teleported: bool,
 }
 impl CreatureStats {
-    pub fn get_health(&self) -> DynamicStat<f32> {
-        self.dynamic_stats[0].clone()
+    fn health(&self) -> &DynamicStat<f32> {
+        &self.stats.health
     }
-    pub fn get_fatigue(&self) -> DynamicStat<f32> {
-        self.dynamic_stats[2].clone()
-    }
-    pub fn set_health(&mut self, value: DynamicStat<f32>) {
-        self.set_dynamic(0, value);
-    }
-    pub fn set_fatigue(&mut self, value: DynamicStat<f32>) {
-        self.set_dynamic(2, value);
-    }
-    fn set_dynamic(&mut self, index: usize, value: DynamicStat<f32>) {
-        if index > 2 {
-            panic!("dynamic stat index is out of range");
-        }
-        self.dynamic_stats[index] = value;
-        //TODO:: dying
+    fn set_health(&mut self, value: f32) {
+        self.stats.health.set_current(value, false, false);
     }
     pub fn land(&mut self, player_opt: Option<&mut Player>) -> f32 {
         if let Some(player) = player_opt {
@@ -122,12 +120,27 @@ impl CreatureStats {
     }
 }
 
-#[derive(Resource, Default)]
+#[derive(Resource)]
 pub struct WorldSettings {
     pub god_mode: bool,
     pub levitation_enabled: bool,
     pub third_person: bool,
     pub swim_height_scale: f32,
+    pub rng: StdRng,
+}
+impl Default for WorldSettings {
+    fn default() -> Self {
+        Self {
+            god_mode: Default::default(),
+            levitation_enabled: Default::default(),
+            third_person: Default::default(),
+            swim_height_scale: Default::default(),
+            rng: {
+                let rng = [0; 32];
+                StdRng::from_seed(rng)
+            },
+        }
+    }
 }
 #[derive(Resource)]
 pub struct GameSettings {

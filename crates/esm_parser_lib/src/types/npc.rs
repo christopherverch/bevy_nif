@@ -136,7 +136,7 @@ impl Npc {
         Ok(npc)
     }
     pub fn is_male(&self) -> bool {
-        self.npc_flags.contains(NpcFlags::FEMALE)
+        !self.npc_flags.contains(NpcFlags::FEMALE)
     }
 }
 #[derive(Clone, Debug, Default, PartialEq, LoadSave)]

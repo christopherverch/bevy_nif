@@ -1,18 +1,18 @@
-use std::{env, fs};
-
-use avian3d::{
-    PhysicsPlugins,
-    prelude::{PhysicsDebugPlugin, PhysicsSystems},
-};
 // External imports
-use bevy::{light::DirectionalLightShadowMap, pbr::DefaultOpaqueRendererMethod, prelude::*};
+use avian3d::{PhysicsPlugins, prelude::PhysicsSystems};
+use bevy::{
+    app::HierarchyPropagatePlugin, camera::visibility::RenderLayers,
+    light::DirectionalLightShadowMap, pbr::DefaultOpaqueRendererMethod, prelude::*,
+};
 use bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_kira_audio::{AudioPlugin, SpatialAudioPlugin};
 use bevy_nif::BevyNifPlugin;
 use bevy_renet::RenetClientPlugin;
 use serde::Deserialize;
+use std::{env, fs};
 
+// Internal imports
 use crate::{
     defs::{
         CellLookup, GameSettings, GameState, IdToEntityMap, Pause, PlayerInput, WorldFrameData,
@@ -20,36 +20,23 @@ use crate::{
     },
     gui::MWGuiPlugin,
     handle_nif_events::handle_nif_event,
-    mechanics::{update_character_components, update_movement_component_from_intent},
-    physics::{
-        interpolate_visual_positions,
-        movement::{init_positions, sync_actor_physics_system, update_positions},
-        prepare_actor_simulation, unstuck_character,
-    },
+    mechanics::MWMechanicsPlugin,
+    physics::{MWPhysicsPlugin, interpolate_visual_positions},
     setup_scene::setup_scene,
 };
-//use actor::{apply_hit, character_controller_system, resolve_final_animation_state_system};
 use animation::actor_animator::animate_actors_using_state;
 use camera::MWCameraPlugin;
 use equipment::on_player_ready_weapon;
 use initial_esm_parse::*;
 use landscape::LandscapePlugin;
-use landscape::terrain_material::TerrainBlendMaterial;
-use networking::{NetworkingPlugin, connect_to_server};
-use physics::{
-    CharacterMotionPlugin, calculate_animation_displacement_system,
-    movement::character_movement_system,
-};
+use networking::NetworkingPlugin;
 use player_input::*;
 use setup_funcs::*;
-use sound::generate_sound;
 use temporary_funcs::{animate_light_direction, switch_mode};
-use ui::{UiPlugin, despawn_main_menu_ui, setup_main_menu};
 
 mod actor;
 mod animation;
 mod camera;
-mod class_traits;
 mod const_defs;
 mod defs;
 mod engine;
@@ -68,10 +55,8 @@ mod physics;
 mod player_input;
 mod setup_funcs;
 mod setup_scene;
-mod sound;
 mod stat;
 mod temporary_funcs;
-mod ui;
 mod utils;
 mod world;
 
@@ -89,35 +74,41 @@ fn main() {
     for file in bsa.get_list().iter() {
         println!("{}", file.name);
     }*/
+    // Load config file
     let path = env::var("CARGO_MANIFEST_DIR");
     if let Ok(mut path) = path {
         path.push_str("/config.toml");
         let config_text = fs::read_to_string(&path).expect("Could not read config");
         let config: Config = toml::from_str(&config_text).expect("Invalid config format");
-        dbg!(config);
+        dbg!(config.data_dirs);
+        dbg!(config.content);
     }
 
     let mut app = App::new();
     app.insert_resource(DefaultOpaqueRendererMethod::deferred())
         .insert_resource(DirectionalLightShadowMap { size: 4096 })
-        .add_plugins((PhysicsPlugins::default(), PhysicsDebugPlugin))
+        .add_plugins((
+            PhysicsPlugins::default(),
+            HierarchyPropagatePlugin::<RenderLayers>::new(PostUpdate),
+        ))
         .add_plugins((
             DefaultPlugins,
-            BevyNifPlugin,
-            CharacterMotionPlugin,
-            MWInputPlugin,
-            MWGuiPlugin,
-            LandscapePlugin,
-            UiPlugin,
-            RenetClientPlugin,
             EguiPlugin::default(),
             WorldInspectorPlugin::default(),
+            bevy_framepace::FramepacePlugin,
+            // Internal plugins
+            BevyNifPlugin,
+            MWInputPlugin,
+            MWMechanicsPlugin,
+            MWGuiPlugin,
+            MWPhysicsPlugin,
+            LandscapePlugin,
+            RenetClientPlugin,
             AudioPlugin,
             SpatialAudioPlugin,
             NetworkingPlugin,
         ))
         .add_plugins(MWCameraPlugin)
-        .add_plugins(MaterialPlugin::<TerrainBlendMaterial>::default())
         .insert_resource(Pause(true));
     app.edit_schedule(FixedUpdate, |schedule| {
         schedule.configure_sets(
@@ -140,41 +131,12 @@ fn main() {
         .add_systems(Startup, setup_scene)
         .add_systems(Update, setup_player)
         .add_systems(Startup, populate_esm_resources)
-        .add_observer(generate_sound)
         .add_observer(handle_nif_event)
-        //   .add_observer(apply_hit)
         .add_observer(on_player_ready_weapon)
         .add_observer(insert_nif_animator_links)
-        .add_systems(OnEnter(GameState::MainMenu), setup_main_menu)
-        .add_systems(OnEnter(GameState::Connecting), despawn_main_menu_ui)
-        .add_systems(OnEnter(GameState::Connecting), connect_to_server)
         .add_systems(OnEnter(GameState::Offline), spawn_player_offline)
         .add_systems(Update, (switch_mode, animate_light_direction))
-        .add_systems(
-            FixedUpdate,
-            (
-                update_movement_component_from_intent,
-                update_character_components,
-                prepare_actor_simulation,
-                init_positions,
-                // unstuck_character,
-                character_movement_system,
-                update_positions,
-                sync_actor_physics_system,
-                calculate_animation_displacement_system,
-            )
-                .chain()
-                .before(PhysicsSystems::Prepare),
-        )
-        .add_systems(
-            Update,
-            (
-                // character_controller_system,
-                //resolve_final_animation_state_system,
-                animate_actors_using_state,
-            )
-                .chain(),
-        )
+        .add_systems(Update, animate_actors_using_state)
         .add_systems(Update, interpolate_visual_positions)
         .add_systems(PostUpdate, clear_player_rotation_input_system)
         .run();

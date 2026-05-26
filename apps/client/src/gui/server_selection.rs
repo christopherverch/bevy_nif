@@ -1,12 +1,8 @@
+use crate::defs::{GameState, ServerIP};
 use bevy::color::palettes::basic::*;
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
 use bevy::ui::FocusPolicy;
-use crate::defs::{GameState, ServerIP};
-#[derive(Resource, Default)]
-struct FocusedIpInput {
-    entity: Option<Entity>, // Use Option<Entity>
-}
 
 #[derive(Component)]
 pub struct IpInputField;
@@ -14,18 +10,10 @@ pub struct IpInputField;
 pub struct MainMenuRoot;
 #[derive(Component)]
 struct ConnectButton;
+#[derive(Resource, Default)]
 
-pub struct UiPlugin;
-impl Plugin for UiPlugin {
-    fn build(&self, app: &mut App) {
-        app.insert_resource(FocusedIpInput::default())
-            .add_systems(OnEnter(GameState::MainMenu), set_initial_focus)
-            .add_systems(Update, button_system.run_if(in_state(GameState::MainMenu)))
-            .add_systems(
-                Update,
-                listen_keyboard_input_events.run_if(in_state(GameState::MainMenu)),
-            );
-    }
+pub struct FocusedIpInput {
+    entity: Option<Entity>, // Use Option<Entity>
 }
 pub fn setup_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
     println!("spawning menu");
@@ -92,7 +80,7 @@ pub fn setup_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                             ));
                         })
                         .insert(Interaction::default())
-                        .insert(FocusPolicy::Pass); // Make it focusable
+                        .insert(FocusPolicy::Pass);
 
                     // Connect button
                     parent
@@ -133,12 +121,11 @@ pub fn despawn_main_menu_ui(mut commands: Commands, mut query: Query<Entity, Wit
         commands.entity(entity).despawn();
     }
 }
-fn set_initial_focus(
+pub fn set_initial_focus(
     focused_input: Res<FocusedIpInput>,
     mut interaction_query: Query<&mut Interaction>,
 ) {
     if let Some(entity) = focused_input.entity {
-        // Directly access the Option<Entity>
         if let Ok(mut interaction) = interaction_query.get_mut(entity) {
             *interaction = Interaction::Pressed; // Simulate a click to focus.
         }
@@ -147,7 +134,7 @@ fn set_initial_focus(
 const NORMAL_BUTTON: Color = Color::srgb(0.15, 0.15, 0.15);
 const HOVERED_BUTTON: Color = Color::srgb(0.25, 0.25, 0.25);
 const PRESSED_BUTTON: Color = Color::srgb(0.35, 0.75, 0.35);
-fn button_system(
+pub fn button_system(
     mut interaction_query: Query<
         (
             &Interaction,
@@ -186,7 +173,7 @@ fn button_system(
         }
     }
 }
-fn listen_keyboard_input_events(
+pub fn listen_keyboard_input_events(
     mut events: MessageReader<KeyboardInput>,
     text_query: Single<&mut Text, With<IpInputField>>,
     focused_input: Option<Res<FocusedIpInput>>,

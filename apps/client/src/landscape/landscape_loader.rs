@@ -86,7 +86,7 @@ pub fn load_landscape(
         let mut texture_index_map = HashMap::new();
         for (slot_index, land_texture_def) in textures_for_material_setup.iter().enumerate() {
             let texture_path = format!("Textures/{}", land_texture_def.texture_file);
-            println!("trying to load {}", texture_path);
+            //           println!("trying to load {}", texture_path);
             image_handles.push(asset_server.load(texture_path));
             texture_index_map.insert(land_texture_def.index as u16, slot_index);
         }
@@ -798,8 +798,8 @@ pub fn generate_alpha_maps_for_active_layers_new(
         LAND_TEXTURE_SQUARES_PER_SIDE,
         sample_handler,
     )?;
-    dbg!(&sampled_grid_texture_ids[0]); // What is the ID for the P1 vertex?
-    dbg!(ltex_id_to_slot_index_map.get(&sampled_grid_texture_ids[0])); // Which slot does it map to?
+    //dbg!(&sampled_grid_texture_ids[0]); // What is the ID for the P1 vertex?
+    //dbg!(ltex_id_to_slot_index_map.get(&sampled_grid_texture_ids[0])); // Which slot does it map to?
 
     // let mut active_slots_painted: HashSet<usize> = HashSet::new(); // Can be used by caller if needed
 

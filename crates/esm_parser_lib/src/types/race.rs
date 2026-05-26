@@ -42,7 +42,8 @@ pub struct SkillBonus {
 }
 impl SkillBonus {
     pub fn get_skill_id(&self) -> RefId {
-        SkillIndex::index_to_refid(self.skill)
+        let skill_index: SkillIndex = self.skill.try_into().unwrap();
+        skill_index.index_to_refid()
     }
 }
 impl Race {

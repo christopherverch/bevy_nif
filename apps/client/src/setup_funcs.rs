@@ -1,4 +1,3 @@
-use crate::actor::{AnimationDisplacement, RootMotionState};
 use crate::defs::{
     AnimateableEntity, ClientEntityId, CreatureStats, CreatureStatsFlags, CurrentCell, DrawState,
     LocalPlayer, LocalPlayerMesh, MeshEntityLink, Movement, NeedsSetup, NetworkedEntity, Player,
@@ -25,7 +24,7 @@ use std::time::Instant;
 
 use crate::camera::MWCameraTarget;
 use crate::const_defs::NIF_SCALE_MULTIPLIER;
-use crate::physics::CreatureControllerLink;
+use crate::physics::{AnimationDisplacement, CreatureControllerLink, RootMotionState};
 
 pub fn setup_player(
     mut commands: Commands,
@@ -52,6 +51,8 @@ pub fn setup_player(
         let mut character_controller = CharacterController::default();
         character_controller.vitals.current_idle_group = "idle1".to_string();
         character_controller.movement.state = CharacterState::RunForward;
+        // Sets the character's animations to be based on their movement speed, like walking running
+        character_controller.movement.adjust_anim_speed = true;
         let player_esm_ref = esm_store
             .npcs
             .get_raw(&RefId::from_str("Player"))
@@ -82,7 +83,7 @@ pub fn setup_player(
                     ],
                     death_animation_finished: false,
                     movement_flags: CreatureStatsFlags::RUN,
-                    max_speed: 10.0,
+                    max_speed: 2.0,
                     side_movement_angle: 0.0,
                     draw_state: DrawState::Nothing,
                 },

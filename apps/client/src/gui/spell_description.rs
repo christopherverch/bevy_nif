@@ -72,6 +72,7 @@ pub fn update_spell_description_tooltip(
     if let Some(&name_child) = spell_tooltip_children.get(0) {
         if let Ok(mut text) = name_node_q.get_mut(name_child) {
             text.0 = corresponding_spell.name.clone();
+            dbg!(corresponding_spell);
         }
     }
     for (index, indexed_enam_struct) in corresponding_spell.effect_list.list.iter().enumerate() {
@@ -89,6 +90,7 @@ pub fn update_spell_description_tooltip(
             &indexed_enam_struct.data.skill,
             &esm_store,
         );
+        dbg!(effect);
 
         if check_exists(&full_effect_path) {
             let effect_image = asset_server.load(full_effect_path);

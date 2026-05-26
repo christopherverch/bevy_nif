@@ -4,7 +4,6 @@ use esm_parser_lib::{RefId, types::magic_effect::MagicEffect};
 use mwphysics::{ActorFrameData, ActorPhysics, PositionInterpolation};
 
 use crate::{
-    class_traits::{get_capacity, get_encumbrance, get_normalized_encumbrance},
     defs::{ColliderEntityLink, CreatureStats, Movement, Player, WorldSettings},
     esm::EsmStore,
 };
@@ -146,7 +145,10 @@ fn handle_jump(
     if !is_player || !world_settings.god_mode {
         let fatigue_jump_base = esm_store.gamesettings.find("fFatigueJumpBase").as_float();
         let fatigue_jump_mult = esm_store.gamesettings.find("fFatigueJumpMult").as_float();
-        let normalized_encumbrance = get_normalized_encumbrance(get_capacity(), get_encumbrance());
+        //TODO::
+        let normalized_encumbrance = 1.0;
+        //           get_normalized_encumbrance(get_capacity(), get_encumbrance());
+
         let fatigue_decrease = fatigue_jump_base + normalized_encumbrance * fatigue_jump_mult;
         let mut fatigue = creature_stats.get_fatigue();
         fatigue.set_current(fatigue.current - fatigue_decrease, false, false);

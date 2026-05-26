@@ -1,4 +1,6 @@
 use esm_parser_macros::LoadSave;
+use num_enum::TryFromPrimitive;
+use serde::{Deserialize, Serialize};
 #[repr(u32)]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Default)]
 pub enum FileType {
@@ -473,13 +475,29 @@ pub enum CreatureType {
     Humanoid = 3,
 }
 
-#[repr(u16)]
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Default)]
+#[repr(i16)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    PartialEq,
+    Default,
+    TryFromPrimitive,
+    Serialize,
+    Deserialize,
+    PartialOrd,
+)]
 pub enum WeaponType {
     #[default]
+    PickProbe = -4,
+    HandToHand = -3,
+    Spell = -2,
+    None = -1,
     ShortBladeOneHand = 0,
     LongBladeOneHand = 1,
-    LongBladeTwoClose = 2,
+    LongBladeTwoHand = 2,
     BluntOneHand = 3,
     BluntTwoClose = 4,
     BluntTwoWide = 5,
@@ -492,6 +510,8 @@ pub enum WeaponType {
     Arrow = 12,
     Bolt = 13,
 }
+unsafe impl bytemuck::Zeroable for WeaponType {}
+unsafe impl bytemuck::Pod for WeaponType {}
 
 #[repr(u32)]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Default)]

@@ -1,24 +1,12 @@
-use std::io::ErrorKind;
-
-// src/nif/loader.rs
 use bevy::asset::RenderAssetUsages;
-use bevy::mesh::skinning::SkinnedMeshInverseBindposes;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::{
     asset::{AssetLoader, LoadContext, io::Reader},
     prelude::*,
 };
-use nif::loader::{NiKey, load_nif_bytes};
-
 pub use nif::loader::Nif;
-/// Data extracted from NiSkinInstance and NiSkinData to build the Bevy skeleton.
-/// TODO:: not created yet, but we probably should make it while loading the nif
-#[derive(Debug, Clone)]
-pub struct NifSkinData {
-    pub skeleton_root: NiKey,  // The key of the root bone (NiNode)
-    pub bone_keys: Vec<NiKey>, // The array of bone NiKeys (nodes that form the skeleton)
-    pub inverse_bind_poses: Handle<SkinnedMeshInverseBindposes>, // The already created bindposes
-}
+use nif::loader::load_nif_bytes;
+use std::io::ErrorKind;
 
 #[derive(Default, TypePath)]
 pub struct NifAssetLoader;
@@ -51,7 +39,7 @@ impl AssetLoader for NifAssetLoader {
 pub struct BMPLoader;
 
 impl AssetLoader for BMPLoader {
-    type Asset = Image; // It loads Bevy Images
+    type Asset = Image;
     type Settings = ();
     type Error = std::io::Error;
 

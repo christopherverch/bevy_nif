@@ -21,7 +21,6 @@ pub(crate) mod prelude {
     pub use loader::NiKey;
     pub use loader::Nif;
     pub use loader::load_nif_bytes;
-    pub use loader::nif_depth_first_iter;
     pub use smart_default::SmartDefault;
     pub use std::io;
 

@@ -1,3 +1,4 @@
+use bevy::camera_controller::free_camera::FreeCamera;
 use bevy::light::{CascadeShadowConfigBuilder, NotShadowCaster, NotShadowReceiver};
 use bevy::prelude::*;
 use bevy::{pbr::OpaqueRendererMethod, render::view::Hdr};
@@ -24,8 +25,6 @@ pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 use std::f32::consts::{FRAC_PI_4, PI};
 
 use bevy::core_pipeline::prepass::{DeferredPrepass, DepthPrepass, MotionVectorPrepass};
-
-use crate::third_person_camera::ThirdPersonCamera;
 
 fn spawn_nifs(
     paths_with_target_bone: Vec<(&str, AttachmentType)>,
@@ -78,10 +77,7 @@ pub fn setup_scene(
 ) {
     commands.spawn((
         Camera3d::default(),
-        Camera {
-            // Deferred both supports both hdr: true and hdr: false
-            ..default()
-        },
+        Camera::default(),
         Hdr,
         Projection::Perspective(PerspectiveProjection {
             fov: PI / 3.6,
@@ -90,7 +86,7 @@ pub fn setup_scene(
             far: 1000.0,
             ..default()
         }),
-        ThirdPersonCamera::default(),
+        FreeCamera::default(),
         Transform::from_xyz(0.7, 0.7, 1.0).looking_at(Vec3::new(0.0, 0.3, 0.0), Vec3::Y),
         // MSAA needs to be off for Deferred rendering
         Msaa::Off,
@@ -122,7 +118,7 @@ pub fn setup_scene(
         DirectionalLight {
             illuminance: 600.0,
             shadows_enabled: true,
-            color: Color::srgb(1.0, 0.85, 0.7), // Slightly warm (orangey/yellowish) white
+            color: Color::srgb(1.0, 0.85, 0.7),
             ..default()
         },
         CascadeShadowConfigBuilder {

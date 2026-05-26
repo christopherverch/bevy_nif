@@ -2,19 +2,19 @@
 use std::io::{Read, Seek};
 use std::path::Path;
 
+// external imports
 use bevy::asset::{Asset, Handle, LoadContext, RenderAssetUsages};
 use bevy::log::{error, info, warn};
 use bevy::mesh::{Indices, Mesh, PrimitiveTopology};
 use bevy::reflect::TypePath;
-// external imports
 use slotmap::{DenseSlotMap, Key, new_key_type};
 
 // internal imports
 use crate::prelude::*;
 
 new_key_type! { pub struct NiKey; }
-// A single type to represent any generated Bevy asset handle
 
+// A single type to represent any generated Bevy asset handle
 #[derive(Clone, Debug)]
 pub enum ConsumedNiType {
     NiTriShapeData(Handle<Mesh>),
@@ -68,9 +68,9 @@ pub fn from_bytes(bytes: &[u8], load_context: &mut LoadContext<'_>) -> io::Resul
 /// and store it in the denseslotmap as NiType::Empty. All other structural NiTypes are stored
 /// as-is. Any time the bevy system that actually uses the Nif asset (spawning system) comes across NiType::Empty,
 /// it should check the block_data hashmap with the corresponding key, and check which type was consumed
-/// and get the bevy asset handles through that
+/// and get the bevy asset handles through that. This results in less data duplication from the
+/// asset being loaded AND that data being in components
 pub fn load_nif_bytes(bytes: &[u8], load_context: &mut LoadContext<'_>) -> io::Result<Nif> {
-    dbg!(load_context.path());
     let mut stream = Reader::new(bytes);
     // validate header
     let header: [u8; 40] = stream.load()?;
@@ -89,12 +89,13 @@ pub fn load_nif_bytes(bytes: &[u8], load_context: &mut LoadContext<'_>) -> io::R
     let num_objects = stream.load_as::<u32, usize>()?;
     objects.reserve(num_objects);
     let mut block_assets = HashMap::new();
-    // populate objects
     let mut all_controller_links = Vec::new();
     let mut all_keyframe_data = HashMap::new();
     let mut all_tked = HashMap::new();
     let mut all_sed = HashMap::new();
     let mut node_names = HashMap::new();
+    // populate objects
+    //
     for i in 0..num_objects {
         let ni_type: NiType = stream.load()?;
         match ni_type {
@@ -111,7 +112,7 @@ pub fn load_nif_bytes(bytes: &[u8], load_context: &mut LoadContext<'_>) -> io::R
             NiType::NiTriShapeData(data) => {
                 if let Some(mesh) = convert_nif_mesh(data) {
                     let handle = load_context.add_labeled_asset(format!("mesh_{}", i), mesh);
-                    // Inserting into this vec first because we don't have NiKey until we insert it
+                    // Inserting into objects first because we don't have NiKey until we insert it
                     // into the slotmap, which would mean it's moved so we can't match on it.
                     let key: NiKey = objects.insert(NiType::Empty);
                     block_assets.insert(key, ConsumedNiType::NiTriShapeData(handle));
@@ -153,9 +154,10 @@ pub fn load_nif_bytes(bytes: &[u8], load_context: &mut LoadContext<'_>) -> io::R
     for _ in 0..num_roots {
         roots.push(stream.load()?);
     }
-    // Bip01 Traversal Logic
+    // Text keys are usually stored on Bip01 or "Root Bone" node, this function extracts the text
+    // keys (animation events like footstep sound markers) if it finds any on bip01 or root bone.
     let final_text_keys = 'data_extraction: {
-        // 1. Prioritized Node Key Search: Search for "Bip01" first, then "Root Bone".
+        // Find Bip01, or if not found, search for "Root Bone"
         let target_node_key = node_names
             .iter()
             .find(|(_, name)| *name == "Bip01") // Find Bip01 (Priority 1)
@@ -166,21 +168,21 @@ pub fn load_nif_bytes(bytes: &[u8], load_context: &mut LoadContext<'_>) -> io::R
             break 'data_extraction Vec::new();
         };
 
-        // 2. Get the full NiNode block using the key
+        // Get the NiNode block using the key
         let Some(root_node) = objects.get(*key) else {
             break 'data_extraction Vec::new();
         };
         let root_node = match root_node {
             NiType::NiNode(node) => node,
             _ => {
-                dbg!("found the wrong type of root node");
+                warn!("found the wrong type of root node while loading nif text keys");
                 break 'data_extraction Vec::new();
             }
         };
-        // 3. Start the traversal from the node's extra_data_link
+        // Start the traversal from the node's extra_data
         let mut current_link_key = root_node.extra_data.key;
 
-        // Loop through the extra data chain using NiKey lookups
+        // Loop through the extra data chain
         while !current_link_key.is_null() {
             let key_to_lookup = current_link_key;
             // Check for NiTextKeyExtraData (the target block)
@@ -191,7 +193,7 @@ pub fn load_nif_bytes(bytes: &[u8], load_context: &mut LoadContext<'_>) -> io::R
 
             // Follow the next link in the chain:
             current_link_key = if let Some(tked) = all_tked.get(&key_to_lookup) {
-                // This is the TextKey block we *just* checked (if it wasn't the target, we shouldn't be here)
+                // This is the TextKey block we just checked (if it wasn't the target, we shouldn't be here)
                 tked.base.next.key
             } else if let Some(sed) = all_sed.get(&key_to_lookup) {
                 // Found NiStringExtraData, continue the chain
@@ -220,23 +222,6 @@ pub fn load_nif_bytes(bytes: &[u8], load_context: &mut LoadContext<'_>) -> io::R
     })
 }
 
-pub fn nif_depth_first_iter(nif: &Nif) -> impl Iterator<Item = (NiKey, &NiType)> {
-    let mut seen = HashSet::new();
-    let mut keys = Vec::new();
-    nif.roots.visitor(&mut |key| keys.push(key));
-
-    std::iter::from_fn(move || {
-        while let Some(key) = keys.pop() {
-            if !key.is_null() && seen.insert(key) {
-                if let Some(object) = nif.objects.get(key) {
-                    object.visitor(&mut |key| keys.push(key));
-                    return Some((key, object));
-                }
-            }
-        }
-        None
-    })
-}
 pub fn resolve_nif_path(nif_path: &str) -> String {
     // Basic cleanup - Needs proper implementation!
     let cleaned = nif_path.trim().replace('\\', "/");
@@ -280,25 +265,20 @@ pub fn convert_nif_mesh(data: NiTriShapeData) -> Option<Mesh> {
 
         final_mesh_opt = Some(mesh);
     } else {
-        // Fallback: Need to call the helper function, which must be updated
-        // to accept the new Bevy array types (Vec<[f32; 3]>).
+        // Fallback: Need to call the helper function, which needs to be updated
+        // to accept the Bevy array types (Vec<[f32; 3]>).
 
-        // NOTE: The helper must either accept the data by value or clone internally.
         // We pass references to the moved data's components before they are consumed below.
         final_mesh_opt = create_mesh_with_flat_normals(
             // Pass the data that contains the vertex position info
-            &vertices,
-            &indices,
+            vertices,
+            indices,
             if uvs.is_empty() { None } else { Some(&uvs) },
         );
     }
-    // NIF uses u16 indices
 
     // TODO: Add vertex colors (Mesh::ATTRIBUTE_COLOR) if data.has_vertex_colors is true
 
-    // Potential Coordinate System Conversion:
-    // If NIF is Z-up, Left-handed and Bevy is Y-up, Right-handed,
-    // you might need to swizzle/negate vertex positions, normals, and adjust transforms.
     if let Some(mesh) = final_mesh_opt {
         Some(mesh)
     } else {
@@ -306,9 +286,9 @@ pub fn convert_nif_mesh(data: NiTriShapeData) -> Option<Mesh> {
     }
 }
 fn create_mesh_with_flat_normals(
-    original_vertices_nif: &Vec<[f32; 3]>,
-    original_indices: &[u16],
-    original_uvs: Option<&Vec<[f32; 2]>>, // Pass converted UVs if available
+    original_vertices_nif: Vec<[f32; 3]>,
+    original_indices: Vec<u16>,
+    original_uvs: Option<&Vec<[f32; 2]>>,
 ) -> Option<Mesh> {
     let vertex_count = original_vertices_nif.len();
     if vertex_count == 0 {
@@ -340,25 +320,20 @@ fn create_mesh_with_flat_normals(
 
     for i in 0..num_triangles {
         // Get original vertex indices for this triangle
-        let idx0_u16 = original_indices[i * 3];
-        let idx1_u16 = original_indices[i * 3 + 1];
-        let idx2_u16 = original_indices[i * 3 + 2];
-
-        let idx0 = idx0_u16 as usize;
-        let idx1 = idx1_u16 as usize;
-        let idx2 = idx2_u16 as usize;
+        let mut idx0 = original_indices[i * 3] as usize;
+        let mut idx1 = original_indices[i * 3 + 1] as usize;
+        let mut idx2 = original_indices[i * 3 + 2] as usize;
 
         // --- Bounds Checking ---
         if idx0 >= vertex_count || idx1 >= vertex_count || idx2 >= vertex_count {
             warn!(
                 "Skipping triangle {} due to out-of-bounds index (Indices: {}, {}, {}; Vertex Count: {}).",
-                i, idx0_u16, idx1_u16, idx2_u16, vertex_count
+                i, idx0, idx1, idx2, vertex_count
             );
-            // To keep subsequent indices correct, we should perhaps push *something*
-            // or adjust the final index buffer logic. For simplicity now, we skip.
-            // This *could* lead to issues if not handled carefully later.
-            // A safer approach might be to push degenerate data or filter indices beforehand.
-            continue;
+            // Just push junk indices so the rest of the data isn't corrupted.
+            idx0 = 0;
+            idx1 = 0;
+            idx2 = 0;
         }
 
         // Get vertex positions
@@ -385,7 +360,7 @@ fn create_mesh_with_flat_normals(
         final_normals.push(normalized_normal_array);
 
         // Add sequential indices for the new vertices
-        let base_index = (i * 3) as u16; // Assuming less than 65536 triangles per original mesh part
+        let base_index = (i * 3) as u16; // Assuming fewer than 65536 triangles per original mesh part
         final_indices.push(base_index);
         final_indices.push(base_index + 1);
         final_indices.push(base_index + 2);
@@ -411,14 +386,14 @@ fn create_mesh_with_flat_normals(
         }
     }
 
-    // --- Final Check ---
+    // sanity check
     if final_vertices.len() != final_normals.len() {
         error!(
             "Manual flat normal calculation resulted in mismatch! Verts: {}, Norms: {}",
             final_vertices.len(),
             final_normals.len()
         );
-        // This shouldn't happen with this logic unless the continue above caused issues
+        // This shouldn't happen with this logic
         return None;
     }
     if let Some(ref uvs) = final_uvs {
@@ -428,7 +403,7 @@ fn create_mesh_with_flat_normals(
                 final_vertices.len(),
                 uvs.len()
             );
-            // Handle potential UV mismatch if necessary
+            // TODO:: push default uvs until we have enough?
         }
     }
 
@@ -446,6 +421,7 @@ fn create_mesh_with_flat_normals(
 
     mesh.insert_indices(Indices::U16(final_indices)); // Use new sequential indices
 
+    #[cfg(debug_assertions)]
     info!(
         "Successfully computed flat normals. Final vertex count: {}",
         mesh.count_vertices()

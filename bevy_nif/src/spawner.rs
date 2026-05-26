@@ -1,7 +1,7 @@
 use crate::attach_parts::AttachmentType;
 use crate::nif_animation::SkeletonMap;
 use crate::spawning_ni_helpers::{process_nimaterialproperty, process_nitexturingproperty};
-use crate::{NeedsNifPhysics, skeleton::*};
+use crate::{NeedsNifPhysics, hash_str, skeleton::*};
 use bevy::asset::{Assets, Handle};
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::mesh::VertexAttributeValues;
@@ -15,21 +15,29 @@ use nif::{NiSkinInstance, NiType};
 use std::collections::HashMap;
 use std::f32::consts::FRAC_PI_2;
 use std::f32::consts::PI;
+#[derive(Component, Default)]
+pub struct NifNodeIndex {
+    /// For specific, named parts (e.g., "NifScene", "LeftArm")
+    pub named_nodes: HashMap<u64, Entity>,
+
+    /// all trishapes since these are searched in bulk
+    pub tri_shapes: Vec<Entity>,
+}
 #[derive(Component)]
 pub struct NeedsNifAnimator {
     pub handle: Handle<Nif>,
     pub skeleton_id: u64,
 }
 #[allow(dead_code)]
-#[derive(Event, Clone, Debug)]
+#[derive(EntityEvent, Clone, Debug)]
 pub struct NifInstantiated {
+    pub entity: Entity,
     pub handle: Handle<Nif>,
-    pub root_entity: Entity,
     pub skeleton_id_opt: Option<u64>,
 }
 #[allow(dead_code)]
 #[derive(Component)]
-pub struct LoadedNifScene;
+pub struct LoadedNifScene(pub Entity);
 #[derive(Resource, Default, Debug, Component)]
 pub struct NifScene(pub Handle<Nif>);
 //for nif->bevy coordinates
@@ -80,13 +88,15 @@ pub fn spawn_nif_scenes(
             let mut work_root = entity;
             if is_main_skeleton {
                 // TODO:: maybe this should happen in the loader, modifying the root node?
-                // Add the entity as
+                // We only really want to rotate the main skeleton though, since that will rotate
+                // its children too...
                 let root_rotator_entity = commands
                     .spawn((
                         Name::new("rotator entity"),
                         Transform::from_rotation(
                             Quat::from_rotation_x(-FRAC_PI_2) * Quat::from_rotation_z(PI),
                         ),
+                        Visibility::Inherited,
                         ChildOf(entity),
                     ))
                     .id();
@@ -103,21 +113,21 @@ pub fn spawn_nif_scenes(
             ))
         })
     else {
-        // println!("No suitable NIF scene found.");
         return;
     };
     let Some(nif) = nif_assets.get(&nif_scene_component.0) else {
-        //  println!("Nif hasn't finished loading");
         return;
     };
     let mut skeleton = Skeleton::new();
     let already_spawned_nodes = HashMap::new();
     let ninodes_with_bvs = Vec::new();
+    let nif_node_index = NifNodeIndex::default();
     let mut spawn_context = SpawnContext {
         target_skeleton_id_opt,
         is_main_skeleton,
         asset_server: &asset_server,
         already_spawned_nodes,
+        nif_node_index,
         ninodes_with_bvs,
     };
     // spawn all the root nodes, parenting to the root entity
@@ -125,8 +135,8 @@ pub fn spawn_nif_scenes(
         let root_node_entity = commands
             .spawn((
                 Transform::default(),
-                Visibility::Inherited,
                 Name::new(format!("NifScene {:?}_{}", asset_handle.id(), index)),
+                Visibility::Inherited,
                 ChildOf(work_root),
             ))
             .id();
@@ -146,13 +156,6 @@ pub fn spawn_nif_scenes(
             &mut commands,
         );
     }
-    // Now the nif is fully set up, trigger that it's instantiated so any further desired
-    // setup can be done by the user
-    commands.trigger(NifInstantiated {
-        handle: asset_handle.clone(),
-        root_entity: original_entity,
-        skeleton_id_opt: target_skeleton_id_opt,
-    });
     // If any of the nodes had bounding volumes, attach a component with the volumes
     // so the user can set up physics objects for them
     if spawn_context.ninodes_with_bvs.len() > 0 {
@@ -160,13 +163,17 @@ pub fn spawn_nif_scenes(
             .entity(original_entity)
             .insert(NeedsNifPhysics(spawn_context.ninodes_with_bvs));
     }
-    // Attach a marker component so we don't try to load it again
-    commands.entity(original_entity).insert(LoadedNifScene);
+    commands.entity(original_entity).insert((
+        // Attach a marker component so we don't try to load it again
+        LoadedNifScene(original_entity),
+        // hashed name -> entity map
+        spawn_context.nif_node_index,
+    ));
     if is_main_skeleton {
         let Some(target_skeleton_id) = target_skeleton_id_opt else {
             unreachable!("main skeleton should always have a skeleton id");
         };
-        // Add a link from this skeleton id -> the skeleton entity
+        // Add a link from the skeleton id -> the skeleton entity
         skeleton_map_res
             .root_skeleton_entity_map
             .insert(target_skeleton_id, original_entity);
@@ -175,19 +182,30 @@ pub fn spawn_nif_scenes(
             .skeletons
             .insert(target_skeleton_id, skeleton);
 
-        // Skeletons need something to animate them
-        commands.entity(original_entity).insert(NeedsNifAnimator {
-            handle: asset_handle.clone(),
-            skeleton_id: target_skeleton_id,
-        });
+        commands.entity(original_entity).insert(
+            // Skeletons need something to animate them, nif_animation will set it up
+            NeedsNifAnimator {
+                handle: asset_handle.clone(),
+                skeleton_id: target_skeleton_id,
+            },
+        );
     }
+    // Now the nif is fully set up, trigger that it's instantiated so any further desired
+    // setup can be done by the user
+    commands.trigger(NifInstantiated {
+        handle: asset_handle.clone(),
+        entity: original_entity,
+        skeleton_id_opt: target_skeleton_id_opt,
+    });
 }
 
 struct SpawnContext<'a> {
     target_skeleton_id_opt: Option<u64>,
     is_main_skeleton: bool,
     asset_server: &'a AssetServer,
+    /// In case of a circular dependency
     already_spawned_nodes: HashMap<NiKey, Entity>,
+    nif_node_index: NifNodeIndex,
     ninodes_with_bvs: Vec<(Entity, NiKey)>,
 }
 fn spawn_nif_node_recursive<'a>(
@@ -206,7 +224,6 @@ fn spawn_nif_node_recursive<'a>(
     if spawn_context
         .already_spawned_nodes
         .contains_key(&current_key)
-        == true
     {
         // We already spawned this node somewhere else (such as NiSkinInstance), skip it
         return;
@@ -216,22 +233,9 @@ fn spawn_nif_node_recursive<'a>(
     };
     match ni_type {
         NiType::NiNode(ni_node) => {
-            let nif_transform = ni_node;
-            let rot = nif_transform.rotation;
-            let rot_mat = Mat3::from_cols_array(&[
-                rot.x_axis[0],
-                rot.y_axis[0],
-                rot.z_axis[0],
-                rot.x_axis[1],
-                rot.y_axis[1],
-                rot.z_axis[1],
-                rot.x_axis[2],
-                rot.y_axis[2],
-                rot.z_axis[2],
-            ]);
             let bevy_transform = Transform {
                 translation: ni_node.translation,
-                rotation: Quat::from_mat3(&rot_mat),
+                rotation: Quat::from_mat3(&ni_node.rotation.transpose()),
                 scale: Vec3::splat(ni_node.scale),
             };
             let new_ninode_entity = commands
@@ -239,8 +243,13 @@ fn spawn_nif_node_recursive<'a>(
                     bevy_transform,
                     Name::new(ni_node.name.clone()),
                     ChildOf(parent_entity),
+                    Visibility::Inherited,
                 ))
                 .id();
+            spawn_context
+                .nif_node_index
+                .named_nodes
+                .insert(hash_str(&ni_node.name), new_ninode_entity);
             if let Some(_bounding_volume) = &ni_node.bounding_volume {
                 // dbg!("pushing bv to", new_ninode_entity);
                 spawn_context
@@ -283,25 +292,18 @@ fn spawn_nif_node_recursive<'a>(
         }
         NiType::NiTriShape(ni_trishape) => {
             let nif_transform = ni_trishape;
-            let rot = nif_transform.rotation;
-            let rot_mat = Mat3::from_cols_array(&[
-                rot.x_axis[0],
-                rot.y_axis[0],
-                rot.z_axis[0],
-                rot.x_axis[1],
-                rot.y_axis[1],
-                rot.z_axis[1],
-                rot.x_axis[2],
-                rot.y_axis[2],
-                rot.z_axis[2],
-            ]);
             let bevy_transform = Transform {
                 translation: ni_trishape.translation,
-                rotation: Quat::from_mat3(&rot_mat),
+                rotation: Quat::from_mat3(&nif_transform.rotation.transpose()),
                 scale: Vec3::splat(ni_trishape.scale),
             };
             // Create the entity and set up the name
-            let new_nitrishape_entity = commands.spawn(bevy_transform).id();
+            let new_nitrishape_entity =
+                commands.spawn((bevy_transform, Visibility::Inherited)).id();
+            spawn_context
+                .nif_node_index
+                .tri_shapes
+                .push(new_nitrishape_entity);
             let name_ref: &str = &ni_trishape.name;
             let formatted_name = format!("NiTriShape: {:?}", name_ref);
             // Make shadow invisible (or if it's the main skeleton, the bones)
@@ -311,11 +313,12 @@ fn spawn_nif_node_recursive<'a>(
             {
                 commands
                     .entity(new_nitrishape_entity)
-                    .insert(Visibility::Hidden);
+                    .insert((Visibility::Hidden, Name::new("hidden")));
+            } else {
+                commands
+                    .entity(new_nitrishape_entity)
+                    .insert(Name::new(formatted_name));
             }
-            commands
-                .entity(new_nitrishape_entity)
-                .insert(Name::new(formatted_name));
             // The mesh was built as the nif was loading, rather than storing it, re loading it,
             // and then building the mesh.
             // We have to get the mesh handle using our nitrishape's key
@@ -513,7 +516,7 @@ fn apply_skin_instance(
     // 3a. Create Inverse Bind Pose Asset
     let mut ibp_matrices = Vec::with_capacity(skin_data.bone_data.len());
     for bone_data in &skin_data.bone_data {
-        // Convert NIF transform -> Bevy Transform -> Bevy Mat4
+        // Convert NIF transform -> Bevy Transform
         // Assumes bone_data.bone_transform is the inverse bind pose
         let bevy_transform = Transform {
             translation: bone_data.translation,

@@ -10,9 +10,6 @@ use super::bevy_types::{
 };
 use crate::skeleton::Skeleton;
 
-// --- Bone Region Determination Helper ---
-// (Moved here as it's a parser/skeleton interpretation helper)
-
 /// Helper to determine the primary discrete region index for a bone.
 pub(super) fn determine_bone_primary_region_index(bone_name: &str, skeleton: &Skeleton) -> usize {
     if skeleton.is_descendant_of_or_is(bone_name, REGION_ROOT_LEFT_ARM) {
@@ -59,9 +56,16 @@ pub fn make_bevy_curve<T: Animatable + Copy>(
         }
     }
 }
-/// Filters and re-times keyframes from a controller to fit a new clip's time range.
+/// Returns a vec of keyframes normalized to this new clip's start and end times.
+///
+/// It does this by:
+/// 1. Grabbing the pose exactly at the start time and forcing it to be the first keyframe (at time 0).
+///    This stops the model from snapping to a potentially far away keyframe when the clip begins.
+/// 2. Moving all the original keyframes inside the cut to start from 0 instead of their old times.
+/// 3. Grabbing the pose at the end time and forcing it as the last keyframe, so we have a
+///    guaranteed keyframe at the end of the animation.
 pub fn filter_and_retime_keyframes<'a, T: Copy + 'a>(
-    keys_iter: impl Iterator<Item = (f32, T)> + 'a,
+    all_keys: Vec<(f32, T)>,
     clip_start: f32,
     clip_end: f32,
 ) -> Vec<(f32, T)> {
@@ -71,7 +75,6 @@ pub fn filter_and_retime_keyframes<'a, T: Copy + 'a>(
 
     // Collect the iterator into a single Vec inside the function.
     // This allows us to perform the multiple searches needed below (rfind, filter, find)
-    let all_keys: Vec<(f32, T)> = keys_iter.collect();
 
     let mut new_keys = Vec::new();
 
@@ -184,9 +187,7 @@ pub fn sample_vec3_curve(keys: &[(f32, Vec3)], time: f32) -> Option<Vec3> {
     if keys.is_empty() {
         return None;
     }
-
     let index = keys.partition_point(|(k_time, _)| *k_time < time);
-
     match index {
         0 => Some(keys[0].1),
         i if i >= keys.len() => Some(keys.last().unwrap().1),

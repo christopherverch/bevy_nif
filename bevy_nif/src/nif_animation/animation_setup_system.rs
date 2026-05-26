@@ -3,7 +3,7 @@ use crate::{
     nif_animation::{
         AnimationDefinition, NifAnimator, NifAnimatorAdded, NifEvent, NifEventType,
         REGION_ROOT_LOWER_BODY,
-        bevy_types::Priority,
+        bevy_types::{ManualNifEvent, Priority},
         parser_helpers::{
             determine_bone_primary_region_index, filter_and_retime_keyframes,
             is_inherently_looping, make_bevy_curve, sample_vec3_curve,
@@ -234,27 +234,27 @@ pub fn setup_animations(
 
             let Some(bone_key) = bip01_target_key else {
                 // If there's no Bip01 controller, break with an empty Vec.
-                dbg!("no bip_01");
+                //dbg!("no bip_01");
                 break 'find_keys Vec::new();
             };
 
             // Get the controllers associated with that bone key.
             let Some(bip01_controllers) = all_bone_controllers.get(bone_key) else {
-                dbg!("no bip_01_controller");
+                //dbg!("no bip_01_controller");
                 break 'find_keys Vec::new();
             };
 
             let mut keys = Vec::new();
             for controller in bip01_controllers {
                 let keyframe_data_key = controller.data.key;
-                dbg!(keyframe_data_key);
-                dbg!("no kfd");
+                //dbg!(keyframe_data_key);
+                //dbg!("no kfd");
                 if keyframe_data_key.is_null() {
                     continue;
                 }
 
                 if let Some(kfd) = nif_asset.all_keyframe_data.get(&keyframe_data_key) {
-                    // FIX: Apply NiPosKey pattern matching for translation data, same as above.
+                    // Apply NiPosKey pattern matching for translation data
                     let pos_keys_enum = &kfd.translations.keys;
 
                     match pos_keys_enum {
@@ -295,13 +295,14 @@ pub fn setup_animations(
         for processed_clip in &processed_animations {
             let mut root_translation_curve: Option<AnimatableKeyframeCurve<Vec3>> = None;
             let mut bevy_clip = AnimationClip::default();
+            let mut animation_events = Vec::new();
 
-            // Loop over our pre-collected bone data
+            // Loop over the pre-collected bone data
             for bone in &raw_bone_data {
                 // --- Handle Rotations from pre-collected data ---
                 if !bone.all_rotation_keys.is_empty() {
                     let rot_keys = filter_and_retime_keyframes(
-                        bone.all_rotation_keys.iter().cloned(), // .cloned() is cheap for tuples of primatives
+                        bone.all_rotation_keys.clone(), // .cloned() is cheap for tuples of primatives
                         processed_clip.start_time,
                         processed_clip.end_time,
                     );
@@ -361,9 +362,19 @@ pub fn setup_animations(
                                         entity,
                                     },
                                 );
+                                // Also add it to the events, hopefully bevy adds a way to get
+                                // animation events so this data doesn't need to be duplicated
+                                animation_events.push((
+                                    relative_time,
+                                    ManualNifEvent {
+                                        event_type: NifEventType::SoundGen {
+                                            sound_name: original_line.to_string(),
+                                        },
+                                        entity,
+                                    },
+                                ));
                             }
-                            // Add else if blocks here to parse other kinds of events,
-                            // e.g., if original_line.contains("footstep") { ... }
+                            // TODO:: Add else if blocks here to parse other kinds of events
                         }
                     }
                 }
@@ -410,6 +421,7 @@ pub fn setup_animations(
                     min_attack_time_relative: processed_clip.min_attack_time_relative,
                     hit_time_relative: processed_clip.hit_time_relative,
                     min_hit_time_relative: processed_clip.min_hit_time_relative,
+                    animation_events,
                 },
             );
         }
@@ -456,6 +468,8 @@ pub fn setup_animations(
                     links_to_create.push((name.clone(), potential_loop_name));
                 }
             }
+            // TODO:: do loops ever transition to outros on their own? if not then we don't need the
+            // following
             /*
             // If this is a "loop" clip...
             else if let Some(base_name) = name.strip_suffix("_loop") {
@@ -483,7 +497,7 @@ pub fn setup_animations(
                 skeleton_id: needs_animator_data.skeleton_id,
                 animation_definitions: animation_definitions_map,
                 active_animations: HashMap::new(),
-                active_regions: [Priority::Idle; 4],
+                active_regions: [Priority::Default; 4],
             },
         ));
 
@@ -569,14 +583,17 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
     let temp_blocks_vec: Vec<AnimationBlockData> = temp_blocks.into_values().collect();
 
     for block_data in temp_blocks_vec {
-        // First, check for looping animations (your existing logic is correct)
-        if let (Some(ls), Some(le)) = (block_data.loop_start_time, block_data.loop_end_time) {
-            if le >= ls {
-                if ls > block_data.start_time {
+        // If it's a loop, split it into base animation, loop, and outro
+        // _loop appended to loop animations, _outro appended to outro animations
+        if let (Some(loop_start), Some(loop_end)) =
+            (block_data.loop_start_time, block_data.loop_end_time)
+        {
+            if loop_end >= loop_start {
+                if loop_start > block_data.start_time {
                     final_animations.push(ProcessedAnimation {
                         name: block_data.name.clone(),
                         start_time: block_data.start_time,
-                        end_time: ls,
+                        end_time: loop_start,
                         events: Vec::new(),
                         min_attack_time_relative: 0.0,
                         max_attack_time_relative: 0.0,
@@ -586,18 +603,18 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
                 }
                 final_animations.push(ProcessedAnimation {
                     name: format!("{}_loop", block_data.name),
-                    start_time: ls,
-                    end_time: le,
+                    start_time: loop_start,
+                    end_time: loop_end,
                     events: Vec::new(),
                     min_attack_time_relative: 0.0,
                     max_attack_time_relative: 0.0,
                     hit_time_relative: 0.0,
                     min_hit_time_relative: 0.0,
                 });
-                if block_data.end_time > le {
+                if block_data.end_time > loop_end {
                     final_animations.push(ProcessedAnimation {
                         name: format!("{}_outro", block_data.name),
-                        start_time: le,
+                        start_time: loop_end,
                         end_time: block_data.end_time,
                         events: Vec::new(),
                         min_attack_time_relative: 0.0,
@@ -665,7 +682,7 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
                 min_hit_time_relative: min_hit_time_rel, // Add calculated value
             });
 
-            // --- 3. Create a clip for EACH specific follow event ---
+            // --- 3. Create a clip for each specific follow event ---
             if !sorted_follows.is_empty() {
                 // If the animation continues after the release but before the first follow,
                 // create a generic follow/recovery clip for that duration.
@@ -704,7 +721,7 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
                     final_animations.push(ProcessedAnimation {
                         name: format!("{}_{}", base_name, follow_type_name),
                         start_time: **start_time,
-                        end_time: stop_time, // Use the correct, specific stop time.
+                        end_time: stop_time,
                         events: Vec::new(),
                         min_attack_time_relative: 0.0,
                         max_attack_time_relative: 0.0,
@@ -729,8 +746,7 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
             continue; // Go to the next animation block
         }
         // If it's not a looping anim or a main attack anim, treat it as a single clip.
-        // This will correctly handle animations like "equip", "unequip", "hit", "death",
-        // and the separate "follow" animations.
+        // This will handle animations like "equip", "unequip", "hit", "death"
         final_animations.push(ProcessedAnimation {
             name: block_data.name,
             start_time: block_data.start_time,
@@ -742,7 +758,10 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
             min_hit_time_relative: 0.0,
         });
     }
-    // --- Pass 5: Populate events with Hybrid Logic ---
+    all_events.sort_unstable_by(|a, b| a.time.partial_cmp(&b.time).unwrap());
+    final_animations.sort_unstable_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
+    let mut anim_index = 0;
+    // --- Pass 5: Populate the final animation with the events that actually correspond to it
     for event in &all_events {
         // Skip boundary markers, as they are not gameplay events.
         if event.command == "start"
@@ -754,14 +773,24 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
         }
 
         let mut event_placed = false;
-
+        // Advance past any animations that end before this event even starts
+        while anim_index < final_animations.len()
+            && final_animations[anim_index].end_time < event.time - 1e-4
+        {
+            anim_index += 1;
+        }
         // Stage 1: Try to find a parent clip by name.
         if let Some(parent_clip_name) = clip_defining_names
             .iter()
             .filter(|&def_name| event.name.starts_with(def_name))
             .max_by_key(|def_name| def_name.len())
         {
-            for anim in &mut final_animations {
+            for i in anim_index..final_animations.len() {
+                let anim = &mut final_animations[i];
+                // Break early if the animation starts after the event time
+                if anim.start_time > event.time + 1e-4 {
+                    break;
+                }
                 let anim_base_name = anim
                     .name
                     .trim_end_matches("_loop")
@@ -781,7 +810,12 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
 
         // Stage 2: Fallback for events with no name-based parent (e.g., "SoundGen").
         if !event_placed {
-            for anim in &mut final_animations {
+            for i in anim_index..final_animations.len() {
+                let anim = &mut final_animations[i];
+                // Break early if the animation starts after the event time
+                if anim.start_time > event.time + 1e-4 {
+                    break;
+                }
                 if event.time >= anim.start_time - 1e-4 && event.time <= anim.end_time + 1e-4 {
                     let event_string = format!("'{}' @ {:.3}", event.original_line, event.time);
                     anim.events.push(event_string);
@@ -796,7 +830,6 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
         anim.events.sort();
     }
 
-    final_animations.sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
     final_animations
 }
 // A list of all possible commands we need to recognize.

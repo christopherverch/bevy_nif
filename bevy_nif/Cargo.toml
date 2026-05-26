@@ -18,6 +18,6 @@ bevy = {workspace = true}
 
 
 [dev-dependencies]
-bevy = { version = "0.18", default-features = false, features = ["x11", "tonemapping_luts","dynamic_linking", "reflect_auto_register",] }
+bevy = { version = "0.18", default-features = false, features = ["x11", "tonemapping_luts","dynamic_linking", "reflect_auto_register", "free_camera"] }
 bevy-inspector-egui = "0.36.0"
 bevy_rapier3d = "0.33.0"

@@ -25,8 +25,8 @@ pub fn process_nitexturingproperty(
                     NiType::NiSourceTexture(source_texture) => {
                         match &source_texture.source {
                             TextureSource::External(ext_path) => {
-                                dbg!("loading");
-                                dbg!(ext_path);
+                                //dbg!("loading");
+                                //dbg!(ext_path);
                                 let path = resolve_nif_path(ext_path);
                                 if let Some(path) = path {
                                     texture_handle_opt = Some(asset_server.load(path));

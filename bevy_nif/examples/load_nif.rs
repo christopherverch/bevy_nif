@@ -1,3 +1,6 @@
+use bevy::camera_controller::free_camera::FreeCameraPlugin;
+// This example runs animations and is meant to be run with base_anim.nif and the B_N dark elf nif
+// files inside of assets/data, but any can be loaded by replacing the names in setup.rs
 use bevy::prelude::*;
 use bevy_inspector_egui::bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
@@ -6,23 +9,20 @@ use bevy_nif::nif_animation::{BlendMask, NifAnimator, SkeletonMap};
 use bevy_nif::*;
 use bevy_rapier3d::plugin::{NoUserData, RapierPhysicsPlugin};
 use bevy_rapier3d::render::RapierDebugRenderPlugin;
-use third_person_camera::*;
 mod setup;
-mod third_person_camera;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugins(BevyNifPlugin)
         .insert_resource(GlobalAmbientLight {
-            // Add ambient light resource
-            color: Color::srgb(1.0, 0.8, 0.6), // Match warm tone
+            color: Color::srgb(1.0, 0.8, 0.6),
             brightness: 100.0,
             affects_lightmapped_meshes: true,
         })
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugins(RapierDebugRenderPlugin::default())
-        .add_plugins(ThirdPersonCameraPlugin)
+        .add_plugins(FreeCameraPlugin)
         .add_systems(Startup, setup::setup_scene)
         .add_systems(Startup, setup::setup)
         .add_systems(Update, test_animations)
@@ -77,7 +77,7 @@ fn test_loop_anims(
                 animation_player.play(run_forward_anim.node_index).repeat();
 
                 nif_animator.active_animations.remove("runforward2w");
-                println!("time to loop");
+                println!("looping animation");
             }
         }
     }
@@ -148,6 +148,7 @@ fn test_animations(
                     blend_mask: BlendMask::empty(),
                     next_clip_name: Some("runforward2w_loop".to_string()),
                     priorities: [Priority::Hit; 4],
+                    auto_remove: true,
                     speed_mult: 1.0,
                 },
             );

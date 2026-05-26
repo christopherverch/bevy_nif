@@ -16,9 +16,12 @@ pub struct BoneData {
 
 #[derive(Default, Debug)]
 pub struct Skeleton {
-    pub bones: Vec<BoneData>,            // Arena storing all bone data
-    name_to_id: HashMap<String, BoneId>, // Fast lookup of bone ID by name
-    roots: Vec<BoneId>,                  // IDs of root bones
+    /// Stores all bone data
+    pub bones: Vec<BoneData>,
+    /// Lookup of bone ID by name
+    name_to_id: HashMap<String, BoneId>,
+    /// BoneIds of root bones
+    roots: Vec<BoneId>,
 }
 
 impl Skeleton {
@@ -44,8 +47,9 @@ impl Skeleton {
         self.bones.push(bone_data);
         self.name_to_id.insert(name, new_id);
 
+        // This bone says it has a parent
         if let Some(p_id) = parent_id {
-            // Need to access bones via id for mutable borrow
+            // Get its parent and add this bone as a child
             if let Some(parent_node) = self.bones.get_mut(p_id.0) {
                 parent_node.children.push(new_id);
             } else {
@@ -105,7 +109,7 @@ impl Skeleton {
     pub fn get_all_children(&self, start_bone_name: &str) -> Vec<&BoneData> {
         let mut children = Vec::new();
         if let Some(start_bone_data) = self.get_bone_by_name(start_bone_name) {
-            // Our stack will store tuples of (BoneId, indent_level)
+            // stack will store tuples of (BoneId, indent_level)
             let mut stack: Vec<(BoneId, usize)> = Vec::new();
 
             // Push the starting bone with indent level 0
@@ -115,11 +119,9 @@ impl Skeleton {
                 // The loop continues as long as there are items on the stack
 
                 if let Some(bone_data) = self.get_bone_by_id(current_bone_id) {
-                    // Print current bone's name with indentation
-
                     // Add children to the stack for later processing.
                     // To process children in their natural order (first child first),
-                    // we must push them onto the stack in REVERSE order.
+                    // we push them onto the stack in reverse order.
                     // The last child pushed will be the first one popped and processed.
                     for &child_id in bone_data.children.iter().rev() {
                         stack.push((child_id, indent_level + 1));

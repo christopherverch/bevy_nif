@@ -30,6 +30,8 @@ pub struct AnimationDefinition {
     pub node_index: AnimationNodeIndex,
     /// The handle to the Bevy AnimationClip asset being played.
     pub clip_handle: Handle<AnimationClip>,
+    /// oneshot, intro, loop, or outro
+    pub anim_type: AnimType,
     /// The clip to play after this animation finishes, likely a
     /// loop such as RunForward_loop
     pub next_clip_name: Option<String>,
@@ -54,12 +56,12 @@ pub struct ActiveAnimation {
     pub node_index: AnimationNodeIndex,
     /// The handle to the Bevy AnimationClip asset being played.
     pub clip_handle: Handle<AnimationClip>,
-    /// How many times this animation should loop
-    pub loop_count: u32,
+    pub anim_type: AnimType,
     /// A bitmask defining which body parts this animation affects.
     pub blend_mask: BlendMask,
     /// The name of the clip to transition to when this one finishes.
     pub next_clip_name: Option<String>,
+    pub next_should_loop: bool,
     /// Priorities for each region for this animation
     pub priorities: [Priority; NUM_DISCRETE_REGIONS],
     /// Whether this animation should be removed when finished, or just freeze on the last frame
@@ -86,6 +88,17 @@ pub enum Priority {
     Storm,
     Death,
     Scripted,
+}
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum AnimType {
+    OneShot,
+    Intro,
+    Loop,
+    Outro,
+    Windup,
+    Release,
+    Follow,
+    SpecificFollow,
 }
 
 #[derive(Component)]

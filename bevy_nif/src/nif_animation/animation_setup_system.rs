@@ -3,9 +3,9 @@ use crate::{
     nif_animation::{
         AnimationDefinition, NifAnimator, NifAnimatorAdded, NifEvent, NifEventType,
         REGION_ROOT_LOWER_BODY,
-        bevy_types::{ManualNifEvent, Priority},
+        bevy_types::{AnimType, ManualNifEvent, Priority},
         parser_helpers::{
-            determine_bone_primary_region_index, filter_and_retime_keyframes,
+            determine_bone_primary_region_index, filter_and_retime_keyframes, flatten_keys_xy,
             is_inherently_looping, make_bevy_curve, sample_vec3_curve,
         },
     },
@@ -40,6 +40,7 @@ pub struct ProcessedAnimation {
     pub max_attack_time_relative: f32,
     pub hit_time_relative: f32,
     pub min_hit_time_relative: f32,
+    pub anim_type: AnimType,
 }
 
 /// A temporary struct to hold all data about a block before the final split decision.
@@ -85,6 +86,7 @@ pub fn setup_animations(
         let Some(nif_asset) = nif_assets.get(nif_handle) else {
             continue;
         };
+        dbg!(&nif_asset.node_names);
         let Some(skeleton) = skeleton_map_res
             .skeletons
             .get(&needs_animator_data.skeleton_id)
@@ -316,19 +318,48 @@ pub fn setup_animations(
 
                 // --- Handle Translations from pre-collected data ---
                 if !bone.all_translation_keys.is_empty() {
-                    // Get the correctly timed keys for the current clip segment.
-                    let trans_keys = filter_and_retime_keyframes(
-                        bone.all_translation_keys.iter().cloned(),
-                        processed_clip.start_time,
-                        processed_clip.end_time,
-                    );
+                    let raw_trans_keys = bone.all_translation_keys.clone();
 
-                    if let Some(curve) = make_bevy_curve(&trans_keys) {
-                        if bone.is_bip01 {
-                            // If it's the root bone, store its translation curve in our temporary variable.
-                            root_translation_curve = Some(curve);
-                        } else {
-                            // For any other bone, add its translation to the main animation clip as before.
+                    if bone.is_bip01 {
+                        // Perform flattening on the raw keys first
+                        let flattened_raw = flatten_keys_xy(raw_trans_keys.clone());
+
+                        // Now Retime BOTH sets
+                        let retimed_raw = filter_and_retime_keyframes(
+                            raw_trans_keys,
+                            processed_clip.start_time,
+                            processed_clip.end_time,
+                        );
+                        let retimed_flattened = filter_and_retime_keyframes(
+                            flattened_raw,
+                            processed_clip.start_time,
+                            processed_clip.end_time,
+                        );
+
+                        // root translation curve has the raw data so we can use it for movement
+                        if let Some(full_curve) = make_bevy_curve(&retimed_raw) {
+                            root_translation_curve = Some(full_curve);
+                        }
+                        // the animation only contains up-down movement
+                        if let Some(flat_curve) = make_bevy_curve(&retimed_flattened) {
+                            bevy_clip.add_curve_to_target(
+                                bone.target_id,
+                                AnimatableCurve::new(
+                                    animated_field!(Transform::translation),
+                                    flat_curve,
+                                ),
+                            );
+                        }
+                    } else {
+                        // Get the correctly timed keys for the current clip segment.
+                        let trans_keys = filter_and_retime_keyframes(
+                            raw_trans_keys,
+                            processed_clip.start_time,
+                            processed_clip.end_time,
+                        );
+
+                        if let Some(curve) = make_bevy_curve(&trans_keys) {
+                            // For any other bone, add its translation to the main animation clip
                             bevy_clip.add_curve_to_target(
                                 bone.target_id,
                                 AnimatableCurve::new(
@@ -414,6 +445,7 @@ pub fn setup_animations(
                 AnimationDefinition {
                     node_index: graph_node_index,
                     clip_handle: bevy_clip_handle,
+                    anim_type: processed_clip.anim_type,
                     next_clip_name: None,
                     duration: clip_duration,
                     base_velocity,
@@ -456,34 +488,50 @@ pub fn setup_animations(
             animation_definitions_map.keys().cloned().collect();
 
         // A temporary list of links to create, to avoid mutable borrow issues with the map.
-        let mut links_to_create: Vec<(String, String)> = Vec::new();
+        let mut outro_links_to_create: Vec<(String, String)> = Vec::new();
+        let mut loop_links_to_create: Vec<(String, String)> = Vec::new();
 
         // Iterate over the keys of the original map to find which clips need linking.
         for name in animation_definitions_map.keys() {
+            if name.contains("knockout") {
+                dbg!(name);
+            }
             // If this is an "intro" clip (and not a loop or outro)...
-            if !name.ends_with("_loop") && !name.ends_with("_outro") && !name.contains("jump") {
+            if !name.ends_with("_loop") && !name.ends_with("_outro") {
                 let potential_loop_name = format!("{}_loop", name);
                 // ...check if its corresponding loop clip exists.
                 if all_clip_names_set.contains(&potential_loop_name) {
-                    links_to_create.push((name.clone(), potential_loop_name));
+                    loop_links_to_create.push((name.clone(), potential_loop_name));
                 }
             }
-            // TODO:: do loops ever transition to outros on their own? if not then we don't need the
-            // following
-            /*
             // If this is a "loop" clip...
             else if let Some(base_name) = name.strip_suffix("_loop") {
                 let potential_outro_name = format!("{}_outro", base_name);
+                if base_name.contains("knockout") {
+                    dbg!(&potential_outro_name);
+                }
                 // ...check if its corresponding outro clip exists.
                 if all_clip_names_set.contains(&potential_outro_name) {
-                    links_to_create.push((name.clone(), potential_outro_name));
+                    outro_links_to_create.push((name.clone(), potential_outro_name));
                 }
             }
-            */
         }
 
         // Now, apply the collected links.
-        for (clip_name, next_name) in links_to_create {
+        for (clip_name, next_name) in loop_links_to_create {
+            let mut base_velocity = Vec3::ZERO;
+            if let Some(loop_definition) = animation_definitions_map.get(&next_name) {
+                base_velocity = loop_definition.base_velocity;
+            }
+            if let Some(definition) = animation_definitions_map.get_mut(&clip_name) {
+                definition.next_clip_name = Some(next_name);
+                // We do this here instead of in the animation setup, since we don't know what is an
+                // intro until it's assigned a loop as its next clip
+                definition.anim_type = AnimType::Intro;
+                definition.base_velocity = base_velocity;
+            }
+        }
+        for (clip_name, next_name) in outro_links_to_create {
             if let Some(definition) = animation_definitions_map.get_mut(&clip_name) {
                 definition.next_clip_name = Some(next_name);
             }
@@ -599,6 +647,7 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
                         max_attack_time_relative: 0.0,
                         hit_time_relative: 0.0,
                         min_hit_time_relative: 0.0,
+                        anim_type: AnimType::OneShot,
                     });
                 }
                 final_animations.push(ProcessedAnimation {
@@ -610,6 +659,7 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
                     max_attack_time_relative: 0.0,
                     hit_time_relative: 0.0,
                     min_hit_time_relative: 0.0,
+                    anim_type: AnimType::Loop,
                 });
                 if block_data.end_time > loop_end {
                     final_animations.push(ProcessedAnimation {
@@ -621,6 +671,7 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
                         max_attack_time_relative: 0.0,
                         hit_time_relative: 0.0,
                         min_hit_time_relative: 0.0,
+                        anim_type: AnimType::Outro,
                     });
                 }
                 continue;
@@ -641,6 +692,7 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
                     max_attack_time_relative: max_attack - block_data.start_time,
                     hit_time_relative: 0.0,
                     min_hit_time_relative: 0.0,
+                    anim_type: AnimType::Windup,
                 });
                 max_attack
             } else {
@@ -680,6 +732,7 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
                 max_attack_time_relative: 0.0,
                 hit_time_relative: hit_time_rel, // Add calculated value
                 min_hit_time_relative: min_hit_time_rel, // Add calculated value
+                anim_type: AnimType::Release,
             });
 
             // --- 3. Create a clip for each specific follow event ---
@@ -696,6 +749,7 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
                         max_attack_time_relative: 0.0,
                         hit_time_relative: 0.0,
                         min_hit_time_relative: 0.0,
+                        anim_type: AnimType::Follow,
                     });
                 }
 
@@ -727,6 +781,7 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
                         max_attack_time_relative: 0.0,
                         hit_time_relative: 0.0,
                         min_hit_time_relative: 0.0,
+                        anim_type: AnimType::SpecificFollow,
                     });
                 }
             } else if block_data.end_time > release_end_time + 1e-4 {
@@ -740,6 +795,7 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
                     max_attack_time_relative: 0.0,
                     hit_time_relative: 0.0,
                     min_hit_time_relative: 0.0,
+                    anim_type: AnimType::Follow,
                 });
             }
 
@@ -756,6 +812,7 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
             max_attack_time_relative: 0.0,
             hit_time_relative: 0.0,
             min_hit_time_relative: 0.0,
+            anim_type: AnimType::OneShot,
         });
     }
     all_events.sort_unstable_by(|a, b| a.time.partial_cmp(&b.time).unwrap());

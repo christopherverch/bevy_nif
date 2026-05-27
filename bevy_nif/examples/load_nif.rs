@@ -4,7 +4,7 @@ use bevy::camera_controller::free_camera::FreeCameraPlugin;
 use bevy::prelude::*;
 use bevy_inspector_egui::bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use bevy_nif::nif_animation::bevy_types::{ActiveAnimation, Priority};
+use bevy_nif::nif_animation::bevy_types::{ActiveAnimation, AnimType, Priority};
 use bevy_nif::nif_animation::{BlendMask, NifAnimator, SkeletonMap};
 use bevy_nif::*;
 use bevy_rapier3d::plugin::{NoUserData, RapierPhysicsPlugin};
@@ -49,16 +49,18 @@ fn test_loop_anims(
             let Some(run_forward_anim) = nif_animator.active_animations.get("runforward2w") else {
                 return;
             };
-            let runforward_clip = animation_clips.get(&run_forward_anim.clip_handle).unwrap();
+            let Some(runforward_clip) = animation_clips.get(&run_forward_anim.clip_handle) else {
+                return;
+            };
             let duration = runforward_clip.duration();
-            println!(
-                "duration: {}, elapsed: {}",
-                duration,
-                animation_player
-                    .animation(run_forward_anim.node_index)
-                    .unwrap()
-                    .elapsed()
-            );
+            let elapsed = {
+                let Some(animation) = animation_player.animation(run_forward_anim.node_index)
+                else {
+                    return;
+                };
+                animation.elapsed()
+            };
+            println!("duration: {}, elapsed: {}", duration, elapsed,);
             if animation_player
                 .animation(run_forward_anim.node_index)
                 .unwrap()
@@ -93,6 +95,7 @@ fn test_animations(
     >,
     mut anim_graphs: ResMut<Assets<AnimationGraph>>,
     skeleton_map_res: Res<SkeletonMap>,
+    animation_clips: Res<Assets<AnimationClip>>,
 ) {
     for (id, _skeleton) in &skeleton_map_res.skeletons {
         for (mut animation_player, mut nif_animator, graph_handle) in animator_q.iter_mut() {
@@ -105,18 +108,9 @@ fn test_animations(
                 animation_names.push((name, animation.clone()));
             }
             animation_names.sort_by_key(|pair| pair.0.clone());
-            /*for (animation, animation_def) in animation_names {
-                println!(
-                    " animation: {}, {:?}",
-                    animation,
-                    animation_clips
-                        .get(&animation_def.clip_handle)
-                        .unwrap()
-                        .duration()
-                );
-                dbg!(animation_def.min_hit_time_relative);
-                dbg!(animation_def.hit_time_relative);
-            }*/
+            for (animation, animation_def) in animation_names {
+                println!(" animation: {}, ", animation,);
+            }
             // ------------------------------------
 
             let anim_graph = anim_graphs.get_mut(graph_handle).unwrap();
@@ -135,8 +129,6 @@ fn test_animations(
             let run_forward_graph_node = anim_graph.get_mut(run_forward_anim.node_index).unwrap();
             run_forward_graph_node.mask = BlendMask::UPPER_BODY.bits();
             println!("run forward mask: {}", BlendMask::UPPER_BODY.bits());
-            animation_player.play(chop_animation.node_index).repeat();
-            animation_player.play(run_forward_anim.node_index);
             let node_index = run_forward_anim.node_index;
             let clip_handle = run_forward_anim.clip_handle.clone();
             nif_animator.active_animations.insert(
@@ -144,11 +136,12 @@ fn test_animations(
                 ActiveAnimation {
                     clip_handle,
                     node_index,
-                    loop_count: 0,
+                    anim_type: AnimType::Intro,
                     blend_mask: BlendMask::empty(),
                     next_clip_name: Some("runforward2w_loop".to_string()),
                     priorities: [Priority::Hit; 4],
                     auto_remove: true,
+                    next_should_loop: true,
                     speed_mult: 1.0,
                 },
             );

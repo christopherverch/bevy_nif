@@ -22,7 +22,7 @@ pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         Transform::from_scale(Vec3::splat(1.0)),
     );
 }
-use std::f32::consts::{FRAC_PI_4, PI};
+use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 
 use bevy::core_pipeline::prepass::{DeferredPrepass, DepthPrepass, MotionVectorPrepass};
 
@@ -61,11 +61,19 @@ fn spawn_nifs(
         let child = commands
             .spawn((
                 NifScene(asset_handle),
-                attachment_type,
+                attachment_type.clone(),
                 transform,
                 InheritedVisibility::VISIBLE,
             ))
             .id();
+        if matches!(attachment_type, AttachmentType::Skinned { skeleton_id: _ }) {
+            // Needs to rotate skinned attachments since these aren't attached to the pre-rotated
+            // skeleton, they're just a child of the mesh
+            commands.entity(child).insert(Transform::from_rotation(
+                Quat::from_rotation_x(-FRAC_PI_2) * Quat::from_rotation_z(PI),
+            ));
+        }
+
         commands.entity(entity).add_child(child);
     }
 }

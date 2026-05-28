@@ -94,9 +94,8 @@ impl NiBound {
 
         for item in geometries {
             let (data, transform) = item.get();
-            for v_vec in &data.vertices {
-                let v_vec3 = Vec3::from_array(*v_vec);
-                let v = transform.transform_point3(v_vec3);
+            for v in &data.vertices {
+                let v = transform.transform_point3(*v);
                 min = min.min(v);
                 max = max.max(v);
             }

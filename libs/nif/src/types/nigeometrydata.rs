@@ -4,11 +4,11 @@ use crate::prelude::*;
 #[derive(Meta, Clone, Debug, PartialEq, SmartDefault)]
 pub struct NiGeometryData {
     pub base: NiObject,
-    pub vertices: Vec<[f32; 3]>,
-    pub normals: Vec<[f32; 3]>,
+    pub vertices: Vec<Vec3>,
+    pub normals: Vec<Vec3>,
     pub bound: NiBound,
     pub vertex_colors: Vec<ColorA>,
-    pub uv_sets: Vec<[f32; 2]>,
+    pub uv_sets: Vec<Vec2>,
 }
 
 impl Load for NiGeometryData {
@@ -67,13 +67,13 @@ impl NiGeometryData {
         }
     }
 
-    pub fn uv_set(&self, index: usize) -> Option<&[[f32; 2]]> {
+    pub fn uv_set(&self, index: usize) -> Option<&[Vec2]> {
         let start = index * self.vertices.len();
         let end = start + self.vertices.len();
         self.uv_sets.get(start..end)
     }
 
-    pub fn uv_set_mut(&mut self, index: usize) -> Option<&mut [[f32; 2]]> {
+    pub fn uv_set_mut(&mut self, index: usize) -> Option<&mut [Vec2]> {
         let start = index * self.vertices.len();
         let end = start + self.vertices.len();
         self.uv_sets.get_mut(start..end)
@@ -88,24 +88,19 @@ impl NiGeometryData {
 
         let mut min = Vec3::splat(f32::INFINITY);
         let mut max = Vec3::splat(f32::NEG_INFINITY);
-        for v_array in &self.vertices {
-            // Convert the array to a Vec3 for the math operations
-            let v = Vec3::from_array(*v_array);
-            min = min.min(v);
-            max = max.max(v);
+        for v in &self.vertices {
+            min = min.min(*v);
+            max = max.max(*v);
         }
 
         let center = 0.5 * (min + max);
-        let mut radius: f32 = 0.0;
+        let mut radius = 0.0;
 
-        // Second pass to calculate radius
-        for v_array in &self.vertices {
-            // Convert the array back to a Vec3
-            let v = Vec3::from_array(*v_array);
-            let d = v - center;
-            // Use the fast Vec3 dot product
+        for v in &self.vertices {
+            let d = *v - center;
             radius = d.dot(d).max(radius);
         }
+
         self.bound.center = center;
         self.bound.radius = radius.sqrt();
     }

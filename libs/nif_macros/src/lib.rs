@@ -1,7 +1,7 @@
 use std::sync::{LazyLock, Mutex};
 
 use proc_macro::TokenStream;
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use syn::{Data, DataStruct, DeriveInput, Fields, Ident, LitByteStr, Type};
 
 mod util;
@@ -49,26 +49,35 @@ pub fn derive_meta(input: TokenStream) -> TokenStream {
                     (&self.#fields).visitor(f);
                 )*
             }
+
+            fn remap_links(&mut self, remap: &HashMap<NiKey, NiKey>) {
+                #(
+                    (&mut self.#fields).remap_links(remap);
+                )*
+            }
         }
         #inheritence_impls
     };
 
     if let Some(ident) = base_id {
-        RELATIONS.lock().unwrap().insert(self_id.to_string(), ident.to_string());
+        RELATIONS
+            .lock()
+            .unwrap()
+            .insert(self_id.to_string(), ident.to_string());
     }
 
     output.into()
 }
 
 #[rustfmt::skip]
-fn get_struct_fields_rev(data: &Data) -> impl Iterator<Item = &Ident> {
+fn get_struct_fields_rev(data: &Data) -> Vec<&Ident> {
     let fields = match data {
         Data::Struct(DataStruct { fields: Fields::Named(f), .. }) => {
             Some(f.named.iter().filter_map(|f| f.ident.as_ref()))
         },
         _ => None
     };
-    fields.into_iter().flatten().rev()
+    fields.into_iter().flatten().rev().collect()
 }
 
 /// Internal derive macro for use with the `NiType` enum in `nif.rs`.
@@ -78,17 +87,18 @@ pub fn derive_nitype(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
 
     let variants = match &input.data {
-        Data::Enum(e) => &e.variants, // CORRECTED: Changed e::variants to e.variants
+        Data::Enum(e) => &e.variants,
         _ => panic!("derive(NiType): invalid input"),
     };
 
+    // the idents of all variants
     // 1. FILTER VARIANTS: Filter out the Empty placeholder variant from the code generation.
     let generated_variants: Vec<_> = variants.iter().filter(|v| v.ident != "Empty").collect();
 
     // The idents of all variants *to be generated*
     let idents: Vec<_> = generated_variants.iter().map(|v| &v.ident).collect();
 
-    // The idents as byte literals
+    // the idents as byte literals
     let idents_bytes = idents.iter().map(|id| get_literal_byte_str(id));
 
     let impl_try_from = impl_try_from_nitype(&idents);
@@ -113,9 +123,8 @@ pub fn derive_nitype(input: TokenStream) -> TokenStream {
             impl Save for NiType {
                 fn save(&self, stream: &mut Writer) -> io::Result<()> {
                     match self {
-                        // Remaining variants are generated via the macro loop
                         #(
-                            &Self::#idents(ref inner) => {
+                            Self::#idents(inner) => {
                                 let type_name = inner.type_name();
                                 let len = type_name.len() as u32;
                                 stream.save(&len)?;
@@ -123,9 +132,7 @@ pub fn derive_nitype(input: TokenStream) -> TokenStream {
                                 stream.save(inner)?;
                             }
                         )*
-                        // 2. MANUAL MATCH: The Empty variant is an internal placeholder
-                        // and should not be written to the file. Moved to the end.
-                        &Self::Empty => {} // Explicitly match the reference to the unit variant
+                            Self::Empty => {}
                     }
                     Ok(())
                 }
@@ -137,12 +144,19 @@ pub fn derive_nitype(input: TokenStream) -> TokenStream {
                     F: FnMut(NiKey)
                 {
                     match self {
-                        // Remaining variants are generated via the macro loop
                         #(
-                           &Self::#idents(ref inner) => inner.visitor(f),
+                            Self::#idents(inner) => inner.visitor(f),
                         )*
-                        // 2. MANUAL MATCH: The Empty variant has no links to visit. Moved to the end.
-                        &Self::Empty => {} // Explicitly match the reference to the unit variant
+                            Self::Empty => {}
+                    }
+                }
+
+                fn remap_links(&mut self, remap: &HashMap<NiKey, NiKey>) {
+                    match self {
+                        #(
+                            Self::#idents(inner) => inner.remap_links(remap),
+                        )*
+                            Self::Empty => {}
                     }
                 }
             }
@@ -152,10 +166,14 @@ pub fn derive_nitype(input: TokenStream) -> TokenStream {
 
     output.into()
 }
+
 fn impl_try_from_nitype(idents: &[&Ident]) -> impl ToTokens {
     // idents is an array of all the structs tagged with "Meta"
     // we need them in string form as well, so create a mapping
-    let strings_to_idents: HashMap<String, &Ident> = idents.iter().map(|&ident| (ident.to_string(), ident)).collect();
+    let strings_to_idents: HashMap<String, &Ident> = idents
+        .iter()
+        .map(|&ident| (ident.to_string(), ident))
+        .collect();
 
     // build a map that pairs structs with their "base" structs
     let mut structs_to_bases = HashMap::<&Ident, Vec<&Ident>>::default();
@@ -182,8 +200,7 @@ fn impl_try_from_nitype(idents: &[&Ident]) -> impl ToTokens {
                     #(
                         NiType::#idents(inner) => inner.type_name(),
                     )*
-                        NiType::Empty => b"",
-
+                            Self::Empty => {&[0]}
                 }
             }
         }
@@ -211,7 +228,6 @@ fn impl_try_from_nitype(idents: &[&Ident]) -> impl ToTokens {
                         #(
                             NiType::#child_idents(inner) => Ok(inner),
                         )*
-                            NiType::Empty => Err(()),
                         _ => Err(())
                     }
                 }
@@ -223,8 +239,7 @@ fn impl_try_from_nitype(idents: &[&Ident]) -> impl ToTokens {
                         #(
                             NiType::#child_idents(inner) => Ok(inner),
                         )*
-                            NiType::Empty => Err(()),
-                        _ => Err(())
+                    _ => Err(())
                     }
                 }
             }

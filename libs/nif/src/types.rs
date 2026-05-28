@@ -1,4 +1,5 @@
 use crate::prelude::*;
+
 mod avoidnode;
 mod brickniextradata;
 mod bsmirrorednode;
@@ -100,6 +101,7 @@ mod nispherebv;
 mod nisphericalcollider;
 mod nispotlight;
 mod nistencilproperty;
+mod nistream;
 mod nistringextradata;
 mod niswitchnode;
 mod nitextkeyextradata;
@@ -227,6 +229,7 @@ pub use nispherebv::*;
 pub use nisphericalcollider::*;
 pub use nispotlight::*;
 pub use nistencilproperty::*;
+pub use nistream::*;
 pub use nistringextradata::*;
 pub use niswitchnode::*;
 pub use nitextkeyextradata::*;

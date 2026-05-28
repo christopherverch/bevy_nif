@@ -7,12 +7,10 @@ use bevy::asset::{Asset, Handle, LoadContext, RenderAssetUsages};
 use bevy::log::{error, info, warn};
 use bevy::mesh::{Indices, Mesh, PrimitiveTopology};
 use bevy::reflect::TypePath;
-use slotmap::{DenseSlotMap, Key, new_key_type};
+use slotmap::{DenseSlotMap, Key};
 
 // internal imports
 use crate::prelude::*;
-
-new_key_type! { pub struct NiKey; }
 
 // A single type to represent any generated Bevy asset handle
 #[derive(Clone, Debug)]
@@ -245,6 +243,7 @@ pub fn convert_nif_mesh(data: NiTriShapeData) -> Option<Mesh> {
     let uvs = base.uv_sets;
     let indices = triangles;
     let final_mesh_opt: Option<Mesh>;
+    let flat_indices: Vec<u16> = indices.into_iter().flatten().collect();
     if !normals.is_empty() {
         let mut mesh = Mesh::new(
             PrimitiveTopology::TriangleList,
@@ -259,9 +258,8 @@ pub fn convert_nif_mesh(data: NiTriShapeData) -> Option<Mesh> {
         if !uvs.is_empty() {
             mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs); // MOVE
         }
-
         // Insert the final flat indices
-        mesh.insert_indices(Indices::U16(indices)); // MOVE
+        mesh.insert_indices(Indices::U16(flat_indices));
 
         final_mesh_opt = Some(mesh);
     } else {
@@ -272,7 +270,7 @@ pub fn convert_nif_mesh(data: NiTriShapeData) -> Option<Mesh> {
         final_mesh_opt = create_mesh_with_flat_normals(
             // Pass the data that contains the vertex position info
             vertices,
-            indices,
+            flat_indices,
             if uvs.is_empty() { None } else { Some(&uvs) },
         );
     }
@@ -286,9 +284,9 @@ pub fn convert_nif_mesh(data: NiTriShapeData) -> Option<Mesh> {
     }
 }
 fn create_mesh_with_flat_normals(
-    original_vertices_nif: Vec<[f32; 3]>,
+    original_vertices_nif: Vec<Vec3>,
     original_indices: Vec<u16>,
-    original_uvs: Option<&Vec<[f32; 2]>>,
+    original_uvs: Option<&Vec<Vec2>>,
 ) -> Option<Mesh> {
     let vertex_count = original_vertices_nif.len();
     if vertex_count == 0 {
@@ -337,9 +335,9 @@ fn create_mesh_with_flat_normals(
         }
 
         // Get vertex positions
-        let v0 = Vec3::from_array(original_vertices_nif[idx0]);
-        let v1 = Vec3::from_array(original_vertices_nif[idx1]);
-        let v2 = Vec3::from_array(original_vertices_nif[idx2]);
+        let v0 = original_vertices_nif[idx0];
+        let v1 = original_vertices_nif[idx1];
+        let v2 = original_vertices_nif[idx2];
 
         // Calculate face normal
         let edge1 = v1 - v0;
@@ -370,9 +368,9 @@ fn create_mesh_with_flat_normals(
             if let Some(uvs_in) = original_uvs {
                 // Check bounds for original UVs as well
                 if idx0 < uvs_in.len() && idx1 < uvs_in.len() && idx2 < uvs_in.len() {
-                    uvs_out.push(uvs_in[idx0]);
-                    uvs_out.push(uvs_in[idx1]);
-                    uvs_out.push(uvs_in[idx2]);
+                    uvs_out.push([uvs_in[idx0].x, uvs_in[idx0].y]);
+                    uvs_out.push([uvs_in[idx1].x, uvs_in[idx1].y]);
+                    uvs_out.push([uvs_in[idx2].x, uvs_in[idx2].y]);
                 } else {
                     warn!(
                         "Missing UV data for original indices in triangle {}, using default [0,0].",

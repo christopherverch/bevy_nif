@@ -1,5 +1,3 @@
-use bevy::transform::components::Transform;
-
 // internal imports
 use crate::prelude::*;
 
@@ -18,11 +16,10 @@ pub struct NiAVObject {
 }
 
 impl NiAVObject {
-    pub fn transform(&self) -> Transform {
-        Transform {
-            rotation: Quat::from_mat3(&self.rotation),
-            translation: self.translation,
-            scale: Vec3::splat(self.scale),
+    pub fn transform(&self) -> Affine3A {
+        Affine3A {
+            matrix3: (self.rotation * self.scale).transpose().into(),
+            translation: self.translation.into(),
         }
     }
 

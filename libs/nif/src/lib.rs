@@ -18,9 +18,6 @@ pub(crate) mod prelude {
     pub use bytemuck::{NoUninit, Pod, Zeroable};
     pub use derive_more::{Deref, DerefMut, From, Into};
     pub use hashbrown::{HashMap, HashSet};
-    pub use loader::NiKey;
-    pub use loader::Nif;
-    pub use loader::load_nif_bytes;
     pub use smart_default::SmartDefault;
     pub use std::io;
 
@@ -31,7 +28,7 @@ pub(crate) mod prelude {
 
     // basic math types
     mod math {
-        pub use bevy::math::{Affine3A, Mat2, Mat3, Quat, Vec2, Vec3, Vec4};
+        pub use glam::{Affine3A, Mat2, Mat3, Quat, Vec2, Vec3, Vec4};
         // a temporary alias until we pick a color library
         pub type ColorA = Vec4;
     }

@@ -15,7 +15,7 @@ use bevy::{
     animation::{AnimatedBy, AnimationTargetId, animated_field},
     prelude::*,
 };
-use nif::{NiKeyframeController, NiTextKey, loader::NiKey};
+use nif::{NiKey, NiKeyframeController, NiTextKey};
 use slotmap::Key;
 use std::collections::{HashMap, HashSet};
 

@@ -227,6 +227,7 @@ fn spawn_nif_attached(
     let child = commands
         .spawn((
             NifScene(asset_handle),
+            Name::new("skeleton"),
             AttachmentType::MainSkeleton { skeleton_id },
             transform.with_scale(Vec3::splat(0.03)),
             InheritedVisibility::VISIBLE,

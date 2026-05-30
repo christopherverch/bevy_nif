@@ -9,9 +9,8 @@ use bevy::mesh::skinning::{SkinnedMesh, SkinnedMeshInverseBindposes};
 use bevy::pbr::{MeshMaterial3d, StandardMaterial};
 use bevy::prelude::*;
 use nif::loader::ConsumedNiType;
-use nif::loader::NiKey;
 use nif::loader::Nif;
-use nif::{NiSkinInstance, NiType};
+use nif::{NiKey, NiSkinInstance, NiType};
 use std::collections::HashMap;
 use std::f32::consts::FRAC_PI_2;
 use std::f32::consts::PI;
@@ -118,6 +117,7 @@ pub fn spawn_nif_scenes(
     let Some(nif) = nif_assets.get(&nif_scene_component.0) else {
         return;
     };
+
     let mut skeleton = Skeleton::new();
     let already_spawned_nodes = HashMap::new();
     let ninodes_with_bvs = Vec::new();
@@ -300,6 +300,7 @@ fn spawn_nif_node_recursive<'a>(
             // Create the entity and set up the name
             let new_nitrishape_entity =
                 commands.spawn((bevy_transform, Visibility::Inherited)).id();
+
             spawn_context
                 .nif_node_index
                 .tri_shapes
@@ -381,13 +382,9 @@ fn spawn_nif_node_recursive<'a>(
                             spawn_context,
                             skin_instance,
                             new_nitrishape_entity,
-                            parent_entity,
-                            parent_bone_name_opt,
-                            skeleton,
                             skeleton_map,
                             mesh_handle,
                             meshes,
-                            materials,
                             inverse_bindposes,
                             commands,
                         );
@@ -400,22 +397,21 @@ fn spawn_nif_node_recursive<'a>(
     }
 }
 
-/// Apply Skinning Attributes & Spawn Skeleton (if needed)
+/// Apply Skinning Attributes
 fn apply_skin_instance(
     nif: &Nif,
     spawn_context: &mut SpawnContext,
     skin_instance: &NiSkinInstance,
     current_entity: Entity,
-    parent_entity: Entity,
-    parent_bone_name_opt: Option<&str>,
-    skeleton: &mut Skeleton,
     skeleton_map: &mut ResMut<SkeletonMap>,
     mesh_handle: &Handle<Mesh>,
     meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
     inverse_bindposes: &mut ResMut<Assets<SkinnedMeshInverseBindposes>>,
     commands: &mut Commands,
 ) {
+    if spawn_context.is_main_skeleton {
+        return;
+    }
     let skin_data_key = skin_instance.data.key;
     let Some(skin_data) = nif.objects.get(skin_data_key) else {
         return;
@@ -431,13 +427,15 @@ fn apply_skin_instance(
         // Only insert joint indices/weights if some other node didn't already do it for this mesh
         if mesh.attribute(Mesh::ATTRIBUTE_JOINT_INDEX).is_none() {
             if let Some(vertex_count) = mesh.attribute(Mesh::ATTRIBUTE_POSITION).map(|a| a.len()) {
-                //  Initialize
+                // The 4 indices of the bones that affect this vertex, like [bone1_idx, bone2_idx,..]
                 let mut joint_indices: Vec<[u16; 4]> = vec![[0, 0, 0, 0]; vertex_count];
+                // How much each bone in the above list pulls this vertex, should sum to 1.0
                 let mut joint_weights: Vec<[f32; 4]> = vec![[0.0, 0.0, 0.0, 0.0]; vertex_count];
                 let mut vertex_bone_counts: Vec<u8> = vec![0; vertex_count];
-                // loop through the bone data and populate indices and vertex weights
 
+                // loop through the bone data and populate indices and vertex weights
                 for (bone_list_idx, bone_data) in skin_data.bone_data.iter().enumerate() {
+                    // Gpus don't like when there are more than 256 bones
                     if bone_list_idx >= 256 {
                         warn!("Too many bones in bone_data, skipping any past 256");
                         continue;
@@ -445,6 +443,7 @@ fn apply_skin_instance(
                     for (index, weight) in &bone_data.vertex_weights {
                         let vertex_index = *index as usize;
                         if let Some(slot) = vertex_bone_counts.get_mut(vertex_index) {
+                            // Don't populate more than 4 vertex weights if the nif data is broken
                             if *slot < 4 {
                                 joint_indices[vertex_index][*slot as usize] = bone_list_idx as u16;
                                 joint_weights[vertex_index][*slot as usize] = *weight;
@@ -465,7 +464,6 @@ fn apply_skin_instance(
                         }
                     }
                 }
-
                 // Insert Bevy vertex attributes
                 mesh.insert_attribute(
                     Mesh::ATTRIBUTE_JOINT_INDEX,
@@ -489,41 +487,19 @@ fn apply_skin_instance(
         );
     }
 
-    // 2. Spawn Skeleton Hierarchy
-    if spawn_context.is_main_skeleton {
-        let root_key = skin_instance.root.key;
-        // If the root wasn't spawned yet, spawn it
-        if !spawn_context.already_spawned_nodes.contains_key(&root_key) {
-            spawn_nif_node_recursive(
-                nif,
-                spawn_context,
-                root_key,
-                //TODO:: Is this right? I think we might have to spawn the whole tree first
-                //since this just spawns it at the current parent level arbitrarily. I think
-                //it's only working because the root is usually encountered earlier in the ninode
-                //tree
-                parent_entity,
-                parent_bone_name_opt,
-                skeleton,
-                skeleton_map,
-                materials,
-                meshes,
-                inverse_bindposes,
-                commands,
-            );
-        }
-    }
     // 3a. Create Inverse Bind Pose Asset
     let mut ibp_matrices = Vec::with_capacity(skin_data.bone_data.len());
     for bone_data in &skin_data.bone_data {
+        let bone_mat = Mat4::from_scale_rotation_translation(
+            Vec3::splat(bone_data.scale),
+            Quat::from_mat3(&bone_data.rotation).inverse(),
+            bone_data.translation,
+        );
+
         // Convert NIF transform -> Bevy Transform
         // Assumes bone_data.bone_transform is the inverse bind pose
-        let bevy_transform = Transform {
-            translation: bone_data.translation,
-            rotation: Quat::from_mat3(&bone_data.rotation),
-            scale: Vec3::splat(bone_data.scale),
-        };
-        ibp_matrices.push(bevy_transform.to_matrix());
+
+        ibp_matrices.push(bone_mat);
     }
     // Create and add the asset
     let ibp_handle = inverse_bindposes.add(SkinnedMeshInverseBindposes::from(ibp_matrices));
@@ -531,59 +507,40 @@ fn apply_skin_instance(
     // 3b. Build Joints Vec<Entity>
     let mut joints_vec: Vec<Entity> = Vec::with_capacity(skin_instance.bones.len());
     let mut missing_bone = false;
-    if !spawn_context.is_main_skeleton {
-        // --- Attachable Nif Logic ---
-        if let Some(target_skeleton_id) = spawn_context.target_skeleton_id_opt {
-            let Some(skeleton) = &skeleton_map.skeletons.get(&target_skeleton_id) else {
-                error!(
-                    "target skeleton was not set up before nif that attaches to it! id:{}",
-                    target_skeleton_id
+    if let Some(target_skeleton_id) = spawn_context.target_skeleton_id_opt {
+        let Some(skeleton) = &skeleton_map.skeletons.get(&target_skeleton_id) else {
+            error!(
+                "target skeleton was not set up before nif that attaches to it! id:{}",
+                target_skeleton_id
+            );
+            return;
+        };
+        for (bone_order_idx, bone_link_in_current_nif) in skin_instance.bones.iter().enumerate() {
+            let Some(bone_object_nitype) = nif.objects.get(bone_link_in_current_nif.key) else {
+                warn!(
+                    "Attachable TriShape root {:?}: Missing bone link at order index {} in SkinInstance.",
+                    skin_instance.root, bone_order_idx
                 );
-                return;
+                missing_bone = true;
+                break;
             };
-            for (bone_order_idx, bone_link_in_current_nif) in skin_instance.bones.iter().enumerate()
-            {
-                let Some(bone_object_nitype) = nif.objects.get(bone_link_in_current_nif.key) else {
-                    warn!(
-                        "Attachable TriShape root {:?}: Missing bone link at order index {} in SkinInstance.",
-                        skin_instance.root, bone_order_idx
-                    );
-                    missing_bone = true;
-                    break;
-                };
-                let bone_object = match bone_object_nitype {
-                    NiType::NiNode(ni_node) => ni_node,
-                    _ => {
-                        // Should be unreachable
-                        warn!("NiSkinInstance bone linked to non-NiAVObject!");
-                        warn!("{:?}", bone_object_nitype);
-                        return;
-                    }
-                };
-                let bone_name = &bone_object.name;
-                if let Some(bone_data) = skeleton.get_bone_by_name(bone_name) {
-                    joints_vec.push(bone_data.entity);
-                } else {
-                    warn!(
-                        "Attachable TriShape root {:?}: Bone '{}' not found in active base skeleton map.",
-                        skin_instance.root,
-                        &format!("{}", bone_name),
-                    );
-                    missing_bone = true;
-                    break;
+            let bone_object = match bone_object_nitype {
+                NiType::NiNode(ni_node) => ni_node,
+                _ => {
+                    // Should be unreachable
+                    warn!("NiSkinInstance bone linked to non-NiAVObject!");
+                    warn!("{:?}", bone_object_nitype);
+                    return;
                 }
-            }
-        }
-    } else {
-        // --- Main skeleton logic ---
-        for (i, bone_link) in skin_instance.bones.iter().enumerate() {
-            // Look up the Entity linked to by this bone's NiNode index
-            if let Some(bone_entity) = spawn_context.already_spawned_nodes.get(&bone_link.key) {
-                joints_vec.push(*bone_entity);
+            };
+            let bone_name = &bone_object.name;
+            if let Some(bone_data) = skeleton.get_bone_by_name(bone_name) {
+                joints_vec.push(bone_data.entity);
             } else {
                 warn!(
-                    "   Bone node link #{} (key {:?}) from SkinInstance root {:?} not found in spawned entity map! Cannot add SkinnedMesh.",
-                    i, bone_link.key, skin_instance.root
+                    "Attachable TriShape root {:?}: Bone '{}' not found in active base skeleton map.",
+                    skin_instance.root,
+                    &format!("{}", bone_name),
                 );
                 missing_bone = true;
                 break;

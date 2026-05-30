@@ -9,7 +9,6 @@ pub mod spawning_ni_helpers;
 use attach_parts::attach_parts;
 pub use helper_funcs::*;
 use loader::{BMPLoader, Nif, NifAssetLoader};
-use nif::loader::NiKey;
 pub use nif::types::*;
 use nif_animation::SkeletonMap;
 use nif_animation::animation_setup_system::setup_animations;

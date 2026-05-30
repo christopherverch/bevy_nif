@@ -26,6 +26,7 @@ fn main() {
         .add_systems(Startup, setup::setup_scene)
         .add_systems(Startup, setup::setup)
         .add_systems(Update, test_animations)
+        .add_systems(Update, wireframe)
         .add_systems(Update, test_loop_anims)
         .add_plugins(EguiPlugin::default())
         .add_plugins(WorldInspectorPlugin::new())
@@ -95,7 +96,6 @@ fn test_animations(
     >,
     mut anim_graphs: ResMut<Assets<AnimationGraph>>,
     skeleton_map_res: Res<SkeletonMap>,
-    animation_clips: Res<Assets<AnimationClip>>,
 ) {
     for (id, _skeleton) in &skeleton_map_res.skeletons {
         for (mut animation_player, mut nif_animator, graph_handle) in animator_q.iter_mut() {
@@ -108,9 +108,18 @@ fn test_animations(
                 animation_names.push((name, animation.clone()));
             }
             animation_names.sort_by_key(|pair| pair.0.clone());
-            for (animation, animation_def) in animation_names {
-                println!(" animation: {}, ", animation,);
-            }
+            /*for (animation, animation_def) in animation_names {
+                println!(
+                    " animation: {}, {:?}",
+                    animation,
+                    animation_clips
+                        .get(&animation_def.clip_handle)
+                        .unwrap()
+                        .duration()
+                );
+                dbg!(animation_def.min_hit_time_relative);
+                dbg!(animation_def.hit_time_relative);
+            }*/
             // ------------------------------------
 
             let anim_graph = anim_graphs.get_mut(graph_handle).unwrap();
@@ -129,6 +138,8 @@ fn test_animations(
             let run_forward_graph_node = anim_graph.get_mut(run_forward_anim.node_index).unwrap();
             run_forward_graph_node.mask = BlendMask::UPPER_BODY.bits();
             println!("run forward mask: {}", BlendMask::UPPER_BODY.bits());
+            animation_player.play(chop_animation.node_index).repeat();
+            animation_player.play(run_forward_anim.node_index);
             let node_index = run_forward_anim.node_index;
             let clip_handle = run_forward_anim.clip_handle.clone();
             nif_animator.active_animations.insert(
@@ -136,15 +147,69 @@ fn test_animations(
                 ActiveAnimation {
                     clip_handle,
                     node_index,
-                    anim_type: AnimType::Intro,
                     blend_mask: BlendMask::empty(),
                     next_clip_name: Some("runforward2w_loop".to_string()),
                     priorities: [Priority::Hit; 4],
-                    auto_remove: true,
-                    next_should_loop: true,
                     speed_mult: 1.0,
+                    anim_type: AnimType::Loop,
+                    next_should_loop: false,
+                    auto_remove: true,
                 },
             );
+        }
+    }
+}
+fn wireframe(
+    skeleton_map_res: Res<SkeletonMap>,
+    entity_q: Query<(Option<&Children>, &GlobalTransform)>,
+    mut gizmos: Gizmos,
+) {
+    for (_id, skeleton_entity) in &skeleton_map_res.root_skeleton_entity_map {
+        if let Ok((children_opt, global_transform)) = entity_q.get(*skeleton_entity) {
+            // Use the first child of the skeleton entity to draw the wireframe, the other one is
+            // the dark elf skinned mesh which we don't want to draw a wireframe for
+            let Some(children) = children_opt else { return };
+            recursive_wireframe(
+                *children.first().unwrap(),
+                global_transform.translation(),
+                &entity_q,
+                &mut gizmos,
+            );
+        }
+    }
+}
+fn recursive_wireframe(
+    parent_entity: Entity,
+    // Pass the parent's world position (if it exists)
+    parent_global_pos: Vec3,
+    entity_q: &Query<(Option<&Children>, &GlobalTransform)>,
+    gizmos: &mut Gizmos,
+) {
+    if let Ok((children_opt, gt)) = entity_q.get(parent_entity) {
+        let current_pos = gt.translation();
+
+        // 1. Draw the line to the parent
+        gizmos.line_gradient(
+            parent_global_pos,
+            current_pos,
+            Color::srgb(1.0, 0.0, 0.0),
+            Color::WHITE,
+        );
+
+        // 2. Draw the visual marker for this node
+        gizmos.cube(
+            Transform::from_translation(current_pos)
+                .with_rotation(gt.compute_transform().rotation)
+                .with_scale(Vec3::splat(0.02)),
+            Color::srgb(1.0, 0.0, 0.0),
+        );
+
+        // 3. Recurse
+        if let Some(children) = children_opt {
+            for &child in children {
+                // Pass the current entity's position as the parent position for the next call
+                recursive_wireframe(child, current_pos, entity_q, gizmos);
+            }
         }
     }
 }

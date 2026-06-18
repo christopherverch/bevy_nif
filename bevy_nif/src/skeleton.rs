@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use bevy::ecs::entity::Entity;
+use bevy_ecs::entity::Entity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BoneId(pub usize);

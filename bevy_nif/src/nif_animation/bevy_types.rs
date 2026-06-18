@@ -1,5 +1,15 @@
-use bevy::prelude::*;
-use bevy::{animation::AnimationEvent, ecs::entity::Entity};
+use bevy_animation::{
+    AnimationClip, AnimationEvent, animation_curves::AnimatableKeyframeCurve,
+    graph::AnimationNodeIndex,
+};
+use bevy_asset::{Assets, Handle};
+use bevy_ecs::{
+    component::Component,
+    entity::Entity,
+    event::{EntityEvent, Event},
+    resource::Resource,
+};
+use bevy_math::Vec3;
 use bitflags::bitflags;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -116,7 +126,7 @@ impl NifAnimator {
     pub fn is_finished(
         clip_handle: Handle<AnimationClip>,
         anim_clips: &Assets<AnimationClip>,
-        anim_state: &bevy::animation::ActiveAnimation,
+        anim_state: &bevy_animation::ActiveAnimation,
     ) -> bool {
         // Since `seek_time()` is the current progress, we just need to
         // check if it has reached the end of the clip.

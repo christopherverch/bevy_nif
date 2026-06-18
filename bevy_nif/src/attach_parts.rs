@@ -3,7 +3,19 @@ use crate::{
     spawner::{NifInstantiated, NifNodeIndex},
 };
 
-use bevy::{mesh::VertexAttributeValues, prelude::*, render::render_resource::Face};
+use bevy_asset::Assets;
+use bevy_ecs::{
+    component::Component,
+    entity::Entity,
+    hierarchy::ChildOf,
+    observer::On,
+    system::{Commands, Query, Res, ResMut},
+};
+use bevy_log::error;
+use bevy_mesh::{Mesh, Mesh3d, VertexAttributeValues};
+use bevy_pbr::{MeshMaterial3d, StandardMaterial};
+use bevy_render::render_resource::Face;
+use bevy_transform::components::Transform;
 
 #[derive(Component, PartialEq, Clone, Debug)]
 pub enum AttachmentType {

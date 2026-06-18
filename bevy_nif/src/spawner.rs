@@ -2,24 +2,42 @@ use crate::attach_parts::AttachmentType;
 use crate::nif_animation::SkeletonMap;
 use crate::spawning_ni_helpers::{process_nimaterialproperty, process_nitexturingproperty};
 use crate::{NeedsNifPhysics, hash_str, skeleton::*};
-use bevy::asset::{Assets, Handle};
-use bevy::ecs::system::{Commands, Query, Res, ResMut};
-use bevy::mesh::VertexAttributeValues;
-use bevy::mesh::skinning::{SkinnedMesh, SkinnedMeshInverseBindposes};
-use bevy::pbr::{MeshMaterial3d, StandardMaterial};
-use bevy::prelude::*;
-use nif::loader::ConsumedNiType;
-use nif::loader::Nif;
-use nif::{NiKey, NiSkinInstance, NiType};
+use bevy_asset::{AssetServer, Assets, Handle};
+use bevy_camera::visibility::Visibility;
+use bevy_ecs::{
+    component::Component,
+    entity::Entity,
+    event::EntityEvent,
+    hierarchy::ChildOf,
+    name::Name,
+    query::Without,
+    resource::Resource,
+    system::{Commands, Query, Res, ResMut},
+};
+use bevy_log::{error, warn};
+use bevy_math::{Mat4, Quat, Vec3};
+use bevy_mesh::Mesh3d;
+use bevy_mesh::{
+    Mesh, VertexAttributeValues,
+    skinning::{SkinnedMesh, SkinnedMeshInverseBindposes},
+};
+use bevy_pbr::{MeshMaterial3d, StandardMaterial};
+use bevy_render::alpha::AlphaMode;
+use bevy_transform::components::Transform;
+use nif::{
+    NiKey, NiSkinInstance, NiType,
+    loader::{ConsumedNiType, Nif},
+};
 use std::collections::HashMap;
 use std::f32::consts::FRAC_PI_2;
 use std::f32::consts::PI;
 #[derive(Component, Default)]
 pub struct NifNodeIndex {
     /// For specific, named parts (e.g., "NifScene", "LeftArm")
+    /// u64 is the hashed string for smaller storage size
     pub named_nodes: HashMap<u64, Entity>,
 
-    /// all trishapes since these are searched in bulk
+    /// all spawned trishape entities since these are searched in bulk in attach_parts
     pub tri_shapes: Vec<Entity>,
 }
 #[derive(Component)]
@@ -39,7 +57,6 @@ pub struct NifInstantiated {
 pub struct LoadedNifScene(pub Entity);
 #[derive(Resource, Default, Debug, Component)]
 pub struct NifScene(pub Handle<Nif>);
-//for nif->bevy coordinates
 
 pub fn spawn_nif_scenes(
     mut commands: Commands,

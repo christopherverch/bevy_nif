@@ -11,10 +11,20 @@ use crate::{
     },
     spawner::NeedsNifAnimator,
 };
-use bevy::{
-    animation::{AnimatedBy, AnimationTargetId, animated_field},
-    prelude::*,
+use bevy_animation::{
+    AnimatedBy, AnimationClip, AnimationPlayer, AnimationTargetId, animated_field,
+    animation_curves::{AnimatableCurve, AnimatableKeyframeCurve, AnimatedField},
+    graph::{AnimationGraph, AnimationGraphHandle},
 };
+use bevy_asset::Assets;
+use bevy_ecs::{
+    entity::Entity,
+    name::Name,
+    system::{Commands, Query, Res, ResMut},
+};
+use bevy_log::{info, warn};
+use bevy_math::{Quat, Vec3};
+use bevy_transform::components::Transform;
 use nif::{NiKey, NiKeyframeController, NiTextKey};
 use slotmap::Key;
 use std::collections::{HashMap, HashSet};

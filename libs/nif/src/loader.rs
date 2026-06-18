@@ -3,10 +3,10 @@ use std::io::{Read, Seek};
 use std::path::Path;
 
 // external imports
-use bevy::asset::{Asset, Handle, LoadContext, RenderAssetUsages};
-use bevy::log::{error, info, warn};
-use bevy::mesh::{Indices, Mesh, PrimitiveTopology};
-use bevy::reflect::TypePath;
+use bevy_asset::{Asset, Handle, LoadContext, RenderAssetUsages};
+use bevy_log::{error, info, warn};
+use bevy_mesh::{Indices, Mesh, PrimitiveTopology};
+use bevy_reflect::TypePath;
 use slotmap::{DenseSlotMap, Key};
 
 // internal imports

@@ -7,12 +7,17 @@ resolver="3"
 [workspace.package]
 edition = "2024"
 version = "0.1.0"
-authors = ["Your Name <you@example.com>"]
+authors = ["Christopher"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/christopherverch/bevy_nif"
 [workspace.dependencies]
-bevy = { version = "0.18", default-features = false, features = ["bevy_asset", "bevy_core_pipeline", "bevy_pbr", "bevy_scene","bevy_animation", "bevy_log"] }
 glam = {version = "0.30.10" }
+bevy_app = "0.18"
+bevy_ecs = "0.18"
+bevy_mesh = "0.18"
+bevy_reflect = "0.18"
+bevy_asset = "0.18"
+bevy_log = "0.18"
 
 [workspace.lints.rust]
 #

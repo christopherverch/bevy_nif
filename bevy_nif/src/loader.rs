@@ -1,9 +1,9 @@
-use bevy::asset::RenderAssetUsages;
-use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
-use bevy::{
-    asset::{AssetLoader, LoadContext, io::Reader},
-    prelude::*,
-};
+use bevy_asset::RenderAssetUsages;
+use bevy_asset::{AssetLoader, LoadContext, io::Reader};
+use bevy_image::Image;
+use bevy_log::error;
+use bevy_reflect::TypePath;
+use bevy_render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 pub use nif::loader::Nif;
 use nif::loader::load_nif_bytes;
 use std::io::ErrorKind;

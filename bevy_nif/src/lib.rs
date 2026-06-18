@@ -1,4 +1,3 @@
-use bevy::prelude::*;
 pub mod attach_parts;
 pub mod helper_funcs;
 pub mod loader;
@@ -7,6 +6,10 @@ pub mod skeleton;
 pub mod spawner;
 pub mod spawning_ni_helpers;
 use attach_parts::attach_parts;
+use bevy_app::{App, Plugin, Update};
+use bevy_asset::AssetApp;
+use bevy_ecs::component::Component;
+use bevy_ecs::entity::Entity;
 pub use helper_funcs::*;
 use loader::{BMPLoader, Nif, NifAssetLoader};
 pub use nif::types::*;

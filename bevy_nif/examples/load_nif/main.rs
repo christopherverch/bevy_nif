@@ -2,13 +2,9 @@ use bevy::camera_controller::free_camera::FreeCameraPlugin;
 // This example runs animations and is meant to be run with base_anim.nif and the B_N dark elf nif
 // files inside of assets/data, but any can be loaded by replacing the names in setup.rs
 use bevy::prelude::*;
-use bevy_inspector_egui::bevy_egui::EguiPlugin;
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_nif::nif_animation::bevy_types::{ActiveAnimation, AnimType, Priority};
 use bevy_nif::nif_animation::{BlendMask, NifAnimator, SkeletonMap};
 use bevy_nif::*;
-use bevy_rapier3d::plugin::{NoUserData, RapierPhysicsPlugin};
-use bevy_rapier3d::render::RapierDebugRenderPlugin;
 mod setup;
 
 fn main() {
@@ -20,16 +16,12 @@ fn main() {
             brightness: 100.0,
             affects_lightmapped_meshes: true,
         })
-        .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
-        .add_plugins(RapierDebugRenderPlugin::default())
         .add_plugins(FreeCameraPlugin)
         .add_systems(Startup, setup::setup_scene)
         .add_systems(Startup, setup::setup)
         .add_systems(Update, test_animations)
         .add_systems(Update, wireframe)
         .add_systems(Update, test_loop_anims)
-        .add_plugins(EguiPlugin::default())
-        .add_plugins(WorldInspectorPlugin::new())
         .run();
 }
 fn test_loop_anims(
@@ -73,7 +65,7 @@ fn test_loop_anims(
                     .animation_definitions
                     .get("runforward2w_loop")
                     .unwrap();
-                let anim_graph = anim_graphs.get_mut(graph_handle).unwrap();
+                let mut anim_graph = anim_graphs.get_mut(graph_handle).unwrap();
                 let run_forward_graph_node =
                     anim_graph.get_mut(run_forward_anim.node_index).unwrap();
                 run_forward_graph_node.mask = BlendMask::UPPER_BODY.bits();
@@ -122,7 +114,7 @@ fn test_animations(
             }*/
             // ------------------------------------
 
-            let anim_graph = anim_graphs.get_mut(graph_handle).unwrap();
+            let mut anim_graph = anim_graphs.get_mut(graph_handle).unwrap();
             let run_forward_anim = nif_animator
                 .animation_definitions
                 .get("runforward2w")

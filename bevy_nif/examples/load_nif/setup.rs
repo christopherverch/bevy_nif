@@ -1,9 +1,13 @@
 use bevy::camera_controller::free_camera::FreeCamera;
+use bevy::core_pipeline::prepass::{DeferredPrepass, DepthPrepass, MotionVectorPrepass};
 use bevy::light::{CascadeShadowConfigBuilder, NotShadowCaster, NotShadowReceiver};
 use bevy::prelude::*;
-use bevy::{pbr::OpaqueRendererMethod, render::view::Hdr};
+use bevy_camera::Hdr;
+use bevy_material::OpaqueRendererMethod;
 use bevy_nif::attach_parts::AttachmentType;
 use bevy_nif::spawner::NifScene;
+use bevy_pbr::{MeshMaterial3d, StandardMaterial};
+use bevy_render::view::Msaa;
 
 pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     spawn_nif_unattached(commands.reborrow(), &asset_server);
@@ -23,8 +27,6 @@ pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     );
 }
 use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, PI};
-
-use bevy::core_pipeline::prepass::{DeferredPrepass, DepthPrepass, MotionVectorPrepass};
 
 fn spawn_nifs(
     paths_with_target_bone: Vec<(&str, AttachmentType)>,
@@ -110,7 +112,7 @@ pub fn setup_scene(
     commands.spawn((
         DirectionalLight {
             illuminance: 2_000.,
-            shadows_enabled: true,
+            shadow_maps_enabled: true,
             ..default()
         },
         CascadeShadowConfigBuilder {
@@ -125,7 +127,7 @@ pub fn setup_scene(
     commands.spawn((
         DirectionalLight {
             illuminance: 600.0,
-            shadows_enabled: true,
+            shadow_maps_enabled: true,
             color: Color::srgb(1.0, 0.85, 0.7),
             ..default()
         },

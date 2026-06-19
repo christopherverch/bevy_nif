@@ -17,20 +17,19 @@ slotmap = "1.0.7"
 bevy_mesh.workspace = true
 bevy_asset.workspace = true
 bevy_ecs.workspace = true
-bevy_pbr = "0.18"
-bevy_camera = "0.18"
-bevy_math = "0.18"
-bevy_transform = "0.18"
-bevy_render = "0.18"
-bevy_animation = "0.18"
+bevy_pbr = "0.19"
+bevy_camera = "0.19"
+bevy_math = "0.19"
+bevy_transform = "0.19"
+bevy_material = "0.19"
+bevy_animation = "0.19"
 bevy_log.workspace = true
-bevy_image = "0.18"
-bevy_color = "0.18"
+bevy_image = "0.19"
+bevy_color = "0.19"
 bevy_app.workspace = true
 bevy_reflect.workspace = true
+bevy_render = "0.19"
 
 
 [dev-dependencies]
-bevy = { version = "0.18", default-features = false, features = ["x11", "tonemapping_luts","dynamic_linking", "reflect_auto_register", "free_camera", "bevy_gizmos", "bevy_gizmos_render", "bevy_animation"] }
-bevy-inspector-egui = "0.36.0"
-bevy_rapier3d = "0.33.0"
+bevy = { version = "0.19", default-features = false, features = ["x11", "tonemapping_luts","dynamic_linking", "reflect_auto_register", "free_camera", "bevy_gizmos", "bevy_gizmos_render", "bevy_animation", "zstd_rust", "bevy_light", "bevy_core_pipeline", "debug", "bevy_material", "bevy_pbr"] }

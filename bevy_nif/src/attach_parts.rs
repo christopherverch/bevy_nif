@@ -105,7 +105,7 @@ pub fn attach_parts(
                     // TODO:: maybe do the normal flipping in a shader so we don't have to clone
                     // the whole mesh
                     if let Ok((mesh3d, material)) = materials_query.get(*trishape) {
-                        if let Some(mesh) = meshes.get_mut(&mesh3d.0) {
+                        if let Some(mesh) = meshes.get(&mesh3d.0) {
                             let mut clone_mesh = mesh.clone();
                             if let Some(VertexAttributeValues::Float32x3(normals)) =
                                 clone_mesh.attribute_mut(Mesh::ATTRIBUTE_NORMAL)
@@ -120,7 +120,7 @@ pub fn attach_parts(
                             let mesh_handle = meshes.add(clone_mesh);
                             commands.entity(*trishape).insert(Mesh3d(mesh_handle));
                         }
-                        if let Some(standard_material) = materials.get_mut(&material.0) {
+                        if let Some(mut standard_material) = materials.get_mut(&material.0) {
                             standard_material.cull_mode = Some(Face::Front);
                             standard_material.double_sided = true;
                         }

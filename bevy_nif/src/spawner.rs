@@ -15,6 +15,7 @@ use bevy_ecs::{
     system::{Commands, Query, Res, ResMut},
 };
 use bevy_log::{error, warn};
+use bevy_material::AlphaMode;
 use bevy_math::{Mat4, Quat, Vec3};
 use bevy_mesh::Mesh3d;
 use bevy_mesh::{
@@ -22,7 +23,6 @@ use bevy_mesh::{
     skinning::{SkinnedMesh, SkinnedMeshInverseBindposes},
 };
 use bevy_pbr::{MeshMaterial3d, StandardMaterial};
-use bevy_render::alpha::AlphaMode;
 use bevy_transform::components::Transform;
 use nif::{
     NiKey, NiSkinInstance, NiType,
@@ -55,7 +55,7 @@ pub struct NifInstantiated {
 #[allow(dead_code)]
 #[derive(Component)]
 pub struct LoadedNifScene(pub Entity);
-#[derive(Resource, Default, Debug, Component)]
+#[derive(Default, Debug, Component)]
 pub struct NifScene(pub Handle<Nif>);
 
 pub fn spawn_nif_scenes(
@@ -440,7 +440,7 @@ fn apply_skin_instance(
         }
     };
     // 1. Add vertex attributes
-    if let Some(mesh) = meshes.get_mut(mesh_handle) {
+    if let Some(mut mesh) = meshes.get_mut(mesh_handle) {
         // Only insert joint indices/weights if some other node didn't already do it for this mesh
         if mesh.attribute(Mesh::ATTRIBUTE_JOINT_INDEX).is_none() {
             if let Some(vertex_count) = mesh.attribute(Mesh::ATTRIBUTE_POSITION).map(|a| a.len()) {

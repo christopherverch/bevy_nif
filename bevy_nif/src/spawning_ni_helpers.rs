@@ -1,8 +1,8 @@
 use bevy_asset::{AssetServer, Handle};
 use bevy_color::{Color, LinearRgba};
 use bevy_image::Image;
+use bevy_material::AlphaMode;
 use bevy_pbr::StandardMaterial;
-use bevy_render::alpha::AlphaMode;
 use nif::{
     NiMaterialProperty, NiTexturingProperty, NiType, TextureMap, TextureSource, loader::Nif,
 };

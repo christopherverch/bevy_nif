@@ -1,6 +1,7 @@
 use crate::{
     EsmError, EsmReader, RefId,
     esm_record::EsmRecord,
+    name4,
     types::{
         effect_list::EffectList,
         flags::{ObjectFlags, SpellFlags},
@@ -8,7 +9,7 @@ use crate::{
 };
 use esm_parser_macros::LoadSave;
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct Spell {
     pub record_flags: ObjectFlags,
     pub data: SpellData,
@@ -63,9 +64,13 @@ impl EsmRecord for Spell {
     fn id(&self) -> &RefId {
         &self.id
     }
+    const RECORD_ID: u32 = name4!("SPEL").to_u32();
 }
+#[derive(LoadSave, Default, Debug, Clone, PartialEq)]
+#[repr(i32)]
 pub enum SpellType {
-    Spell = 0,   // Normal spell, must be cast and costs mana
+    #[default]
+    Spell = 0, // Normal spell, must be cast and costs mana
     Ability = 1, // ability, always in effect
     Blight = 2,  // Blight disease
     Disease = 3, // Common disease
@@ -73,9 +78,9 @@ pub enum SpellType {
     Power = 5,   // Power, can use once a day
 }
 
-#[derive(LoadSave, Default, Debug)]
+#[derive(LoadSave, Default, Debug, Clone)]
 pub struct SpellData {
-    pub spell_type: i32, // SpellType
-    pub cost: i32,       // Mana cost
+    pub spell_type: SpellType,
+    pub cost: i32, // Mana cost
     pub flags: SpellFlags,
 }

@@ -44,6 +44,7 @@ impl EsmRecord for MagicEffect {
     fn id(&self) -> &RefId {
         &self.id
     }
+    const RECORD_ID: u32 = name4!("MGEF").to_u32();
 }
 #[derive(Default, Debug)]
 pub struct MagicEffectData {
@@ -146,7 +147,34 @@ impl MagicEffect {
         }
         Self::GMST_EFFECT_IDS.get(index as usize).unwrap()
     }
+    pub fn get_magnitude_display_type(&self) -> MagnitudeDisplayType {
+        if self
+            .magic_effect_data
+            .flags
+            .contains(MagicEffectFlags::NO_MAGNITUDE)
+        {
+            return MagnitudeDisplayType::None;
+        }
 
+        // Get the index from your static map
+        let index = *MAGIC_EFFECT_ID_TO_INDEX.get(&self.id).unwrap_or(&(-1));
+
+        match index {
+            84 => MagnitudeDisplayType::TimesInt,
+            59 | 64..=66 => MagnitudeDisplayType::Feet,
+            118 | 119 => MagnitudeDisplayType::Level,
+            idx if (28..=36).contains(&idx)
+                || (90..=99).contains(&idx)
+                || idx == 40
+                || idx == 47
+                || idx == 57
+                || idx == 68 =>
+            {
+                MagnitudeDisplayType::Percentage
+            }
+            _ => MagnitudeDisplayType::Points,
+        }
+    }
     const HARDCODED_FLAGS: [MagicEffectFlags; NUM_MAGIC_EFFECTS as usize] = [
         MagicEffectFlags::from_bits_retain(0x11c8),
         MagicEffectFlags::from_bits_retain(0x11c0),

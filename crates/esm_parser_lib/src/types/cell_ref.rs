@@ -7,27 +7,65 @@ use super::cell::RefNum;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CellRef {
+    /// Reference number
+    /// Note: Currently unused for items in containers
     pub ref_num: RefNum,
+    /// ID of object being referenced
     pub id: RefId,
+    /// Scale applied to mesh
     pub scale: f32,
+    /// The NPC that owns this object (and will get angry if you steal it)
     pub owner: RefId,
+
+    /// Name of a global variable. If the global variable is set to '1', using the object is temporarily allowed
+    /// even if it has an Owner field.
+    /// Used by bed rent scripts to allow the player to use the bed for the duration of the rent.
     pub global_variable: String,
+    /// ID of creature trapped in this soul gem
     pub soul: RefId,
+    /// The faction that owns this object (and will get angry if
+    /// you take it and are not a faction member)
     pub faction: RefId,
+    /// PC faction rank required to use the item. Sometimes is -1, which means "any rank".
     pub faction_rank: Option<i32>,
+    /// For weapon or armor, this is the remaining item health.
+    /// For tools (lockpicks, probes, repair hammer) it is the remaining uses.
+    /// For lights it is remaining time.
+    /// This could be -1 if the charge was not touched yet (i.e. full).
     pub charge: Charge,
+    /// Fractional part of Charge if it's an int
     pub charge_int_remainder: f32,
+    /// Remaining enchantment charge. This could be -1 if the charge was not touched yet (i.e. full).
     pub enchantment_charge: Option<f32>,
+    /// How many of this item are in this stack
     pub count: i32,
+    /// For doors - true if this door teleports to somewhere else, false
+    /// if it should open through animation.
     pub teleport: bool,
+    /// Teleport location for the door, if this is a teleporting door.
     pub door_dest: Position,
+    /// Destination cell for doors (optional)
     pub dest_cell: String,
+    /// Lock level for doors and containers
     pub lock_level: i32,
     pub is_locked: bool,
+    /// Key ID name, if any
     pub key: RefId,
+    /// Trap ID name, if any
     pub trap: RefId,
+    /// This corresponds to the "Reference Blocked" checkbox in the construction set,
+    /// which prevents editing that reference.
+    /// -1 is not blocked, otherwise it is blocked.
     pub reference_blocked: Option<i8>,
+    /// Position and rotation of this object within the cell
     pub pos: Position,
+}
+#[derive(Debug, Clone, PartialEq)]
+pub enum Charge {
+    /// Used by everything except lights
+    Int(i32),
+    /// Used only by lights
+    Float(f32),
 }
 impl Default for CellRef {
     fn default() -> Self {
@@ -57,11 +95,6 @@ impl Default for CellRef {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum Charge {
-    Int(i32),
-    Float(f32),
-}
 // Signals "full charge / charge not yet consumed" and is used in saving/game logic.
 impl Default for Charge {
     fn default() -> Self {
@@ -70,6 +103,7 @@ impl Default for Charge {
 }
 
 impl CellRef {
+    /// Calls load_id and load_data
     pub fn load(
         &mut self,
         reader: &mut EsmReader,

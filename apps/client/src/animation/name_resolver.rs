@@ -2,19 +2,17 @@
 
 use bevy_nif::nif_animation::{BlendMask, NifAnimator};
 use common::mechanics::{CharacterController, CharacterState};
-use esm_parser_lib::{WeaponType, types::enums::WeaponType};
+use esm_parser_lib::types::enums::WeaponType;
 
 use crate::mechanics::{WeaponCategory, WeaponDefinitionFlags, get_weapon_definition};
 
 /// Generates a prioritized list of animation names based on a base name and weapon type.
 /// e.g., ("walkforward", weapon_type) -> ["walkforwardaxe", "walkforward1h", "walkforward"]
 fn generate_weapon_anim_candidates(base_group: &str, weapon_type: WeaponType) -> Vec<String> {
-    let (fallback_suffix) = get_weapon_suffixes(weapon_type);
+    let fallback_suffix = get_weapon_suffixes(weapon_type);
     let mut candidates = Vec::with_capacity(3);
 
-    if let Some(suffix) = fallback_suffix {
-        candidates.push(format!("{}{}", base_group, suffix));
-    }
+    candidates.push(format!("{}{}", base_group, fallback_suffix));
     candidates.push(base_group.to_string());
     candidates
 }
@@ -170,7 +168,7 @@ pub fn get_weapon_long_group(weapon_type: WeaponType) -> &'static str {
 }
 
 /// Returns the specific and fallback animation suffixes for a given weapon type.
-fn get_weapon_suffixes(weapon_type: WeaponType) -> &str {
+fn get_weapon_suffixes<'a>(weapon_type: WeaponType) -> &'a str {
     // These now match the suffixes found in your animation list (hh, 1h, 2c, 2w, etc.)
     &get_weapon_definition(weapon_type).short_group
 }
@@ -182,7 +180,7 @@ fn resolve_anim_name(
     animator: &NifAnimator,
 ) -> Option<String> {
     // Only search for weapon-specific versions if a weapon is equipped.
-    if weapon_type > 0 {
+    if weapon_type > WeaponType::None {
         let specific_suffix = get_weapon_suffixes(weapon_type);
         let mut candidates = Vec::with_capacity(3);
 

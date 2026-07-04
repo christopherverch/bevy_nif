@@ -1,7 +1,10 @@
+use std::hash::Hash;
 #[derive(Debug)]
 #[repr(C)]
 pub struct HashNode<K, V> {
-    next: *mut HashNode<K, V>,
+    // NonNull with Option is used since it's safer than raw pointers and lets the compiler optimize
+    // for pointers not being null when used
+    next: Option<NonNull<HashNode<K, V>>>,
     key: K,
     value: V,
     canary: u64,
@@ -11,9 +14,12 @@ pub struct HashNode<K, V> {
 // modification and reading never happen simultanteously, as these 2 phases are separate.
 unsafe impl<K, V> Send for UnorderedMap<K, V> {}
 unsafe impl<K, V> Sync for UnorderedMap<K, V> {}
+
+/// Essentially a HashMap but with stable memory on insert/remove, so we can give out raw pointers
+/// that will remain valid
 #[derive(Debug)]
 pub struct UnorderedMap<K, V> {
-    buckets: *mut *mut HashNode<K, V>,
+    buckets: NonNull<Option<NonNull<HashNode<K, V>>>>,
     bucket_count: usize,
 }
 impl<K, V> UnorderedMap<K, V>
@@ -21,15 +27,18 @@ where
     K: std::hash::Hash + Eq,
 {
     pub fn new(bucket_count: usize) -> Self {
+        // 1. Calculate layout based on the actual type stored in the buckets
+        let layout =
+            Layout::array::<Option<NonNull<HashNode<K, V>>>>(bucket_count).expect("Layout error");
+
         unsafe {
-            let layout = std::alloc::Layout::array::<*mut HashNode<K, V>>(bucket_count)
-                .expect("Layout error");
+            // 2. Allocate and zero out the memory
+            let raw_ptr = alloc_zeroed(layout) as *mut Option<NonNull<HashNode<K, V>>>;
 
-            let buckets = std::alloc::alloc_zeroed(layout) as *mut *mut HashNode<K, V>;
-
-            if buckets.is_null() {
-                std::alloc::handle_alloc_error(layout);
-            }
+            // 3. Promote to NonNull
+            let buckets = NonNull::new(raw_ptr).unwrap_or_else(|| {
+                handle_alloc_error(layout);
+            });
 
             UnorderedMap {
                 buckets,
@@ -37,92 +46,135 @@ where
             }
         }
     }
+    pub fn contains_key(&self, key: &K) -> bool {
+        // Just check if get_unsafe returns Some
+        self.get(key).is_some()
+    }
     /// Returns true if not a duplicate. Unsafe because this should never be used while in active gameplay, only during setup/loading
     /// of saves
-    pub fn insert_unsafe(&mut self, key: K, value: V) -> bool {
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        key.hash(&mut hasher);
-        let hash = std::hash::Hasher::finish(&hasher) as usize;
-        let bkt = hash % self.bucket_count;
+    pub fn insert(&mut self, key: K, value: V) -> bool {
+        let bkt = calculate_hash(&key, self.bucket_count);
 
         unsafe {
-            // 1. Check for existing key to avoid duplicates/cycles
-            let mut curr = *self.buckets.add(bkt);
+            // Use as_ptr() to get the array pointer, then index
+            let bucket_ptr = self.buckets.as_ptr().add(bkt);
+            let mut curr = *bucket_ptr;
 
-            while !curr.is_null() {
-                if (*curr).key == key {
-                    // Key exists: update value in place and return
-                    (*curr).value = value;
+            while let Some(mut node_ptr) = curr {
+                if node_ptr.as_ref().key == key {
+                    node_ptr.as_mut().value = value;
                     return false;
                 }
-                curr = (*curr).next;
+                curr = node_ptr.as_ref().next;
             }
 
-            let new_node = allocate_node(key, value);
-            let old_head = *self.buckets.add(bkt);
-
-            (*new_node).next = old_head;
-            *self.buckets.add(bkt) = new_node;
+            let mut new_node = allocate_node(key, value);
+            // new_node is NonNull, so access as_ptr()
+            new_node.as_mut().next = *bucket_ptr;
+            *bucket_ptr = Some(new_node);
         }
         true
     }
-    pub fn get_unsafe(&self, key: &K) -> Option<*const V> {
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        key.hash(&mut hasher);
-        let hash = std::hash::Hasher::finish(&hasher) as usize;
+    /// Inserts a key-value pair. If the key already exists, updates the value
+    /// and returns the old value
+    /// Returns: (bool (true if newly inserted), *const V (pointer to the value))
+    pub fn insert_or_assign(&mut self, key: K, value: V) -> (bool, *const V) {
+        let bkt = calculate_hash(&key, self.bucket_count);
 
-        // 2. Perform the lookup
-        let bkt = hash % self.bucket_count;
-        let mut curr = unsafe { *self.buckets.add(bkt) };
+        unsafe {
+            let bucket_ptr = self.buckets.as_ptr().add(bkt);
+            let mut curr = *bucket_ptr;
 
-        while !curr.is_null() {
-            unsafe {
-                if (*curr).key == *key {
-                    return Some(&(*curr).value as *const V);
+            // 1. Search for existing key
+            while let Some(mut node_ptr) = curr {
+                if node_ptr.as_ref().key == key {
+                    // Update existing value
+                    node_ptr.as_mut().value = value;
+                    // Return false (not newly inserted) and pointer to the value
+                    return (false, &node_ptr.as_ref().value as *const V);
                 }
-                curr = (*curr).next;
+                curr = node_ptr.as_ref().next;
+            }
+
+            // 2. Key not found, create new node
+            let mut new_node = allocate_node(key, value);
+            new_node.as_mut().next = *bucket_ptr;
+            *bucket_ptr = Some(new_node);
+
+            // Return true (inserted) and pointer to the value
+            (true, &new_node.as_ref().value as *const V)
+        }
+    }
+
+    pub fn get(&self, key: &K) -> Option<&V> {
+        let bkt = calculate_hash(key, self.bucket_count);
+
+        unsafe {
+            let mut curr = *self.buckets.as_ptr().add(bkt);
+            while let Some(node_ptr) = curr {
+                let node = node_ptr.as_ref();
+                if node.key == *key {
+                    return Some(&node.value);
+                }
+                curr = node.next;
             }
         }
         None
     }
-    pub fn remove_unsafe(&mut self, key: &K) -> bool {
-        return false;
-        // 1. Calculate hash internally
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        key.hash(&mut hasher);
-        let hash = hasher.finish() as usize;
-        let bkt = hash % self.bucket_count;
+    pub fn get_mut(&mut self, key: &K) -> Option<*mut V> {
+        let bkt = calculate_hash(key, self.bucket_count);
 
         unsafe {
-            let mut curr = *self.buckets.add(bkt);
-            let mut prev: *mut HashNode<K, V> = std::ptr::null_mut();
+            let mut curr = *self.buckets.as_ptr().add(bkt);
+            while let Some(mut node_ptr) = curr {
+                let node = node_ptr.as_mut();
+                if node.key == *key {
+                    return Some(&mut node.value as *mut V);
+                }
+                curr = node.next;
+            }
+        }
+        None
+    }
 
-            while !curr.is_null() {
-                // 2. Compare the key stored in the node with the input key
-                if (*curr).key == *key {
-                    // Unlink the node
-                    if prev.is_null() {
-                        *self.buckets.add(bkt) = (*curr).next;
+    pub fn remove(&mut self, key: &K) -> bool {
+        let bkt = calculate_hash(key, self.bucket_count);
+
+        unsafe {
+            let bucket_ptr = self.buckets.as_ptr().add(bkt);
+            let mut curr = *bucket_ptr;
+            let mut prev: Option<NonNull<HashNode<K, V>>> = None;
+
+            while let Some(node_ptr) = curr {
+                if node_ptr.as_ref().key == *key {
+                    if let Some(mut prev_ptr) = prev {
+                        prev_ptr.as_mut().next = node_ptr.as_ref().next;
                     } else {
-                        (*prev).next = (*curr).next;
+                        *bucket_ptr = node_ptr.as_ref().next;
                     }
-
-                    // Deallocate memory (runs destructors for K and V)
-                    deallocate_node(curr);
+                    deallocate_node(node_ptr.as_ptr());
                     return true;
                 }
-                prev = curr;
-                curr = (*curr).next;
+                prev = Some(node_ptr);
+                curr = node_ptr.as_ref().next;
             }
         }
         false
     }
 }
-use std::alloc::{Layout, alloc};
-use std::hash::Hasher;
-use std::ptr::write;
+fn calculate_hash<K: Hash>(key: &K, bucket_count: usize) -> usize {
+    let mut hasher = DefaultHasher::new();
+    key.hash(&mut hasher);
+    let hash = hasher.finish() as usize;
 
-unsafe fn allocate_node<K, V>(key: K, value: V) -> *mut HashNode<K, V> {
+    // We must use modulo to ensure the result is within our array bounds
+    hash % bucket_count
+}
+use std::alloc::{Layout, alloc, alloc_zeroed, handle_alloc_error};
+use std::hash::{DefaultHasher, Hasher};
+use std::ptr::{NonNull, write};
+
+unsafe fn allocate_node<K, V>(key: K, value: V) -> NonNull<HashNode<K, V>> {
     let layout = Layout::new::<HashNode<K, V>>();
 
     unsafe {
@@ -136,13 +188,13 @@ unsafe fn allocate_node<K, V>(key: K, value: V) -> *mut HashNode<K, V> {
         write(
             raw_ptr,
             HashNode {
-                next: std::ptr::null_mut(),
+                next: None,
                 key,
                 value,
                 canary: 0xDEADBEEFCAFEBABE,
             },
         );
-        raw_ptr
+        NonNull::new_unchecked(raw_ptr)
     }
 }
 unsafe fn deallocate_node<K, V>(node_ptr: *mut HashNode<K, V>) {
@@ -156,20 +208,31 @@ unsafe fn deallocate_node<K, V>(node_ptr: *mut HashNode<K, V>) {
 impl<K, V> Drop for UnorderedMap<K, V> {
     fn drop(&mut self) {
         unsafe {
-            // 1. Iterate through every bucket and deallocate all nodes
+            // 1. Iterate through every bucket
             for i in 0..self.bucket_count {
-                let mut curr = *self.buckets.add(i);
-                while !curr.is_null() {
-                    let next = (*curr).next;
-                    deallocate_node(curr);
+                // Get the head of the chain (the Option<NonNull<...>>)
+                let mut curr = *self.buckets.as_ptr().add(i);
+
+                // Use a while-let loop to traverse the list
+                while let Some(node_ptr) = curr {
+                    // Cache the next pointer before deallocating the current node
+                    let next = node_ptr.as_ref().next;
+
+                    // Deallocate the current node (K, V, and the allocation itself)
+                    deallocate_node(node_ptr.as_ptr());
+
+                    // Move to the next node
                     curr = next;
                 }
             }
 
             // 2. Deallocate the bucket array itself
-            let layout = std::alloc::Layout::array::<*mut HashNode<K, V>>(self.bucket_count)
-                .expect("Layout error");
-            std::alloc::dealloc(self.buckets as *mut u8, layout);
+            // Must use the same Layout type used in 'new'
+            let layout =
+                std::alloc::Layout::array::<Option<NonNull<HashNode<K, V>>>>(self.bucket_count)
+                    .expect("Layout error");
+
+            std::alloc::dealloc(self.buckets.as_ptr() as *mut u8, layout);
         }
     }
 }
@@ -184,7 +247,7 @@ where
     }
 }
 pub struct IterMut<'a, K, V> {
-    curr: *mut HashNode<K, V>,
+    curr: Option<NonNull<HashNode<K, V>>>,
     bucket_idx: usize,
     map: &'a mut UnorderedMap<K, V>,
 }
@@ -192,7 +255,7 @@ pub struct IterMut<'a, K, V> {
 impl<K, V> UnorderedMap<K, V> {
     pub fn values_mut(&mut self) -> IterMut<'_, K, V> {
         IterMut {
-            curr: std::ptr::null_mut(),
+            curr: None,
             bucket_idx: 0,
             map: self,
         }
@@ -203,39 +266,25 @@ impl<'a, K, V> Iterator for IterMut<'a, K, V> {
     type Item = &'a mut V;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // 1. If we have a node, advance to the next one
-        if !self.curr.is_null() {
-            unsafe {
-                self.curr = (*self.curr).next;
-            }
+        // 1. Advance if we have a current node
+        if let Some(node_ptr) = self.curr {
+            self.curr = unsafe { node_ptr.as_ref().next };
         }
 
-        // 2. If curr is now null, we have finished the chain
-        //    or are starting. Search for the next available bucket.
-        while self.curr.is_null() && self.bucket_idx < self.map.bucket_count {
+        // 2. Search for the next available bucket
+        while self.curr.is_none() && self.bucket_idx < self.map.bucket_count {
             unsafe {
-                // Peek at the bucket head
-                let head = *self.map.buckets.add(self.bucket_idx);
-
-                // We only take the head if we haven't finished this bucket yet.
-                // If the iterator just hit null (finished a chain),
-                // we move to the next bucket index.
+                let head = *self.map.buckets.as_ptr().add(self.bucket_idx);
                 self.bucket_idx += 1;
-
-                if !head.is_null() {
+                if head.is_some() {
                     self.curr = head;
-                    // We found a non-empty bucket; we stop searching now.
-                    break;
                 }
             }
         }
 
         // 3. Return the value
-        if !self.curr.is_null() {
-            unsafe { Some(&mut (*self.curr).value) }
-        } else {
-            None
-        }
+        self.curr
+            .map(|mut node_ptr| unsafe { &mut node_ptr.as_mut().value })
     }
 }
 #[cfg(test)]
@@ -248,7 +297,7 @@ mod tests {
 
         // Insert many elements to build a long linked list
         for i in 0..100 {
-            map.insert_unsafe(i, i * 10);
+            map.insert(i, i * 10);
         }
 
         // Verify counts
@@ -263,8 +312,8 @@ mod tests {
     #[test]
     fn test_duplicate_update() {
         let mut map = UnorderedMap::new(8);
-        map.insert_unsafe("key", 1);
-        map.insert_unsafe("key", 2); // Should update, not add new node
+        map.insert("key", 1);
+        map.insert("key", 2); // Should update, not add new node
 
         let mut count = 0;
         for _ in map.values_mut() {
@@ -274,23 +323,25 @@ mod tests {
     }
     #[test]
     fn test_minimal_reproduction() {
-        let mut map = UnorderedMap::new(1);
+        let mut map = UnorderedMap::new(10);
 
         // We will track the pointers we get
         let mut pointers = Vec::new();
 
         for i in 0..10 {
-            map.insert_unsafe(i, i);
-            // print the head of bucket 0
+            map.insert(i, i);
             unsafe {
-                let head = *map.buckets.add(0);
-                println!("After inserting {}, head is {:p}", i, head);
+                let head = *map.buckets.as_ptr().add(i); // This returns Option<NonNull<...>>
 
-                // Check if we have seen this head before
-                if pointers.contains(&head) {
-                    panic!("FATAL: Pointer {:p} reused! Memory corruption!", head);
+                // To get the pointer for printing/tracking:
+                if let Some(node_ptr) = head {
+                    println!("After inserting {}, head is {:p}", i, node_ptr.as_ptr());
+
+                    if pointers.contains(&node_ptr.as_ptr()) {
+                        panic!("FATAL: Pointer {:p} reused!", node_ptr.as_ptr());
+                    }
+                    pointers.push(node_ptr.as_ptr());
                 }
-                pointers.push(head);
             }
         }
     }

@@ -61,9 +61,14 @@ fn test_print_samples() {
     run_esm_test(|reader| {
         let mut parsed_counts: HashMap<String, usize> = HashMap::new();
         let target_types = [
-            "SKIL", "LAND", "LTEX", "WEAP", "CELL", "REFR", "RACE", "BODY", "MGEF", "GMST", "CREA",
+            // "GMST", "BSGN", "CONT", "FACT", "LOCK", "PROB", "GLOB", "SKIL", "CLAS", "RACE",
+            //"SOUN", "REGN", "MGEF", "SPEL", "BOOK", , "ARMO", "MISC", "LIGH", "CREA",
+            //"INGR", "CLOT", "APPA", "ALCH", "LEVI", "STAT", "DOOR", "LEVC", "ENCH", "ACTI",
+            //"BODY", "REPA", "PGRD", "CELL", "NPC_", "SNDG", "AMMO", "LVLN", "SCPT", "DIAL",
+            //"INFO", "LTEX", "WAYP", "LAND", "KEYM",
+            // "LAND", "LTEX", "WEAP",
+            "SPEL",
         ];
-
         while reader.has_more_recs().unwrap() {
             let name = reader.read_rec_name().unwrap();
             let name_str = name.to_string_lossy();
@@ -71,7 +76,7 @@ fn test_print_samples() {
 
             let count = *parsed_counts.get(&name_str).unwrap_or(&0);
 
-            if target_types.contains(&name_str.as_str()) && count < 1 {
+            if target_types.contains(&name_str.as_str()) && count < 100 {
                 // Pass a printing closure to the dispatcher
                 process_record(reader, &name.data, |tag, data| {
                     println!("[{}] {:#?}", std::str::from_utf8(tag).unwrap(), data);

@@ -20,6 +20,6 @@ pub struct RayHit {
     pub hit_normal: Vec3,
     /// The distance from the ray's origin to the hit point.
     pub distance: f32,
-    /// The entity that was hit (bit representation)
+    /// The entity that was hit
     pub entity: Entity,
 }

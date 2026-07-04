@@ -1,9 +1,4 @@
-// src/physics/constants.rs
-
-//! This module contains the exact physics constants ported from the OpenMW C++
-//! source code.
-
-use mwphysics::MW_UNITS_PER_METER;
+use common::consts::MW_UNITS_PER_METER;
 
 pub const GRAVITY_CONST: f32 = 8.96;
 /// The steepest slope that is considered "walkable ground". 60 degrees

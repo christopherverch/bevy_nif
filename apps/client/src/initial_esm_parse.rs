@@ -1,4 +1,5 @@
-use crate::defs::{AllLandscapes, EsmReaderResource, LandTextureDefinitions};
+use crate::defs::{ESM_READER, LandTextureDefinitions};
+use crate::landscape::ALL_LANDSCAPES;
 use bevy::prelude::*;
 use esm_parser_lib::{
     EsmError, EsmReader, Header, LandTexture, Landscape, Load, MAGIC_EFFECT_ID_TO_INDEX, RefId,
@@ -14,15 +15,16 @@ use esm_parser_lib::{
         spell::Spell,
     },
 };
+use std::sync::RwLock;
 use std::{collections::HashMap, path::Path, time::Instant};
 use to_utf8::Utf8Encoder;
 
-use crate::esm::{EsmStore, Store};
+use esm_store::{EsmStore, Store};
 
 pub fn populate_esm_resources(mut commands: Commands) {
     if let Ok((reader, landscapes, land_textures, esm_store)) = run_initial_parse() {
-        commands.insert_resource(EsmReaderResource(reader));
-        commands.insert_resource(AllLandscapes(landscapes));
+        let _ = ESM_READER.set(RwLock::new(reader));
+        let _ = ALL_LANDSCAPES.set(RwLock::new(landscapes));
         commands.insert_resource(LandTextureDefinitions(land_textures));
         commands.insert_resource(esm_store);
     } else {

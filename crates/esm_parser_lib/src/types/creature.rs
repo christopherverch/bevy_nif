@@ -1,8 +1,8 @@
 use crate::{
-    EsmError, EsmReader, RefId,
+    EsmError, EsmReader, HasSpells, RefId,
     common_inventory_types::InventoryList,
-    esm_reader::ConsumptionType,
     esm_record::EsmRecord,
+    name4,
     types::{
         aipackage::{AIData, AIPackageList},
         enums::CreatureType,
@@ -29,7 +29,7 @@ pub struct NpdtStruct {
     pub gold: i32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Creature {
     pub record_flags: ObjectFlags,
     pub id: RefId,
@@ -78,6 +78,13 @@ impl Default for Creature {
 impl EsmRecord for Creature {
     fn id(&self) -> &RefId {
         &self.id
+    }
+    const RECORD_ID: u32 = name4!("CREA").to_u32();
+}
+
+impl HasSpells for Creature {
+    fn spells(&self) -> &SpellList {
+        &self.spells
     }
 }
 impl Creature {

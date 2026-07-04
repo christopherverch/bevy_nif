@@ -1,7 +1,8 @@
 use crate::{
-    EsmError, EsmReader, RefId,
+    EsmError, EsmReader, HasSpells, RefId,
     common_inventory_types::InventoryList,
     esm_record::EsmRecord,
+    name4,
     types::{
         aipackage::{AIData, AIPackageList},
         flags::{NpcFlags, ObjectFlags},
@@ -38,6 +39,12 @@ pub struct Npc {
 impl EsmRecord for Npc {
     fn id(&self) -> &RefId {
         &self.id
+    }
+    const RECORD_ID: u32 = name4!("NPC_").to_u32();
+}
+impl HasSpells for Npc {
+    fn spells(&self) -> &SpellList {
+        &self.spells
     }
 }
 impl Npc {
@@ -137,6 +144,13 @@ impl Npc {
     }
     pub fn is_male(&self) -> bool {
         !self.npc_flags.contains(NpcFlags::FEMALE)
+    }
+    pub fn set_is_male(&mut self, value: bool) {
+        if value {
+            self.npc_flags.remove(NpcFlags::FEMALE);
+        } else {
+            self.npc_flags.insert(NpcFlags::FEMALE);
+        }
     }
 }
 #[derive(Clone, Debug, Default, PartialEq, LoadSave)]

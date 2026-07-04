@@ -1,22 +1,24 @@
-use crate::animation::AnimationConfig;
-use crate::magic_effects::MagicEffects;
-use crate::stat::DynamicStat;
+use crate::magic_effects::{EffectKey, MagicEffects};
+use crate::stat::{AttributeValue, DynamicStat};
 use bevy::ecs::lifecycle::HookContext;
 use bevy::ecs::world::DeferredWorld;
 use bevy::prelude::*;
-use bevy_nif::nif_animation::NifEventType;
 use bitflags::bitflags;
 use common::EntityId;
-use esm_parser_lib::{EsmReader, LandTexture, Landscape};
+use esm_parser_lib::types::attribute::Attribute;
+use esm_parser_lib::types::enums::AttributeId;
+use esm_parser_lib::types::gmst::GameSetting;
+use esm_parser_lib::types::magic_effect::MagicEffect;
+use esm_parser_lib::{EsmReader, LandTexture, RefId};
+use esm_store::{EsmStore, Store};
 use networking::NetworkEvent;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use serde::{Deserialize, Serialize};
 use serializer::SerializableTransform;
 use std::collections::HashMap;
+use std::sync::{OnceLock, RwLock};
 use std::time::{Duration, Instant};
-#[derive(Component)]
-pub struct Npc;
 #[derive(Component)]
 pub struct Movement {
     /// Relative to the current orientation
@@ -43,88 +45,17 @@ pub enum Stance {
     Run,
     Sneak,
 }
-bitflags! {
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CreatureStatsFlags: u8 {
-    const FORCE_RUN       = 1 << 0; // 1
-    const FORCE_SNEAK     = 1 << 1; // 2
-    const RUN             = 1 << 2; // 4
-    const SNEAK           = 1 << 3; // 8
-    const FORCE_JUMP      = 1 << 4; // 16
-    const FORCE_MOVE_JUMP = 1 << 5; // 32
-}}
 #[derive(Clone, Debug, PartialEq)]
 pub enum DrawState {
     Nothing,
     Weapon,
     Spell,
 }
-#[derive(Clone, Debug)]
-pub struct DynamicStats {
-    // Health is private since setting it can cause outside changes, like the creature dying
-    health: DynamicStat<f32>,
-    pub magicka: DynamicStat<f32>,
-    pub fatigue: DynamicStat<f32>,
-}
-#[derive(Component, Clone, Debug, Resource)]
-#[component(on_add = add_creature_to_id_map)]
-pub struct CreatureStats {
-    pub entity_id: EntityId,
-    pub nif_animator_link: Option<Entity>,
-    pub stats: DynamicStats,
-    pub magic_effects: MagicEffects,
-    pub draw_state: DrawState,
-    pub movement_flags: CreatureStatsFlags,
-    pub fall_height: f32,
-    /// Updated every frame before other systems that use it run
-    pub max_speed: f32,
-    pub side_movement_angle: f32,
-    pub knocked_down: bool,
-    pub death_animation_finished: bool,
-    pub block: bool,
-    pub dead: bool,
-    pub hit_recovery: bool,
-    pub teleported: bool,
-}
-impl CreatureStats {
-    fn health(&self) -> &DynamicStat<f32> {
-        &self.stats.health
-    }
-    fn set_health(&mut self, value: f32) {
-        self.stats.health.set_current(value, false, false);
-    }
-    pub fn land(&mut self, player_opt: Option<&mut Player>) -> f32 {
-        if let Some(player) = player_opt {
-            player.jumping = false;
-        }
-        let height = self.fall_height;
-        self.fall_height = 0.0;
-        return height;
-    }
-    pub fn is_stance_active(&self, stance: Stance) -> bool {
-        match stance {
-            Stance::Run => self
-                .movement_flags
-                .intersects(CreatureStatsFlags::RUN | CreatureStatsFlags::FORCE_RUN),
-            Stance::Sneak => self
-                .movement_flags
-                .intersects(CreatureStatsFlags::SNEAK | CreatureStatsFlags::FORCE_SNEAK),
-        }
-    }
-    pub fn set_movement_flag(&mut self, flag: CreatureStatsFlags, state: bool) {
-        if state {
-            self.movement_flags |= flag;
-        } else {
-            self.movement_flags &= !flag;
-        }
-    }
-}
 
 #[derive(Resource)]
 pub struct WorldSettings {
     pub god_mode: bool,
     pub levitation_enabled: bool,
-    pub third_person: bool,
     pub swim_height_scale: f32,
     pub rng: StdRng,
 }
@@ -133,7 +64,6 @@ impl Default for WorldSettings {
         Self {
             god_mode: Default::default(),
             levitation_enabled: Default::default(),
-            third_person: Default::default(),
             swim_height_scale: Default::default(),
             rng: {
                 let rng = [0; 32];
@@ -167,7 +97,7 @@ pub struct WorldFrameData {
     pub storm_direction: Vec3,
 }
 #[derive(Component)]
-pub struct Cell {
+pub struct MWCell {
     pub has_water: bool,
     pub water_level: f32,
 }
@@ -177,41 +107,11 @@ pub struct CurrentCell {
 }
 #[derive(Resource, Default)]
 pub struct CellLookup(pub HashMap<UVec2, Entity>);
-#[derive(Component, Debug)]
-pub struct FirstPersonMeshEntityLinks(pub Vec<Entity>);
-
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub enum NetworkAnimEvent {
-    NifAnimEvent {
-        event_type: NifEventType,
-        skeleton_id: EntityId,
-    },
-    BevyAnimEvent {
-        animation_config: AnimationConfig,
-        skeleton_id: EntityId,
-    },
-}
-
-#[derive(Component)]
-pub struct Animator {
-    pub graph: Handle<AnimationGraph>,
-    pub animations: Vec<AnimationNodeIndex>,
-}
 
 #[derive(Resource)]
 pub struct Pause(pub bool);
-#[derive(Clone, Copy, Debug, Eq, PartialEq, States, Default, Hash)]
-pub enum GameState {
-    #[default]
-    MainMenu,
-    Connecting,
-    Offline,
-    Connected,
-}
 #[derive(Component)]
 pub struct TestingComponent;
-#[derive(Component)]
-pub struct RootEntityLink(pub Option<Entity>);
 #[derive(Component)]
 pub struct NetworkedEntity {
     pub entity_id: EntityId,
@@ -254,8 +154,6 @@ pub struct MeshEntityLink(pub Entity);
 pub struct ColliderEntityLink(pub Entity);
 #[derive(Component, Default)]
 pub struct LocalPlayerMesh;
-#[derive(Resource)]
-pub struct ServerIP(pub String);
 #[derive(Resource, Default, Debug)]
 pub struct PlayerInput {
     pub rotation_z: f32, // Rotation around the Z axis this frame
@@ -278,8 +176,7 @@ pub struct AnimateableEntity;
 #[derive(Resource)]
 pub struct EsmReaderResource(pub EsmReader);
 
-#[derive(Resource)]
-pub struct AllLandscapes(pub HashMap<(i32, i32), Landscape>);
+pub static ESM_READER: OnceLock<RwLock<EsmReader>> = OnceLock::new();
 #[derive(Resource)]
 pub struct LandTextureDefinitions(pub HashMap<u32, LandTexture>);
 #[derive(Component)]
@@ -309,28 +206,3 @@ pub struct LandscapeCell {
 }
 #[derive(Resource, Default)]
 pub struct IdToEntityMap(pub HashMap<u64, Entity>);
-
-// add this creature's id to the id->Entity hashmap, so we can get the entity by its id
-fn add_creature_to_id_map(
-    mut world: DeferredWorld,
-    HookContext {
-        entity: creature_entity,
-        ..
-    }: HookContext,
-) {
-    let entity_id_opt = world
-        .get::<CreatureStats>(creature_entity)
-        .map(|stats| stats.entity_id);
-
-    if let Some(actual_id) = entity_id_opt {
-        world
-            .resource_mut::<IdToEntityMap>()
-            .0
-            .insert(actual_id, creature_entity);
-    } else {
-        panic!(
-            "CreatureStats not found on entity {:?} for IdToEntityMap insertion",
-            creature_entity
-        );
-    }
-}

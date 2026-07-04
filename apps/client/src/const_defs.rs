@@ -1,8 +1,2 @@
-use mwphysics::MW_UNITS_PER_METER;
-
 pub const MORROWIND_CELL_SIZE: f32 = 102.0;
 pub const FIRST_PERSON_CAMERA_HEIGHT_OFFSET: f32 = 2.64;
-pub const NIF_SCALE_MULTIPLIER: f32 = 1.0 / MW_UNITS_PER_METER;
-//pub const MESH_HEIGHT_OFFSET: f32 = 0.9;
-
-pub const FRAME_DURATION: f32 = 1.0 / 24.0; // 0.041666...

@@ -145,7 +145,7 @@ impl ActorPhysics {
 }
 
 /// Scratch board for the physics timestep, so the order the entities are processed doesn't matter
-/// since they use the other actor's Actor struct, and this is only applied at the end of the frame.
+/// since they use the other actor's ActorPhysics struct, and this is only applied at the end of the frame.
 #[derive(Component)]
 pub struct ActorFrameData {
     // Basic state

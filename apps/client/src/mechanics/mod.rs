@@ -1,8 +1,14 @@
 mod character;
+pub mod creature_stats;
+mod general;
 mod input;
+mod npc_stats;
 mod sound;
+mod spell_list;
+pub mod spells;
 mod weapontype;
 use bevy::app::{App, Plugin};
+
 pub use character::*;
 pub use input::*;
 pub use weapontype::*;

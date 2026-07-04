@@ -8,7 +8,8 @@ use esm_parser_lib::types::enums::WeaponType;
 use serde::{Deserialize, Serialize};
 
 use common::{
-    EntityId, SetAnimSpeedSeekEvent, SoundEvent, TriggerHit,
+    EntityId,
+    events::{SetAnimSpeedSeekEvent, SoundEvent, TriggerHit},
     mechanics::{CharacterController, CharacterState, JumpingStateKind, UpperBodyState},
 };
 use serializer::SerializableTransform;

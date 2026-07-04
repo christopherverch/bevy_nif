@@ -1,20 +1,19 @@
-// Internal
-use crate::defs::GameState;
-use crate::gui::race_select::SliderDragStart;
-use crate::gui::server_selection::{
-    FocusedIpInput, button_system, despawn_main_menu_ui, listen_keyboard_input_events,
-    set_initial_focus, setup_main_menu,
-};
-use crate::gui::spell_description::setup_spell_description_tooltip;
-pub use race_select::setup_race_select;
-
 mod generic_button;
 mod race_select;
 mod server_selection;
 mod spell_description;
 
-// External
 use bevy::prelude::*;
+// Internal
+use common::state::{CharCreationState, GameState};
+use race_select::{SliderDragStart, despawn_race_select_panel, setup_race_select};
+use server_selection::{
+    FocusedIpInput, button_system, despawn_main_menu_ui, listen_keyboard_input_events,
+    set_initial_focus, setup_main_menu,
+};
+use spell_description::setup_spell_description_tooltip;
+
+// External
 
 pub struct MWGuiPlugin;
 impl Plugin for MWGuiPlugin {
@@ -24,6 +23,11 @@ impl Plugin for MWGuiPlugin {
             .add_systems(OnEnter(GameState::MainMenu), setup_main_menu)
             .add_systems(OnEnter(GameState::MainMenu), set_initial_focus)
             .add_systems(OnEnter(GameState::Connecting), despawn_main_menu_ui)
+            .add_systems(OnEnter(CharCreationState::ChoosingRace), setup_race_select)
+            .add_systems(
+                OnExit(CharCreationState::ChoosingRace),
+                despawn_race_select_panel,
+            )
             .add_systems(Update, button_system.run_if(in_state(GameState::MainMenu)))
             .add_systems(
                 Update,

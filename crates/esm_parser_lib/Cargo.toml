@@ -16,11 +16,11 @@ bytemuck = "1.23.0"
 encoding_rs = "0.8.35"
 smart-default = "0.7.1"
 to_utf8 = {path = "../to_utf8"}
-glam = "0.30.5"
+glam.workspace = true
 num-derive = "0.4.2"
 num-traits = "0.2.19"
-strum = "0.27.2"
-strum_macros = "0.27.2"
+strum.workspace = true
+strum_macros.workspace = true
 dashmap = "6.1.0"
 esm_parser_macros= {path = "../esm_parser_macros"}
 lazy_static = "1.5.0"

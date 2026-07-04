@@ -1,7 +1,7 @@
-use crate::defs::{CreatureStats, LocalPlayer};
+use crate::{defs::LocalPlayer, mechanics::creature_stats::CreatureStats};
 use bevy::prelude::*;
 use bevy_nif::nif_animation::{NifEvent, NifEventType};
-use common::{SoundEvent, SoundSource};
+use common::events::{SoundEvent, SoundSource};
 
 pub fn handle_nif_event(
     event: On<NifEvent>,
@@ -9,7 +9,6 @@ pub fn handle_nif_event(
     local_player_q: Single<&CreatureStats, With<LocalPlayer>>,
 ) {
     let local_player = local_player_q.into_inner();
-    info!("nif event triggered: {:?} ", event.event_type,);
     let is_local_player = local_player.nif_animator_link == Some(event.entity);
     match &event.event_type {
         NifEventType::SoundGen { sound_name } => {
@@ -29,10 +28,8 @@ pub fn handle_nif_event(
                     sound_path: "sounds/walkr_br.wav".to_string(),
                 });
             } else if sound_name.contains("Land") {
-                commands.trigger(SoundEvent {
-                    sound_source,
-                    sound_path: "sounds/bodyfallMED.wav".to_string(),
-                });
+                // These are everywhere, we just play it manually when we land to replicate
+                // morrowind
             }
         }
     }

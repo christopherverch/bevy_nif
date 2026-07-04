@@ -1,14 +1,14 @@
+use crate::{
+    defs::{ColliderEntityLink, LocalPlayer},
+    physics::{constants::ALLOWED_PENETRATION, helpers::get_pitch_yaw_3d_approx_movement},
+};
 use avian3d::{
     collision::collider::contact_query,
     prelude::{Collider, SpatialQuery, SpatialQueryFilter},
 };
 use bevy::prelude::*;
-use mwphysics::{ActorFrameData, MW_UNITS_PER_METER};
-
-use crate::{
-    defs::{ColliderEntityLink, LocalPlayer},
-    physics::{constants::ALLOWED_PENETRATION, helpers::get_pitch_yaw_3d_approx_movement},
-};
+use common::consts::MW_UNITS_PER_METER;
+use mwphysics::ActorFrameData;
 
 use super::constants::COLLISION_MARGIN;
 

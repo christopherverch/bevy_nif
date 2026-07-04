@@ -33,6 +33,7 @@ impl EsmRecord for GameSetting {
     fn id(&self) -> &RefId {
         &self.id
     }
+    const RECORD_ID: u32 = name4!("GMST").to_u32();
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum GameSettingVariant {

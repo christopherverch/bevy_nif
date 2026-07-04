@@ -3,6 +3,7 @@ use esm_parser_macros::LoadSave;
 use crate::{
     EsmError, EsmReader, RefId,
     esm_record::EsmRecord,
+    name4,
     types::{
         flags::{ObjectFlags, RaceFlags},
         skill::SkillIndex,
@@ -22,6 +23,7 @@ impl EsmRecord for Race {
     fn id(&self) -> &RefId {
         &self.id
     }
+    const RECORD_ID: u32 = name4!("RACE").to_u32();
 }
 #[repr(C)]
 #[derive(Debug, Clone, Default, PartialEq, LoadSave)]
@@ -43,7 +45,7 @@ pub struct SkillBonus {
 impl SkillBonus {
     pub fn get_skill_id(&self) -> RefId {
         let skill_index: SkillIndex = self.skill.try_into().unwrap();
-        skill_index.index_to_refid()
+        SkillIndex::index_to_refid(skill_index as i8)
     }
 }
 impl Race {

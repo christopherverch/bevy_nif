@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy_kira_audio::{Audio, AudioControl, SpatialAudioEmitter, SpatialRadius};
-use common::{SoundEvent, SoundSource};
+use common::events::{SoundEvent, SoundSource};
 
 /// Reacts to SoundEvent triggers and spawns a sound either attached to the player, an entity or detached
 pub fn generate_sound(
@@ -40,7 +40,6 @@ pub fn generate_sound(
             .with_emitter(sound_entity)
             .with_volume(-10.0);
     } else {
-        dbg!("play");
         audio
             .play(asset_server.load(event.sound_path.clone()))
             .with_volume(-10.0);

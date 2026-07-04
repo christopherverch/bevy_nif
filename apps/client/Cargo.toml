@@ -5,9 +5,10 @@ edition.workspace = true
 authors.workspace = true
 repository.workspace = true
 license.workspace = true
+build = "build.rs"
 
 [dependencies]
-bevy = { workspace = true, features = ["bevy_asset", "bevy_render", "bevy_winit", "bevy_core_pipeline", "bevy_pbr", "bevy_scene", "bevy_text", "bevy_ui", "ui_picking", "bevy_animation", "bevy_ui_render", "x11", "bevy_gltf", "png", "ktx2", "hdr", "default_font", "std", "tonemapping_luts", "bevy_state", "multi_threaded", "bevy_animation", "dynamic_linking", "tga", "reflect_auto_register", "bevy_gizmos_render"] }
+bevy = { workspace = true, features = ["bevy_asset", "bevy_render", "bevy_winit", "bevy_core_pipeline", "bevy_pbr", "bevy_scene", "bevy_text", "bevy_ui", "ui_picking", "bevy_animation", "bevy_ui_render", "x11", "bevy_gltf", "png", "ktx2", "hdr", "default_font", "std", "tonemapping_luts", "bevy_state", "multi_threaded", "bevy_animation", "dynamic_linking", "tga", "reflect_auto_register", "bevy_gizmos_render", "zstd_rust"] }
 esm_parser_lib = { workspace = true }
 bevy_nif = { workspace = true }
 to_utf8 = { workspace = true }
@@ -15,24 +16,32 @@ common = { workspace = true }
 bincode = { workspace = true }
 unordered_map.workspace = true
 
-bevy-inspector-egui = { workspace = true }
-bevy_kira_audio = { workspace = true }
 bevy_anti_alias = { workspace = true }
-bevy_renet = { workspace = true }
-kira = { workspace = true }
 serde = { workspace = true }
-networking = { workspace = true }
+#networking = { workspace = true }
 serializer = { path = "../../crates/serializer" }
 bytes = "1.11.1"
 toml = "1.1.2"
-bevy_egui = "0.39.1"
 mwphysics = { workspace = true } 
-glam = "0.30.10"
+glam.workspace = true
 avian3d = { workspace = true }
 stable-map = "0.15.0"
 bitflags.workspace = true
-bevy_framepace = "0.21.0"
 rand = "0.10.1"
+either = "1.16.0"
+esm_store = { path = "../../crates/esm_store" }
+strum = "0.28.0"
+bevy_renet.workspace = true
+networking.workspace = true
+bevy-inspector-egui = "0.37.0"
+bevy_egui = "0.40.0"
+bevy_kira_audio ={version = "0.26.0", features = ["wav"]}
+strum_macros.workspace = true
 
 [lints]
 workspace = true
+
+[target.x86_64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+

@@ -1,14 +1,12 @@
 use crate::defs::{
-    AnimateableEntity, ClientEntityId, CreatureStats, CreatureStatsFlags, CurrentCell, DrawState,
-    LocalPlayer, LocalPlayerMesh, MeshEntityLink, Movement, NeedsSetup, NetworkedEntity, Player,
-    RootEntityLink,
+    AnimateableEntity, ClientEntityId, CurrentCell, DrawState, LocalPlayer, LocalPlayerMesh,
+    MeshEntityLink, Movement, NeedsSetup, NetworkedEntity, Player,
 };
-use crate::esm::EsmStore;
-use crate::gui::setup_race_select;
 use crate::live_cell_ref::{EsmPtr, LiveCellRef};
 use crate::magic_effects::MagicEffects;
 use crate::mechanics::ActorIntent;
-use crate::stat::DynamicStat;
+use crate::mechanics::creature_stats::{CreatureStats, CreatureStatsFlags, DynamicStats};
+use crate::mechanics::spells::Spells;
 use avian3d::prelude::{CollisionLayers, RigidBody};
 use bevy::prelude::*;
 use bevy_kira_audio::{SpatialAudioEmitter, SpatialAudioReceiver, SpatialRadius};
@@ -16,15 +14,18 @@ use bevy_nif::attach_parts::AttachmentType;
 use bevy_nif::nif_animation::{NifAnimator, NifAnimatorAdded};
 use bevy_nif::spawner::NifScene;
 use common::mechanics::{CharacterController, CharacterState};
+use common::state::CharCreationState;
 use esm_parser_lib::RefId;
 use mwphysics::{ActorPhysics, PositionInterpolation};
 use serializer::SerializableTransform;
+use std::collections::HashMap;
 use std::f32::consts::{FRAC_PI_2, PI};
 use std::time::Instant;
 
 use crate::camera::MWCameraTarget;
-use crate::const_defs::NIF_SCALE_MULTIPLIER;
 use crate::physics::{AnimationDisplacement, CreatureControllerLink, RootMotionState};
+use common::consts::NIF_SCALE_MULTIPLIER;
+use esm_store::EsmStore;
 
 pub fn setup_player(
     mut commands: Commands,
@@ -32,6 +33,7 @@ pub fn setup_player(
     mut needs_setup_query: Query<(Entity, &NeedsSetup), Added<NeedsSetup>>,
     esm_store: Res<EsmStore>,
     client_id: Res<ClientEntityId>,
+    mut char_creation_state: ResMut<NextState<CharCreationState>>,
 ) {
     for (player_entity, setup_info) in &mut needs_setup_query {
         info!(
@@ -70,22 +72,24 @@ pub fn setup_player(
                 },
                 CreatureStats {
                     entity_id: setup_info.entity_id,
+                    attributes: HashMap::new(),
                     // Filled in later by insert_nif_animator_links
                     nif_animator_link: None,
                     magic_effects: MagicEffects::default(),
                     fall_height: 0.0,
                     dead: false,
                     teleported: false,
-                    dynamic_stats: [
-                        DynamicStat::default(),
-                        DynamicStat::default(),
-                        DynamicStat::default(),
-                    ],
+                    stats: DynamicStats::default(),
                     death_animation_finished: false,
                     movement_flags: CreatureStatsFlags::RUN,
-                    max_speed: 2.0,
+                    level: 0,
+                    spells: Spells::default(),
+                    max_speed: 200.0,
                     side_movement_angle: 0.0,
                     draw_state: DrawState::Nothing,
+                    knocked_down: false,
+                    block: false,
+                    hit_recovery: false,
                 },
                 Movement::default(),
                 ActorPhysics::new(
@@ -136,7 +140,6 @@ pub fn setup_player(
         commands.entity(player_mesh).insert((
             // for tracking animation times with the animation system
             RootMotionState::default(),
-            RootEntityLink(Some(player_entity)),
             Name::new("player mesh"),
         ));
         // Add a link to the mesh entity so we can reference it from the player
@@ -158,10 +161,9 @@ pub fn setup_player(
                 },
                 SpatialAudioReceiver,
             ));
-            // Set up the race select UI
 
-            // TODO:: put this somewhere better
-            commands.run_system_cached(setup_race_select);
+            // Change the state so we set up the race select UI
+            char_creation_state.set(CharCreationState::ChoosingRace);
         }
         commands.entity(player_entity).add_child(player_mesh);
         commands.entity(player_entity).remove::<NeedsSetup>();

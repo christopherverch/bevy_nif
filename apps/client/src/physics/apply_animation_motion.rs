@@ -1,11 +1,12 @@
 use crate::{
     camera::MWCamera,
-    defs::{CreatureStats, IdToEntityMap, LocalPlayer, MeshEntityLink},
+    defs::{IdToEntityMap, LocalPlayer, MeshEntityLink},
+    mechanics::creature_stats::CreatureStats,
 };
 use bevy::prelude::*;
 use bevy_nif::nif_animation::NifAnimator;
+use common::consts::MW_UNITS_PER_METER;
 use common::mechanics::{CharacterController, JumpingStateKind};
-use mwphysics::MW_UNITS_PER_METER;
 
 use crate::animation::animation_helpers::get_anim_components_for_creature;
 /// A component that stores the calculated root motion displacement for a single frame.
@@ -67,9 +68,12 @@ pub fn calculate_animation_displacement_system(
             return;
         }
 
-        let Some((_, animation_player, animator, _)) =
-            get_anim_components_for_creature(&creature_stats, &id_to_entity_map, &mut animator_q)
-        else {
+        let Some((_, animation_player, animator, _)) = get_anim_components_for_creature(
+            creature_stats.entity_id,
+            creature_stats.nif_animator_link,
+            &id_to_entity_map,
+            &mut animator_q,
+        ) else {
             return;
         };
 

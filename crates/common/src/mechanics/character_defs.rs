@@ -124,6 +124,7 @@ pub struct MovementState {
     pub state: CharacterState,
     pub current_group: String,
     pub applied_turn_anim_speed: f32,
+    pub applied_move_anim_speed: f32,
     pub curr_move_speed: f32,
     pub adjust_anim_speed: bool,
     pub animation_has_movement: bool,

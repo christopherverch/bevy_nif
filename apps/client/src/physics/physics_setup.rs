@@ -1,5 +1,4 @@
 use super::CreaturePhysicsState;
-use crate::const_defs::NIF_SCALE_MULTIPLIER;
 use crate::defs::ColliderEntityLink;
 use crate::physics::CreatureControllerLink;
 use avian3d::parry::math::Pose3;
@@ -7,6 +6,7 @@ use avian3d::prelude::{Collider, CollisionLayers, SleepingDisabled};
 use bevy::prelude::*;
 use bevy_nif::{BoundData, NeedsNifPhysics, NiType};
 use bevy_nif::{loader::Nif, spawner::NifScene};
+use common::consts::NIF_SCALE_MULTIPLIER;
 
 /// This system runs once for each newly spawned `NifScene` entity which
 /// also has a NeedsNifPhysic component.

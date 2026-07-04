@@ -1,8 +1,10 @@
-use crate::defs::{GameState, ServerIP};
-use bevy::color::palettes::basic::*;
-use bevy::input::keyboard::{Key, KeyboardInput};
-use bevy::prelude::*;
-use bevy::ui::FocusPolicy;
+use bevy::{
+    color::palettes::css::{GRAY, GREEN, RED, WHITE},
+    input::keyboard::{Key, KeyboardInput},
+    prelude::*,
+    ui::FocusPolicy,
+};
+use common::{ServerIP, state::GameState};
 
 #[derive(Component)]
 pub struct IpInputField;
@@ -11,7 +13,6 @@ pub struct MainMenuRoot;
 #[derive(Component)]
 struct ConnectButton;
 #[derive(Resource, Default)]
-
 pub struct FocusedIpInput {
     entity: Option<Entity>, // Use Option<Entity>
 }
@@ -46,8 +47,8 @@ pub fn setup_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                     parent.spawn((
                         Text::new("Enter Server IP:"),
                         TextFont {
-                            font: font_handle.clone(),
-                            font_size: 30.0,
+                            font: FontSource::Handle(font_handle.clone()),
+                            font_size: px(30.0).into(),
                             ..default()
                         },
                         TextColor(Color::WHITE),
@@ -70,8 +71,8 @@ pub fn setup_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                             parent.spawn((
                                 Text::new(""),
                                 TextFont {
-                                    font: font_handle.clone(),
-                                    font_size: 20.0,
+                                    font: FontSource::Handle(font_handle.clone()),
+                                    font_size: px(20.0).into(),
                                     ..default()
                                 },
                                 TextColor(Color::BLACK),
@@ -105,8 +106,10 @@ pub fn setup_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                             parent.spawn((
                                 Text::new("Connect"),
                                 TextFont {
-                                    font: asset_server.load("fonts/FiraMono-Medium.ttf"),
-                                    font_size: 33.0,
+                                    font: FontSource::Handle(
+                                        asset_server.load("fonts/FiraMono-Medium.ttf"),
+                                    ),
+                                    font_size: px(33.0).into(),
                                     ..default()
                                 },
                                 TextColor(Color::srgb(0.9, 0.9, 0.9)),
@@ -218,7 +221,7 @@ pub fn listen_keyboard_input_events(
                     text.pop();
                 }
                 Key::Character(character) => {
-                    text.push_str(character);
+                    text.push_str(&character);
                 }
                 _ => continue,
             }

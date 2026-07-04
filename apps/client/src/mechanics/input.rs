@@ -6,6 +6,7 @@ use crate::{
     camera::MWCamera,
     defs::LocalPlayer,
     events::{PlayerReadyWeapon, ToggledThirdPerson},
+    mechanics::creature_stats::CreatureStats,
 };
 #[derive(Component, Debug, Default, Clone)]
 pub struct ActorIntent {
@@ -33,13 +34,18 @@ pub fn get_local_player_intent(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut commands: Commands,
     player_entity_intent: Single<
-        (Entity, &mut ActorIntent, &mut CharacterController),
+        (
+            Entity,
+            &mut ActorIntent,
+            &mut CharacterController,
+            &mut CreatureStats,
+        ),
         With<LocalPlayer>,
     >,
     mut cam: Single<&mut MWCamera>,
     mut current_weapon_index: Local<usize>,
 ) {
-    let (player_entity, mut player_intent, mut character_controller) =
+    let (player_entity, mut player_intent, mut character_controller, mut creature_stats) =
         player_entity_intent.into_inner();
     let mut first_person_entities = Vec::new();
     first_person_entities.push(player_entity);
@@ -59,6 +65,10 @@ pub fn get_local_player_intent(
     }
     if keyboard_input.just_pressed(KeyCode::CapsLock) {
         player_intent.run = !player_intent.run;
+        creature_stats
+            .stats
+            .fatigue
+            .set_current(-100.0, true, false);
     }
     if move_direction.length_squared() > 0.0 {
         player_intent.autorun = false;
@@ -98,6 +108,7 @@ pub fn get_local_player_intent(
     }
     if keyboard_input.just_pressed(KeyCode::Space) {
         player_intent.jump = true;
+        creature_stats.stats.fatigue.set_current(100.0, true, false);
     }
 }
 // A constant array of weapon types to cycle through for testing.

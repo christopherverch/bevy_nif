@@ -47,7 +47,7 @@ pub fn sweep_helper(
             current_filter = current_filter.with_excluded_entities(rejected.clone());
         }
 
-        // 1. Perform the Sweep
+        // Sweep the collider along from->to
         let cast = spatial_query.cast_shape(
             collider,
             from,
@@ -61,9 +61,10 @@ pub fn sweep_helper(
         let hit_layers = collision_layers.get(hit.entity).ok()?;
         let hit_membership = hit_layers.memberships.0;
 
-        // --- CASE 1: ACTOR-ACTOR OVERLAP (CollisionType_Actor) ---
+        // --- Case 1: Actor-Actor overlap ---
         if (hit_membership & MWCollisionGroup::ACTOR.bits()) != 0 {
-            // Checks if hit.entity is currently intersecting with our actor at 'from'
+            // Checks if hit.entity is currently intersecting with our actor at the origin of the
+            // shapecast
             let intersections = spatial_query.shape_intersections(
                 collider,
                 from,
@@ -72,13 +73,12 @@ pub fn sweep_helper(
             );
 
             if intersections.contains(&hit.entity) {
-                // originA - originB
                 let mut normal = from - hit.point1;
                 normal.z = 0.0;
 
                 if let Some(normal_normalized) = normal.try_normalize() {
                     // Check if moving towards hit actor
-                    // Standard math: dot < 0 means heading toward the surface normal
+                    // dot < 0 means heading toward the surface normal
                     if normal_normalized.dot(*direction) < 0.0 {
                         return Some(SweepHit {
                             entity: hit.entity,
@@ -94,14 +94,14 @@ pub fn sweep_helper(
             }
         }
 
-        // --- CASE 2: PROJECTILE (CollisionType_Projectile) ---
+        // --- Case 2: Projectile ---
         if (hit_membership & MWCollisionGroup::PROJECTILE.bits()) != 0 {
             // TODO:: if projectile.is_valid_target(me) projectile.hit(me)
             rejected.push(hit.entity);
             continue;
         }
 
-        // --- CASE 3: STANDARD COLLISION (Environment) ---
+        // --- Case 3: Environment collisions ---
         let dot_collision = direction.dot(hit.normal1);
 
         // we ignore if dot >= 0.0 (moving parallel or away)

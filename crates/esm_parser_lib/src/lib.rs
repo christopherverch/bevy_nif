@@ -27,6 +27,7 @@ pub use refid_types::{
 };
 pub use string_interning::debug_interns;
 pub use string_interning::find_interned;
+pub use types::bodypart::*;
 pub use types::cell_id::*;
 pub use types::landscape::*;
 pub use types::landscape_textures::*;

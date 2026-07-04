@@ -1,6 +1,8 @@
 use esm_parser_macros::LoadSave;
 use num_enum::TryFromPrimitive;
 use serde::{Deserialize, Serialize};
+
+use crate::name4;
 #[repr(u32)]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Default)]
 pub enum FileType {
@@ -393,8 +395,8 @@ pub enum EffectIdI16 {
     Summon05 = 142,
 }
 
-#[repr(u32)]
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Default)]
+#[repr(i32)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Default, LoadSave)]
 pub enum EffectRange {
     #[default]
     OnSelf = 0,
@@ -474,6 +476,100 @@ pub enum CreatureType {
     Undead = 2,
     Humanoid = 3,
 }
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive)]
+pub enum RecInt {
+    // Special values. Can not be used in any ESM.
+    // Added to this enum to guarantee that the values don't collide with any records.
+    InternalPlayer = 0,
+    InternalMarker = 1,
+
+    // format 0 / legacy
+    Acti = name4!("ACTI").to_u32(),
+    Alch = name4!("ALCH").to_u32(),
+    Appa = name4!("APPA").to_u32(),
+    Armo = name4!("ARMO").to_u32(),
+    Body = name4!("BODY").to_u32(),
+    Book = name4!("BOOK").to_u32(),
+    Bsgn = name4!("BSGN").to_u32(),
+    Cell = name4!("CELL").to_u32(),
+    Clas = name4!("CLAS").to_u32(),
+    Clot = name4!("CLOT").to_u32(),
+    Cntc = name4!("CNTC").to_u32(),
+    Cont = name4!("CONT").to_u32(),
+    Crea = name4!("CREA").to_u32(),
+    Crec = name4!("CREC").to_u32(),
+    Dial = name4!("DIAL").to_u32(),
+    Door = name4!("DOOR").to_u32(),
+    Ench = name4!("ENCH").to_u32(),
+    Fact = name4!("FACT").to_u32(),
+    Glob = name4!("GLOB").to_u32(),
+    Gmst = name4!("GMST").to_u32(),
+    Info = name4!("INFO").to_u32(),
+    Ingr = name4!("INGR").to_u32(),
+    Land = name4!("LAND").to_u32(),
+    Levc = name4!("LEVC").to_u32(),
+    Levi = name4!("LEVI").to_u32(),
+    Ligh = name4!("LIGH").to_u32(),
+    Lock = name4!("LOCK").to_u32(),
+    Ltex = name4!("LTEX").to_u32(),
+    Mgef = name4!("MGEF").to_u32(),
+    Misc = name4!("MISC").to_u32(),
+    Npc_ = name4!("NPC_").to_u32(),
+    Npcc = name4!("NPCC").to_u32(),
+    Pgrd = name4!("PGRD").to_u32(),
+    Prob = name4!("PROB").to_u32(),
+    Race = name4!("RACE").to_u32(),
+    Regn = name4!("REGN").to_u32(),
+    Repa = name4!("REPA").to_u32(),
+    Scpt = name4!("SCPT").to_u32(),
+    Skil = name4!("SKIL").to_u32(),
+    Sndg = name4!("SNDG").to_u32(),
+    Soun = name4!("SOUN").to_u32(),
+    Spel = name4!("SPEL").to_u32(),
+    Sscr = name4!("SSCR").to_u32(),
+    Stat = name4!("STAT").to_u32(),
+    Weap = name4!("WEAP").to_u32(),
+
+    // format 0 - saved games
+    Save = name4!("SAVE").to_u32(),
+    Jour = name4!("JOUR").to_u32(),
+    Ques = name4!("QUES").to_u32(),
+    Gscr = name4!("GSCR").to_u32(),
+    Play = name4!("PLAY").to_u32(),
+    Csta = name4!("CSTA").to_u32(),
+    Gmap = name4!("GMAP").to_u32(),
+    Dias = name4!("DIAS").to_u32(),
+    Wthr = name4!("WTHR").to_u32(),
+    Keys = name4!("KEYS").to_u32(),
+    Dyna = name4!("DYNA").to_u32(),
+    Aspl = name4!("ASPL").to_u32(),
+    Actc = name4!("ACTC").to_u32(),
+    Mprj = name4!("MPRJ").to_u32(),
+    Proj = name4!("PROJ").to_u32(),
+    Dcou = name4!("DCOU").to_u32(),
+    Mark = name4!("MARK").to_u32(),
+    Enab = name4!("ENAB").to_u32(),
+    Cam_ = name4!("CAM_").to_u32(),
+    Stln = name4!("STLN").to_u32(),
+    Inpu = name4!("INPU").to_u32(),
+
+    // format 1
+    Filt = name4!("FILT").to_u32(),
+    Dbgp = name4!("DBGP").to_u32(),
+    ///< only used in project files
+    Selg = name4!("SELG").to_u32(),
+
+    Lual = name4!("LUAL").to_u32(), // LuaScriptsCfg (only in omwgame or omwaddon)
+
+    // format 16 - Lua scripts in saved games
+    Luam = name4!("LUAM").to_u32(), // LuaManager data
+
+    // format 21 - Random state in saved games.
+    Rand = name4!("RAND").to_u32(), // Random state.
+
+    Attr = name4!("ATTR").to_u32(), // Attribute
+}
 
 #[repr(i16)]
 #[derive(
@@ -512,18 +608,6 @@ pub enum WeaponType {
 }
 unsafe impl bytemuck::Zeroable for WeaponType {}
 unsafe impl bytemuck::Pod for WeaponType {}
-
-#[repr(u32)]
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Default)]
-pub enum SpellType {
-    #[default]
-    Spell = 0,
-    Ability = 1,
-    Blight = 2,
-    Disease = 3,
-    Curse = 4,
-    Power = 5,
-}
 
 #[repr(u32)]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Default)]

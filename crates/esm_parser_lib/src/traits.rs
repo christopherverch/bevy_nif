@@ -4,11 +4,16 @@ use crate::{
     RefId,
     common_types::Name32,
     esm_reader::{ConsumptionType, EsmError, EsmReader},
+    types::spell_list::SpellList,
 };
 use std::{
     io::{self},
     mem::MaybeUninit,
 };
+
+pub trait HasSpells {
+    fn spells(&self) -> &SpellList;
+}
 pub trait AsRepr {
     type Repr;
 }

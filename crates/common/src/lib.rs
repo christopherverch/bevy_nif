@@ -1,5 +1,8 @@
 pub type EntityId = u64;
-mod actor;
-mod events;
+pub mod consts;
+mod defs;
+pub use defs::*;
+pub mod events;
+pub mod helpers;
 pub mod mechanics;
-pub use events::*;
+pub mod state;

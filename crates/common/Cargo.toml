@@ -12,5 +12,8 @@ bevy_math = { workspace = true, features = ["serialize"] }
 esm_parser_lib.workspace = true
 serde = { workspace = true }
 bitflags = { workspace = true }
+bevy_state = "0.19.0"
+strum_macros.workspace = true
+strum.workspace = true
 [lints]
 workspace = true

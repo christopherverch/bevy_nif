@@ -9,8 +9,8 @@ license.workspace = true
 [dependencies]
 bevy_ecs = {workspace = true} 
 bevy_math = {workspace = true} 
-bevy_renet = {workspace = true} 
 bevy_nif = {workspace = true} 
+bevy_renet.workspace = true
 serde = { workspace = true }
 common = {workspace = true} 
 serializer = { workspace = true }

@@ -1,17 +1,24 @@
 use std::f32::consts::PI;
 
 use crate::{
-    animation::{AnimationContext, show_creature_weapons, show_npc_weapons},
+    animation::{
+        AnimationContext,
+        animation_helpers::get_anim_components_for_creature,
+        name_resolver::{
+            fallback_short_weapon_group, get_weapon_short_group, is_real_weapon,
+            movement_state_to_anim_group, run_state_to_walk_state,
+        },
+        show_creature_weapons, show_npc_weapons,
+    },
     camera::MWCamera,
-    defs::{CellLookup, LocalPlayer, WorldSettings},
-    mechanics::ActorIntent,
+    defs::{CellLookup, IdToEntityMap, LocalPlayer, WorldSettings},
+    mechanics::{
+        ActorIntent,
+        creature_stats::{CreatureStats, CreatureStatsFlags},
+    },
 };
 use crate::{
-    defs::{
-        Cell, CreatureStats, CreatureStatsFlags, CurrentCell, DrawState, GameSettings, Movement,
-        Player, Stance,
-    },
-    esm::EsmStore,
+    defs::{CurrentCell, DrawState, GameSettings, MWCell, Movement, Player, Stance},
     live_cell_ref::LiveCellRef,
     mechanics::const_defs::IS_MOVING_THRESHOLD,
     world::is_swimming,
@@ -19,15 +26,17 @@ use crate::{
 use bevy::prelude::*;
 use bevy_nif::nif_animation::{
     BlendMask, NUM_DISCRETE_REGIONS, NifAnimator, REGION_INDEX_LEFT_ARM, REGION_INDEX_LOWER_BODY,
-    bevy_types::{ActiveAnimation, Priority},
+    bevy_types::{AnimType, Priority},
 };
+use common::consts::MW_UNITS_PER_METER;
 use common::{
-    SoundEvent, SoundSource,
+    events::{SoundEvent, SoundSource},
     mechanics::{CharacterController, CharacterState, JumpingStateKind, UpperBodyState},
 };
 use esm_parser_lib::types::{enums::WeaponType, flags::CreatureFlags, magic_effect::MagicEffect};
+use esm_store::EsmStore;
 use mwphysics::{ActorPhysics, PositionInterpolation};
-use rand::{Rng, RngExt};
+use rand::RngExt;
 pub fn update_movement_component_from_intent(
     actor_q: Query<(&mut ActorIntent, &mut Movement, &mut CreatureStats), Changed<ActorIntent>>,
 ) {
@@ -44,7 +53,7 @@ pub fn update_movement_component_from_intent(
         if actor_intent.run {
             creature_stats.max_speed = 4.0;
         } else {
-            creature_stats.max_speed = 2.0;
+            creature_stats.max_speed = 2000.0;
         }
         creature_stats.set_movement_flag(CreatureStatsFlags::RUN, actor_intent.run);
         creature_stats.set_movement_flag(CreatureStatsFlags::SNEAK, actor_intent.sneak);
@@ -66,10 +75,19 @@ pub fn update_character_components(
         Option<&ActorPhysics>,
     )>,
     cell_entity_lookup: Res<CellLookup>,
-    cells: Query<&Cell>,
+    cells: Query<&MWCell>,
     esm_store: Res<EsmStore>,
+    anim_clips: Res<Assets<AnimationClip>>,
+    mut animator_q: Query<(
+        &mut AnimationPlayer,
+        &mut NifAnimator,
+        &AnimationGraphHandle,
+    )>,
+    mut anim_graphs: ResMut<Assets<AnimationGraph>>,
+    id_to_entity_map: Res<IdToEntityMap>,
+
     cam_settings: Single<&MWCamera>,
-    world_settings: Res<WorldSettings>,
+    mut world_settings: ResMut<WorldSettings>,
     game_settings: Res<GameSettings>,
     mut commands: Commands,
 ) {
@@ -88,6 +106,23 @@ pub fn update_character_components(
         actor_physics_opt,
     ) in character_controller_q
     {
+        let Some((_, mut animation_player, mut animator, graph_handle)) =
+            get_anim_components_for_creature(
+                creature_stats.entity_id,
+                creature_stats.nif_animator_link,
+                &id_to_entity_map,
+                &mut animator_q,
+            )
+        else {
+            continue;
+        };
+        let mut animation_context = AnimationContext {
+            animation_player: &mut animation_player,
+            nif_animator: &mut animator,
+            anim_graphs: &mut anim_graphs,
+            graph_handle,
+        };
+
         let mut movement = Vec3::ZERO;
         update_magic_effects();
         let is_local_player = local_player_opt.is_some();
@@ -107,6 +142,8 @@ pub fn update_character_components(
             }
         }
         let is_actor = matches!(live_cell_ref, LiveCellRef::Npc(_));
+        let is_npc = is_actor;
+        let is_player = player_opt.is_some();
         if is_actor && creature_stats.teleported {
             character_controller.movement.smoothed_speed = Vec2::ZERO;
             creature_stats.teleported = false;
@@ -119,10 +156,16 @@ pub fn update_character_components(
                     actor_physics.on_ground && actor_physics.internal_collision_mode
                 })
                 .unwrap_or_default();
+            let Some(cell) = cell_entity_lookup
+                .0
+                .get(&current_cell.coords)
+                .and_then(|cell_entity| cells.get(*cell_entity).ok())
+            else {
+                warn!("entity missing cell!");
+                continue;
+            };
             let in_water = actor_physics_opt
                 .and_then(|actor_physics| {
-                    let cell_entity = cell_entity_lookup.0.get(&current_cell.coords)?;
-                    let cell = cells.get(*cell_entity).ok()?;
                     Some(is_swimming(
                         transform.translation,
                         &world_settings,
@@ -232,7 +275,7 @@ pub fn update_character_components(
                 move_vec = Vec3::ZERO;
             }
             let mut move_state = CharacterState::None;
-            let mut idle_state = CharacterState::None;
+            let mut idle_state;
             let mut jump_state = JumpingStateKind::None;
             if move_vec.x != 0.0 || move_vec.z != 0.0 {
                 // advance athletics
@@ -313,7 +356,7 @@ pub fn update_character_components(
                     if health_lost > 0.0 {
                         //TODO::
                     }
-                    if matches!(live_cell_ref, LiveCellRef::Npc(_)) {
+                    if is_npc {
                         let sound_source = if is_local_player {
                             SoundSource::LocalPlayer
                         } else {
@@ -325,6 +368,10 @@ pub fn update_character_components(
                         });
                     }
                 }
+                if animation_context.is_playing(&character_controller.jumping.current_group) {
+                    jump_state = JumpingStateKind::Landing;
+                }
+
                 move_vec.y = 0.0;
                 move_state = get_character_state(
                     in_water,
@@ -336,70 +383,97 @@ pub fn update_character_components(
                     move_vec,
                     effective_rotation,
                 );
-                if game_settings.turn_to_movement_direction
-                    && is_first_person_player
-                    && is_biped
-                    && (move_state == CharacterState::SwimRunForward
-                        || move_state == CharacterState::SwimWalkForward
-                        || move_state == CharacterState::SwimRunBack
-                        || move_state == CharacterState::SwimWalkBack)
-                {
-                    // TODO::
-                }
-                //TODO:: swim correction
-                if is_biped {
-                    if character_controller.movement.turn_animation_threshold > 0.0 {
-                        character_controller.movement.turn_animation_threshold -= delta_secs;
-                        if move_state == CharacterState::TurnRight
-                            || move_state == CharacterState::TurnLeft
-                            || move_state == CharacterState::SwimTurnRight
-                            || move_state == CharacterState::SwimTurnLeft
-                        {
-                            character_controller.movement.turn_animation_threshold = 0.05;
-                        } else if move_state == CharacterState::None
-                            && character_controller.is_turning()
-                            && character_controller.movement.turn_animation_threshold > 0.0
-                        {
-                            move_state = character_controller.movement.state;
-                        }
+            }
+            if game_settings.turn_to_movement_direction
+                && !is_first_person_player
+                && is_biped
+                && (move_state == CharacterState::SwimRunForward
+                    || move_state == CharacterState::SwimWalkForward
+                    || move_state == CharacterState::SwimRunBack
+                    || move_state == CharacterState::SwimWalkBack)
+            {
+                // TODO::
+            }
+            //TODO:: swim correction
+            if is_biped {
+                if character_controller.movement.turn_animation_threshold > 0.0 {
+                    character_controller.movement.turn_animation_threshold -= delta_secs;
+                    if move_state == CharacterState::TurnRight
+                        || move_state == CharacterState::TurnLeft
+                        || move_state == CharacterState::SwimTurnRight
+                        || move_state == CharacterState::SwimTurnLeft
+                    {
+                        character_controller.movement.turn_animation_threshold = 0.05;
+                    } else if move_state == CharacterState::None
+                        && character_controller.is_turning()
+                        && character_controller.movement.turn_animation_threshold > 0.0
+                    {
+                        move_state = character_controller.movement.state;
                     }
                 }
-                if move_state != CharacterState::None {
-                    character_controller.clear_animation_queue();
-                    jump_state = JumpingStateKind::None;
-                }
-                character_controller.update_anim_queue();
-                if character_controller.animation.queue.is_empty() {
-                    idle_state = CharacterState::SpecialIdle;
-                } else if sneak && !character_controller.jumping.in_jump {
-                    idle_state = CharacterState::IdleSneak;
-                } else {
-                    idle_state = CharacterState::Idle;
-                }
-                if in_water {
-                    idle_state = CharacterState::IdleSwim;
-                }
-                // TODO:: the split of this part -> animation -> part 2 goes here
+            }
+            if move_state != CharacterState::None {
+                character_controller.clear_animation_queue();
+                jump_state = JumpingStateKind::None;
+            }
+            character_controller.update_anim_queue();
+            if character_controller.animation.queue.is_empty() {
+                idle_state = CharacterState::SpecialIdle;
+            } else if sneak && !character_controller.jumping.in_jump {
+                idle_state = CharacterState::IdleSneak;
+            } else {
+                idle_state = CharacterState::Idle;
+            }
+            if in_water {
+                idle_state = CharacterState::IdleSwim;
+            }
 
-                if character_controller.is_turning() {
-                    if delta_secs > 0.0 {
-                        let turn_speed = (rot.y.abs() / delta_secs / PI).min(1.5);
-                        character_controller.movement.applied_turn_anim_speed = turn_speed;
-                    }
+            if !character_controller.animation.skip_anim {
+                refresh_current_anims(
+                    &mut creature_stats,
+                    &mut character_controller,
+                    &mut animation_context,
+                    actor_physics_opt,
+                    &mut world_settings,
+                    &anim_clips,
+                    live_cell_ref,
+                    &mut commands,
+                    cell,
+                    idle_state,
+                    jump_state,
+                    move_state,
+                    position_interpolation.current_position,
+                    false, // TODO:: update_weapon_state()
+                    is_actor,
+                    is_npc,
+                    is_player,
+                    is_biped,
+                );
+            }
+            // TODO:: the split of this part -> animation -> part 2 goes here
+
+            if character_controller.is_turning() {
+                if delta_secs > 0.0 {
+                    let turn_speed = (rot.y.abs() / delta_secs / PI).min(1.5);
+                    character_controller.movement.applied_turn_anim_speed = turn_speed;
+                }
+            } else if character_controller.movement.state != CharacterState::None
+                && character_controller.movement.adjust_anim_speed
+            {
+                const MAX_SPEED_MULT: f32 = 10.0;
+                let speed_mult = speed / character_controller.movement.applied_move_anim_speed;
+                animation_context.adjust_anim_speed(
+                    &character_controller.movement.current_group,
+                    speed_mult.min(MAX_SPEED_MULT),
+                );
+                if character_controller.is_movement_animation_controlled(
+                    game_settings.player_movement_ignores_animation,
+                    is_player,
+                ) {
+                    scale *= (speed_mult / MAX_SPEED_MULT).max(1.0);
                 }
             }
-            character_controller.movement.state = move_state;
-            character_controller.vitals.idle_state = idle_state;
-            if character_controller.jumping.state != jump_state {
-                // Have to set either the landing or jumping animation as not being handled,
-                // so we don't double-trigger them
-                if jump_state == JumpingStateKind::InAir {
-                    character_controller.jumping.handled_jumping_animation = false;
-                } else {
-                    character_controller.jumping.handled_landing_animation = false;
-                }
-                character_controller.jumping.state = jump_state;
-            }
+
             movement = move_vec;
         } else if creature_stats.dead {
             // initial start of death animation for actors that started the game as dead
@@ -439,7 +513,7 @@ fn is_flying(
     let is_paralyzed_not_godmode = !(is_local_player && world_settings.god_mode)
         && stats
             .magic_effects
-            .get_or_default(&MagicEffect::PARALYZE)
+            .get_or_default(MagicEffect::PARALYZE)
             .modifier
             > 0.0;
 
@@ -457,7 +531,7 @@ fn is_flying(
 
     if stats
         .magic_effects
-        .get_or_default(&MagicEffect::LEVITATE)
+        .get_or_default(MagicEffect::LEVITATE)
         .get_magnitude()
         > 0.0
         && world_settings.levitation_enabled
@@ -558,7 +632,7 @@ fn get_current_speed(
 #[inline]
 fn get_jump_height() -> f32 {
     //TODO::
-    5.0
+    100.0
 }
 fn get_fall_damage() -> f32 {
     //TODO::
@@ -666,16 +740,81 @@ fn get_character_state(
         }
     }
 
-    CharacterState::Idle
+    CharacterState::None
 }
-
+fn refresh_current_anims(
+    creature_stats: &mut CreatureStats,
+    char_cont: &mut CharacterController,
+    animation_context: &mut AnimationContext,
+    actor_physics_opt: Option<&ActorPhysics>,
+    world_settings: &mut WorldSettings,
+    animations: &Res<Assets<AnimationClip>>,
+    live_ref: &LiveCellRef,
+    commands: &mut Commands,
+    current_cell: &MWCell,
+    new_idle: CharacterState,
+    new_jump: JumpingStateKind,
+    new_movement: CharacterState,
+    current_pos: Vec3,
+    force: bool,
+    is_actor: bool,
+    is_npc: bool,
+    is_player: bool,
+    is_biped: bool,
+) {
+    refresh_hit_recoil_anims(
+        creature_stats,
+        char_cont,
+        animation_context,
+        actor_physics_opt,
+        world_settings,
+        animations,
+        commands,
+        current_cell,
+        current_pos,
+        is_actor,
+        is_npc,
+        is_player,
+    );
+    refresh_jump_anims(
+        char_cont,
+        animation_context,
+        animations,
+        commands,
+        new_jump,
+        force,
+        is_biped,
+    );
+    refresh_movement_anims(
+        char_cont,
+        animation_context,
+        animations,
+        commands,
+        live_ref,
+        new_movement,
+        force,
+        is_biped,
+    );
+    refresh_idle_anims(
+        char_cont,
+        animation_context,
+        world_settings,
+        animations,
+        commands,
+        new_idle,
+        force,
+        is_biped,
+    );
+}
 pub fn refresh_hit_recoil_anims(
     creature_stats: &mut CreatureStats,
     char_cont: &mut CharacterController,
     animation_context: &mut AnimationContext,
     actor_physics_opt: Option<&ActorPhysics>,
     world_settings: &mut WorldSettings,
-    current_cell: &Cell,
+    animations: &Res<Assets<AnimationClip>>,
+    commands: &mut Commands,
+    current_cell: &MWCell,
     current_pos: Vec3,
     is_actor: bool,
     is_npc: bool,
@@ -687,8 +826,8 @@ pub fn refresh_hit_recoil_anims(
     let knockout = creature_stats.stats.fatigue.current < 0.0
         || creature_stats.stats.fatigue.static_stat.base == 0.0;
     let recovery = creature_stats.hit_recovery;
-    let knockdown = creature_stats.knocked_down;
-    let block = creature_stats.block && !knockout && !recovery && !knockdown;
+    let knockdown = &mut creature_stats.knocked_down;
+    let did_block = creature_stats.block && !knockout && !recovery && !*knockdown;
     let rendering_half_extents_y_opt =
         actor_physics_opt.map(|actor_physics| actor_physics.rendering_half_extents.y);
     let is_swimming = is_swimming(
@@ -698,35 +837,31 @@ pub fn refresh_hit_recoil_anims(
         current_cell,
     );
     creature_stats.block = false;
-    if is_player && char_cont.vitals.hit_state == CharacterState::Block && block {
+    if is_player && char_cont.vitals.hit_state == CharacterState::Block && did_block {
         char_cont.vitals.hit_state = CharacterState::None;
         reset_current_idle_state(char_cont, animation_context);
     }
     if char_cont.vitals.hit_state != CharacterState::None {
-        if !animation_context
-            .nif_animator
-            .active_animations
-            .contains_key(&char_cont.vitals.current_hit_group)
-        {
+        if !animation_context.is_playing(&char_cont.vitals.current_hit_group) {
             if char_cont.is_knocked_out()
                 && char_cont.vitals.current_hit_group.is_empty()
                 && knockout
             {
-                char_cont.vitals.hit_state = CharacterState::None;
-                char_cont.vitals.current_hit_group.clear();
-                creature_stats.knocked_down = false;
-                creature_stats.hit_recovery = false;
-                reset_current_idle_state(char_cont, animation_context);
+                return;
             }
+            char_cont.vitals.hit_state = CharacterState::None;
+            char_cont.vitals.current_hit_group.clear();
+            *knockdown = false;
+            creature_stats.hit_recovery = false;
+            reset_current_idle_state(char_cont, animation_context);
         } else if char_cont.is_knocked_out() {
-            animation_context.set_repeating(&char_cont.vitals.current_hit_group);
+            animation_context.set_repeating(&char_cont.vitals.current_hit_group, knockout);
         }
     }
-    if !knockout && !knockdown && !recovery && !block {
+    if !knockout && !*knockdown && !recovery && !did_block {
         return;
     }
     let mut priorities = [Priority::Knockdown; NUM_DISCRETE_REGIONS];
-    let mut anim = "";
     if knockout {
         char_cont.vitals.hit_state = if is_swimming {
             CharacterState::SwimKnockOut
@@ -734,7 +869,7 @@ pub fn refresh_hit_recoil_anims(
             CharacterState::KnockOut
         };
         creature_stats.knocked_down = true;
-    } else if knockdown {
+    } else if *knockdown {
         char_cont.vitals.hit_state = if is_swimming {
             CharacterState::SwimKnockOut
         } else {
@@ -746,12 +881,11 @@ pub fn refresh_hit_recoil_anims(
         } else {
             CharacterState::Hit
         };
-    } else if block {
+    } else if did_block {
         char_cont.vitals.hit_state = CharacterState::Block;
         priorities = [Priority::Hit; NUM_DISCRETE_REGIONS];
         priorities[REGION_INDEX_LEFT_ARM] = Priority::Block;
         priorities[REGION_INDEX_LOWER_BODY] = Priority::Block;
-        anim = "block";
     }
     char_cont.vitals.current_hit_group = hit_state_to_anim_group(char_cont.vitals.hit_state);
     if char_cont.is_recovery() {
@@ -776,6 +910,7 @@ pub fn refresh_hit_recoil_anims(
     if char_cont.is_knocked_out() || char_cont.is_knocked_down() {
         if !char_cont.combat.current_weapon.is_empty() {
             animation_context.clear_animation(&char_cont.combat.current_weapon);
+            dbg!("called clear from knocked_out");
         }
         if char_cont.combat.upper_body > UpperBodyState::WeaponEquipped {
             char_cont.combat.upper_body = UpperBodyState::WeaponEquipped;
@@ -796,17 +931,334 @@ pub fn refresh_hit_recoil_anims(
         return;
     }
 
-    animation_context.play_animation_2(
+    let suffix = if did_block { ": block" } else { "" };
+    animation_context.play_animation(
+        animations,
         &char_cont.vitals.current_hit_group,
+        suffix,
         priorities,
         BlendMask::all(),
         true,
+        AnimType::Intro,
         1.0,
         0.0,
+        0,
+        commands,
+    );
+}
+fn refresh_jump_anims(
+    char_cont: &mut CharacterController,
+    animation_context: &mut AnimationContext,
+    animations: &Res<Assets<AnimationClip>>,
+    commands: &mut Commands,
+    new_jump: JumpingStateKind,
+    force: bool,
+    is_biped: bool,
+) {
+    if !force && new_jump == char_cont.jumping.state {
+        return;
+    }
+    if new_jump == JumpingStateKind::None {
+        if !char_cont.jumping.current_group.is_empty() {
+            reset_current_idle_state(char_cont, animation_context);
+        }
+        reset_current_jump_state(char_cont, animation_context);
+        return;
+    }
+    let weapon_short_group = get_weapon_short_group(char_cont.combat.weapon_type, is_biped);
+    let mut jump_anim_name = format!("{}{}", "jump", weapon_short_group);
+    let mut jump_mask = BlendMask::all();
+    if !weapon_short_group.is_empty() && !animation_context.has_animation(&jump_anim_name) {
+        jump_anim_name = fallback_short_weapon_group(
+            char_cont.combat.weapon_type,
+            "jump".to_string(),
+            Some(&mut jump_mask),
+            animation_context.nif_animator,
+            is_biped,
+        )
+    }
+    if !animation_context.has_animation(&jump_anim_name) {
+        if !char_cont.jumping.current_group.is_empty() {
+            reset_current_idle_state(char_cont, animation_context);
+        }
+        reset_current_jump_state(char_cont, animation_context);
+        return;
+    }
+    let start_at_loop = if new_jump == char_cont.jumping.state {
+        AnimType::Loop
+    } else {
+        AnimType::Intro
+    };
+    char_cont.jumping.state = new_jump;
+    clear_state_animation(&mut char_cont.jumping.current_group, animation_context);
+    char_cont.jumping.current_group = jump_anim_name;
+    if char_cont.jumping.state == JumpingStateKind::InAir {
+        animation_context.play_animation(
+            animations,
+            &char_cont.jumping.current_group,
+            "",
+            [Priority::Jump; 4],
+            jump_mask,
+            false,
+            start_at_loop,
+            1.0,
+            0.0,
+            u32::MAX,
+            commands,
+        );
+    } else if char_cont.jumping.state == JumpingStateKind::Landing {
+        animation_context.play_animation(
+            animations,
+            &char_cont.jumping.current_group,
+            "",
+            [Priority::Jump; 4],
+            jump_mask,
+            true,
+            AnimType::Outro,
+            1.0,
+            0.0,
+            u32::MAX,
+            commands,
+        );
+    }
+}
+fn refresh_movement_anims(
+    char_cont: &mut CharacterController,
+    animation_context: &mut AnimationContext,
+    animations: &Res<Assets<AnimationClip>>,
+    commands: &mut Commands,
+    live_ref: &LiveCellRef,
+    new_movement: CharacterState,
+    force: bool,
+    is_biped: bool,
+) {
+    // Same state, if not forced just return
+    if new_movement == char_cont.movement.state && !force {
+        return;
+    }
+
+    let movement_anim_group = movement_state_to_anim_group(new_movement);
+    if movement_anim_group.is_empty() {
+        if !char_cont.movement.current_group.is_empty() {
+            reset_current_idle_state(char_cont, animation_context);
+        }
+        reset_current_movement_state(char_cont, animation_context);
+        return;
+    }
+
+    let mut movement_anim_name = movement_anim_group.to_string();
+    char_cont.movement.state = new_movement;
+
+    // Handle "swim" fallback
+    let mut swim_pos = movement_anim_name.find("swim");
+    if !animation_context.has_animation(&movement_anim_name) {
+        if let Some(pos) = swim_pos {
+            movement_anim_name.replace_range(pos..pos + 4, "");
+            swim_pos = None;
+        }
+    }
+
+    let mut move_mask = BlendMask::all();
+    let weapon_short_group = if is_real_weapon(char_cont.combat.weapon_type) || is_biped {
+        get_weapon_short_group(char_cont.combat.weapon_type, is_biped)
+    } else {
+        ""
+    };
+
+    // Apply weapon suffix to animation name
+    if !swim_pos.is_some() && !weapon_short_group.is_empty() {
+        let mut weap_movement_name =
+            if char_cont.combat.weapon_type == WeaponType::Spell && char_cont.is_turning() {
+                format!("{}{}", weapon_short_group, movement_anim_name)
+            } else {
+                format!("{}{}", movement_anim_name, weapon_short_group)
+            };
+
+        if !animation_context.has_animation(&weap_movement_name) {
+            weap_movement_name = fallback_short_weapon_group(
+                char_cont.combat.weapon_type,
+                movement_anim_name,
+                Some(&mut move_mask),
+                animation_context.nif_animator,
+                is_biped,
+            )
+        }
+        movement_anim_name = weap_movement_name;
+    }
+
+    // Handle "run" to "walk" fallback
+    if !animation_context.has_animation(&movement_anim_name) {
+        if let Some(run_pos) = movement_anim_name.find("run") {
+            movement_anim_name.replace_range(run_pos..run_pos + 3, "walk");
+        }
+        if !animation_context.has_animation(&movement_anim_name) {
+            if !char_cont.movement.current_group.is_empty() {
+                reset_current_idle_state(char_cont, animation_context);
+            }
+            reset_current_movement_state(char_cont, animation_context);
+            return;
+        }
+    }
+
+    // Get start point if repeating the same animation
+    let mut start_point = 0.0;
+    if !char_cont.movement.current_group.is_empty()
+        && movement_anim_name == char_cont.movement.current_group
+    {
+        start_point = animation_context.get_anim_info(&char_cont.movement.current_group);
+    }
+
+    char_cont.movement.animation_has_movement = true;
+    clear_state_animation(&mut char_cont.movement.current_group, animation_context);
+    char_cont.movement.current_group = movement_anim_name.clone();
+
+    // For non-flying creatures, MW uses the Walk animation to calculate the animation velocity
+    // even if we are running. This must be replicated, otherwise the observed speed would differ drastically.
+    char_cont.movement.adjust_anim_speed = true;
+    if let LiveCellRef::Creature(creature) = live_ref {
+        if !creature.flags.contains(CreatureFlags::FLIES) {
+            let walk_state = run_state_to_walk_state(char_cont.movement.state);
+            let anim = movement_state_to_anim_group(walk_state);
+            char_cont.movement.applied_move_anim_speed =
+                animation_context.get_velocity(anim) / MW_UNITS_PER_METER;
+            if char_cont.movement.applied_move_anim_speed <= 1.0 / MW_UNITS_PER_METER {
+                // Another bug: when using a fallback animation (e.g. RunForward as fallback to SwimRunForward),
+                // then the equivalent Walk animation will not use a fallback, and if that animation doesn't exist
+                // we will play without any scaling.
+                // Makes the speed attribute of most water creatures totally useless.
+                // And again, this can not be fixed without patching game data.
+                char_cont.movement.adjust_anim_speed = false;
+                char_cont.movement.applied_move_anim_speed = 1.0 / MW_UNITS_PER_METER;
+            }
+        }
+    } else {
+        char_cont.movement.applied_move_anim_speed =
+            animation_context.get_velocity(&char_cont.movement.current_group) / MW_UNITS_PER_METER;
+        if char_cont.movement.applied_move_anim_speed <= 1.0 / MW_UNITS_PER_METER {
+            // The first person anims don't have any velocity to calculate a speed multiplier from.
+            // We use the third person velocities instead.
+            // FIXME: should be pulled from the actual animation, but it is not presently loaded.
+            let sneaking = char_cont.movement.state == CharacterState::SneakForward
+                || char_cont.movement.state == CharacterState::SneakBack
+                || char_cont.movement.state == CharacterState::SneakLeft
+                || char_cont.movement.state == CharacterState::SneakRight;
+            char_cont.movement.applied_move_anim_speed = if sneaking {
+                33.5452 / MW_UNITS_PER_METER
+            } else if char_cont.is_running() {
+                222.857 / MW_UNITS_PER_METER
+            } else {
+                154.064 / MW_UNITS_PER_METER
+            };
+            char_cont.movement.animation_has_movement = false;
+        }
+    }
+
+    animation_context.play_animation(
+        animations,
+        &movement_anim_name,
+        "",
+        [Priority::Movement; 4],
+        move_mask,
+        false,
+        AnimType::Intro,
+        1.0,
+        start_point,
         u32::MAX,
+        commands,
     );
 }
 
+fn refresh_idle_anims(
+    char_cont: &mut CharacterController,
+    animation_context: &mut AnimationContext,
+    world_settings: &mut WorldSettings,
+    animations: &Res<Assets<AnimationClip>>,
+    commands: &mut Commands,
+    new_idle: CharacterState,
+    force: bool,
+    is_biped: bool,
+) {
+    if !force
+        && new_idle == char_cont.vitals.idle_state
+        && (animation_context.is_playing(&char_cont.vitals.current_idle_group)
+            || !char_cont.animation.queue.is_empty())
+    {
+        return;
+    }
+    char_cont.vitals.idle_state = new_idle;
+    let mut idle_group = idle_state_to_anim_group(new_idle);
+    if idle_group.is_empty() {
+        reset_current_idle_state(char_cont, animation_context);
+        return;
+    }
+    let mut priority = get_idle_priority(char_cont.vitals.idle_state);
+    let mut num_loops = u32::MAX;
+    // Only play "idleswim" or "idlesneak" if they exist. Otherwise, fallback to
+    // "idle"+weapon or "idle".
+    let fallback = char_cont.vitals.idle_state != CharacterState::Idle
+        && animation_context.has_animation(&idle_group);
+    if fallback {
+        priority = get_idle_priority(CharacterState::Idle);
+        idle_group = idle_state_to_anim_group(CharacterState::Idle);
+    }
+    // Handle Weapon-specific Idle groups (e.g., "idle" + "1h")
+    let is_base_idle = fallback
+        || char_cont.vitals.idle_state == CharacterState::Idle
+        || char_cont.vitals.idle_state == CharacterState::SpecialIdle;
+
+    if is_base_idle {
+        let weap_short_group = get_weapon_short_group(char_cont.combat.weapon_type, is_biped);
+        if !weap_short_group.is_empty() {
+            let mut weap_idle_group = format!("{}{}", idle_group, weap_short_group);
+
+            if !animation_context.has_animation(&weap_idle_group) {
+                weap_idle_group = fallback_short_weapon_group(
+                    char_cont.combat.weapon_type,
+                    idle_group,
+                    None,
+                    animation_context.nif_animator,
+                    is_biped,
+                );
+            }
+            idle_group = weap_idle_group;
+
+            // play until the Loop Stop key 2 to 5 times, then play until the Stop key
+            // this replicates original engine behavior for the "Idle1h" 1st-person animation
+            num_loops = 1 + world_settings.rng.random_range(1..=4);
+        }
+    }
+
+    // Validate animation exists
+    if !animation_context.has_animation(&idle_group) {
+        reset_current_idle_state(char_cont, animation_context);
+        return;
+    }
+
+    // There is no need to restart anim if the new and old anims are the same.
+    // Just update the number of loops.
+    let mut start_point = 0.0;
+    if char_cont.vitals.current_idle_group == idle_group {
+        start_point = animation_context.get_anim_info(&char_cont.vitals.current_idle_group);
+    }
+
+    // Final transition
+    clear_state_animation(&mut char_cont.vitals.current_idle_group, animation_context);
+    char_cont.vitals.current_idle_group = idle_group.clone();
+
+    animation_context.play_animation(
+        animations,
+        &idle_group,
+        "",
+        priority,
+        BlendMask::all(),
+        false,
+        AnimType::Intro,
+        1.0, // playback speed
+        start_point,
+        num_loops,
+        commands,
+    );
+}
 fn reset_current_idle_state(
     character_controller: &mut CharacterController,
     animation_context: &mut AnimationContext,
@@ -817,12 +1269,35 @@ fn reset_current_idle_state(
     );
     character_controller.vitals.idle_state = CharacterState::None;
 }
+fn reset_current_jump_state(
+    character_controller: &mut CharacterController,
+    animation_context: &mut AnimationContext,
+) {
+    clear_state_animation(
+        &mut character_controller.jumping.current_group,
+        animation_context,
+    );
+    character_controller.jumping.state = JumpingStateKind::None;
+}
+fn reset_current_movement_state(
+    character_controller: &mut CharacterController,
+    animation_context: &mut AnimationContext,
+) {
+    dbg!(&character_controller.movement.current_group);
+    clear_state_animation(
+        &mut character_controller.movement.current_group,
+        animation_context,
+    );
+    character_controller.movement.state = CharacterState::None;
+    character_controller.movement.animation_has_movement = false;
+}
 fn clear_state_animation(anim_group: &mut String, animation_context: &mut AnimationContext) {
     if anim_group.is_empty() {
         return;
     }
 
     animation_context.clear_animation(anim_group);
+    dbg!("called clear from clear_state");
     anim_group.clear();
 }
 fn hit_state_to_anim_group(state: CharacterState) -> String {
@@ -837,6 +1312,14 @@ fn hit_state_to_anim_group(state: CharacterState) -> String {
         _ => "",
     }
     .to_string()
+}
+fn idle_state_to_anim_group(state: CharacterState) -> String {
+    match state {
+        CharacterState::IdleSwim => "idleswim".to_string(),
+        CharacterState::IdleSneak => "idlesneak".to_string(),
+        CharacterState::Idle | CharacterState::SpecialIdle => "idle".to_string(),
+        _ => String::new(),
+    }
 }
 
 /// Returns the animation, and the roll that got us the animation
@@ -863,4 +1346,15 @@ fn choose_random_group(
     let roll = rng.random_range(1..=num_anims);
 
     (format!("{}{}", prefix, roll), roll)
+}
+fn get_idle_priority(state: CharacterState) -> [Priority; 4] {
+    let mut priorities = [Priority::default(); 4];
+    match state {
+        CharacterState::IdleSwim => priorities = [Priority::SwimIdle; 4],
+        CharacterState::IdleSneak => {
+            priorities[REGION_INDEX_LOWER_BODY] = Priority::SneakIdleLowerBody
+        }
+        _ => {}
+    }
+    priorities
 }

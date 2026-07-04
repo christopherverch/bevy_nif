@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use common::{ServerIP, state::GameState};
 use handle_other_players::{apply_received_animation_state, interpolate_players};
 use networking::EntityIdToEntityMap;
 use send_data::{
@@ -8,9 +9,7 @@ use send_data::{
 };
 
 use super::Connected;
-use crate::defs::{
-    ClientEntityId, GameState, LocalPlayer, NetworkEventWithIdCounter, PendingServerAcks, ServerIP,
-};
+use crate::defs::{ClientEntityId, LocalPlayer, NetworkEventWithIdCounter, PendingServerAcks};
 use bevy_renet::client_connected;
 use bevy_renet::netcode::NetcodeClientPlugin;
 use std::collections::HashMap;

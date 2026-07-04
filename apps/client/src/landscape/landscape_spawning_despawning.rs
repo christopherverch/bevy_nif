@@ -1,6 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::defs::{LandscapeCell, LandscapeLoader, LandscapeManagementSettings, LocalPlayer};
+use crate::{
+    defs::{LandscapeCell, LandscapeLoader, LandscapeManagementSettings, LocalPlayer},
+    landscape::ALL_LANDSCAPES,
+};
 use bevy::prelude::*;
 
 use crate::const_defs::MORROWIND_CELL_SIZE;
@@ -18,6 +21,9 @@ pub fn spawn_despawn_landscapes(
     mut commands: Commands,
     mut old_player_cell: Local<Option<(i32, i32)>>,
 ) {
+    let Ok(landscapes) = ALL_LANDSCAPES.get().unwrap().try_read() else {
+        return;
+    };
     // have to negate x because morrowind is left-handed coordinate system
     let current_cell_x = (-player_transform.translation.x / MORROWIND_CELL_SIZE).floor() as i32;
     let current_cell_y = (player_transform.translation.z / MORROWIND_CELL_SIZE).floor() as i32;
@@ -42,6 +48,10 @@ pub fn spawn_despawn_landscapes(
     }
 
     for desired_cell in &desired_cells {
+        // Don't try to spawn cells that we have no data for
+        if landscapes.get(desired_cell).is_none() {
+            continue;
+        }
         if !currently_loaded_cells.contains_key(&desired_cell)
             && !loading_cells.contains_key(&desired_cell)
         {

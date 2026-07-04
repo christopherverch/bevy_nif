@@ -76,7 +76,7 @@ pub fn get_weapon_definition(weapon_type: WeaponType) -> &'static WeaponDefiniti
                     raw.sound_id_base,
                     raw.attach_bone.to_string(),
                     raw.sheathing_bone.to_string(),
-                    raw.skill.index_to_refid(),
+                    SkillIndex::index_to_refid(raw.skill as i8),
                     raw.category,
                     raw.ammo_type,
                     raw.flags,

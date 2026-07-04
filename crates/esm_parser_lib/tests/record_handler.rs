@@ -2,7 +2,7 @@ use esm_parser_lib::{
     EsmError, EsmReader, LandTexture, Landscape, Weapon,
     types::{
         bodypart::Bodypart, cell::Cell, cell_ref::CellRef, creature::Creature, gmst::GameSetting,
-        magic_effect::MagicEffect, race::Race, reference::Reference, skill::Skill,
+        magic_effect::MagicEffect, race::Race, reference::Reference, skill::Skill, spell::Spell,
         static_object::Static,
     },
 };
@@ -40,8 +40,9 @@ where
         b"CELL" => {
             let mut cell = Cell::default();
             cell.load(reader, &mut is_deleted, false)?;
-            on_load(name, &cell);
-
+            if cell.name == "Seyda Neen" {
+                on_load(name, &cell);
+            }
             let mut cell_ref = CellRef::default();
             while Cell::get_next_ref(reader, &mut cell_ref, &mut is_deleted)? {
                 on_load(b"REFR", &cell_ref); // Sub-records are debugged here
@@ -81,6 +82,10 @@ where
         b"CREA" => {
             let creature = Creature::load(reader, &mut is_deleted)?;
             on_load(name, &creature);
+        }
+        b"SPEL" => {
+            let spell = Spell::load(reader, &mut is_deleted)?;
+            on_load(name, &spell);
         }
         _ => {
             reader.skip_record()?;

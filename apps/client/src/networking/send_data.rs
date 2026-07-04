@@ -8,7 +8,7 @@ use crate::defs::{
 };
 use bevy::prelude::*;
 use bevy_renet::RenetClient;
-use common::SoundSource;
+use common::events::SoundSource;
 use common::mechanics::{CharacterController, JumpingStateKind, UpperBodyState};
 use networking::{
     AnimationEvent, ClientMessage, NetworkEvent, NetworkEventWithId, NetworkedActorState,

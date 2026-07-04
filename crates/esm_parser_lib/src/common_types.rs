@@ -121,7 +121,7 @@ impl FixedString<4> {
         }
     }
 
-    pub fn to_u32(&self) -> u32 {
+    pub const fn to_u32(&self) -> u32 {
         u32::from_le_bytes(self.data)
     }
 }

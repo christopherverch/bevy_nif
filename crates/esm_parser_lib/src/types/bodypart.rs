@@ -1,4 +1,6 @@
-use crate::{EsmError, EsmReader, Load, RefId, esm_record::EsmRecord, types::flags::ObjectFlags};
+use crate::{
+    EsmError, EsmReader, Load, RefId, esm_record::EsmRecord, name4, types::flags::ObjectFlags,
+};
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Bodypart {
@@ -12,6 +14,7 @@ impl EsmRecord for Bodypart {
     fn id(&self) -> &RefId {
         &self.id
     }
+    const RECORD_ID: u32 = name4!("BODY").to_u32();
 }
 impl Bodypart {
     pub fn load(reader: &mut EsmReader, is_deleted: &mut bool) -> Result<Self, EsmError> {

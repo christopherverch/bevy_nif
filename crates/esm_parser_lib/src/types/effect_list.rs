@@ -1,4 +1,5 @@
 use crate::types::attribute::Attribute;
+use crate::types::enums::EffectRange;
 use crate::types::skill::SkillIndex;
 use crate::{
     EsmError, EsmReader, Load, RefId, common_consts::NUM_MAGIC_EFFECTS,
@@ -7,11 +8,11 @@ use crate::{
 };
 use esm_parser_macros::LoadSave;
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct EffectList {
     pub list: Vec<IndexedENAMStruct>,
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IndexedENAMStruct {
     pub data: ENAMStruct,
     pub index: i32,
@@ -68,11 +69,7 @@ fn from_binary(src: &EsmENAMStruct) -> Result<ENAMStruct, EsmError> {
     }
     Ok(ENAMStruct {
         effect_id: MagicEffect::index_to_refid(index.into()),
-        skill: {
-            let skill_i32 = src.skill as i32;
-            let src_skill_index: SkillIndex = skill_i32.try_into().unwrap();
-            src_skill_index.index_to_refid()
-        },
+        skill: SkillIndex::index_to_refid(src.skill),
         attribute: Attribute::index_to_refid(src.attribute.into()),
         range: src.range,
         area: src.area,
@@ -83,7 +80,7 @@ fn from_binary(src: &EsmENAMStruct) -> Result<ENAMStruct, EsmError> {
 }
 /// Defines a spell effect. Shared between SPEL (Spells), ALCH
 /// (Potions) and ENCH (Item enchantments) records
-#[derive(LoadSave, PartialEq, Default, Debug)]
+#[derive(LoadSave, PartialEq, Default, Debug, Clone)]
 pub struct ENAMStruct {
     /// Magical effect, serialized to i16
     pub effect_id: RefId,
@@ -94,7 +91,7 @@ pub struct ENAMStruct {
     pub attribute: RefId,
     // Other params
     /// 0 - self, 1 - touch, 2 - target (RangeType enum)
-    pub range: i32,
+    pub range: EffectRange,
     pub area: i32,
     pub duration: i32,
     pub min_magnitude: i32,
@@ -112,7 +109,7 @@ pub struct EsmENAMStruct {
     attribute: i8,
     // Other params
     /// 0 - self, 1 - touch, 2 - target (RangeType enum)
-    range: i32,
+    range: EffectRange,
     area: i32,
     duration: i32,
     min_magnitude: i32,
@@ -120,7 +117,7 @@ pub struct EsmENAMStruct {
 }
 #[derive(LoadSave, PartialEq, Default)]
 pub struct EffectParams {
-    range: i32,
+    range: EffectRange,
     area: i32,
     duration: i32,
     min_magnitude: i32,

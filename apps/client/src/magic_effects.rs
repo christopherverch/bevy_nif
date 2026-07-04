@@ -31,13 +31,22 @@ pub struct MagicEffects {
 }
 
 impl MagicEffects {
-    // Replicate OpenMW helper methods here
-    pub fn get_or_default(&self, id: &RefId) -> EffectParam {
-        // Find first effect matching ID if arg is ignored
-        self.collection
-            .iter()
-            .find(|(k, _)| &k.id == id)
-            .map(|(_, p)| *p)
-            .unwrap_or_default()
+    pub fn get(&self, key: &EffectKey) -> Option<EffectParam> {
+        self.collection.get(key).copied()
+    }
+
+    /// Matches: EffectParam MagicEffects::getOrDefault(const EffectKey& key)
+    pub fn get_or_default_by_key(&self, key: &EffectKey) -> EffectParam {
+        self.get(key).unwrap_or_default()
+    }
+
+    /// Matches: EffectParam MagicEffects::getOrDefault(ESM::RefId effectId)
+    pub fn get_or_default(&self, effect_id: RefId) -> EffectParam {
+        // Constructs the key and delegates
+        let key = EffectKey {
+            id: effect_id,
+            arg: None,
+        };
+        self.get_or_default_by_key(&key)
     }
 }

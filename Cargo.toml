@@ -7,7 +7,7 @@ members = [
     "crates/to_utf8",
     "crates/serializer",
     "crates/networking",
-    "crates/esm_parser_macros", "crates/mwphysics", "crates/unordered_map", 
+    "crates/esm_parser_macros", "crates/mwphysics", "crates/unordered_map", "crates/esm_store", 
 ]
 resolver = "2"
 
@@ -27,27 +27,42 @@ serializer = { path = "crates/serializer" }
 networking = { path = "crates/networking" }
 to_utf8 = { path = "crates/to_utf8" }
 mwphysics = {path = "crates/mwphysics" }
-glam = "0.30.10"
+glam = "0.32.0"
 
-bevy = {version = "0.18", default-features = false}
-bevy-inspector-egui = "0.36.0"
-bevy_ecs = {version = "0.18"}
-bevy_transform = {version = "0.18"}
-bevy_math = {version = "0.18"}
-avian3d = {version = "0.6.1"}
+bevy = {version = "0.19.0", default-features = false}
+bevy_ecs = {version = "0.19.0"}
+bevy_ui = {version = "0.19.0"}
+bevy_app = {version = "0.19.0"}
+bevy_camera = {version = "0.19.0"}
+bevy_render = {version = "0.19.0"}
+bevy_state = {version = "0.19.0"}
+bevy_transform = {version = "0.19.0"}
+bevy_asset = {version = "0.19.0"}
+bevy_log = {version = "0.19.0"}
+bevy_math = "0.19.0"
+bevy_color = "0.19.0"
+bevy_image = "0.19.0"
+bevy_light = "0.19.0"
+bevy_picking = "0.19.0"
+bevy_utils = "0.19.0"
+bevy_input = "0.19.0"
+bevy_text = "0.19.0"
+bevy_scene = "0.19.0"
+strum =  "0.28"
+strum_macros =  "0.28"
+avian3d = {version = "0.7"}
 unordered_map = { path = "crates/unordered_map"}
 
 # Networking logic
-bevy_renet = "4.0.1"
+bevy_renet = "5.0"
 bitflags = "2.9.0"
 fastrand = "2.3.0"
 
 # Client-only (Rendering/Audio/UI)
-bevy_kira_audio = "0.25.0"
-bevy_anti_alias = "0.18"
-kira = "0.10.8"
+bevy_anti_alias = "0.19.0"
 esm_parser_lib = { path = "crates/esm_parser_lib" }
-bevy_nif = { path = "../bevy_nif/bevy_nif" }
+mw_nif = { path = "crates/mw_nif" }
+bevy_nif = { git = "https://github.com/christopherverch/bevy_nif.git"}
 
 [workspace.lints.rust]
 #warnings = "deny"

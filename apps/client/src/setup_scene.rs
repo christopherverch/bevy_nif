@@ -1,10 +1,10 @@
-use crate::defs::{PlayerCamera, TestingComponent};
+use crate::defs::{CellLookup, MWCell, PlayerCamera, TestingComponent};
 use bevy::{
+    camera::Hdr,
     core_pipeline::prepass::{DeferredPrepass, DepthPrepass, MotionVectorPrepass},
     light::{CascadeShadowConfigBuilder, NotShadowCaster, NotShadowReceiver},
-    pbr::OpaqueRendererMethod,
+    material::OpaqueRendererMethod,
     prelude::*,
-    render::view::Hdr,
 };
 use bevy_anti_alias::fxaa::Fxaa;
 use bevy_nif::{loader::Nif, spawner::NifScene};
@@ -46,6 +46,15 @@ pub fn setup_scene(
             scale: Vec3::splat(0.03), //nifs are huge otherwise
         },
     ));
+    let cell_entity = commands
+        .spawn(MWCell {
+            has_water: false,
+            water_level: 0.0,
+        })
+        .id();
+    let mut cell_lookup = CellLookup::default();
+    cell_lookup.0.insert(UVec2::ZERO, cell_entity);
+    commands.insert_resource(cell_lookup);
     let camera_start_pos = Vec3::new(190.0, 2.8, -890.0);
     commands.spawn((
         Camera3d::default(),
@@ -100,15 +109,16 @@ pub fn setup_scene(
     commands.spawn((
         Text2d::new(""),
         TextFont {
-            font,
-            font_size: 100.0,
+            font: FontSource::Handle(font),
+            font_size: FontSize::Px(100.0),
             ..default()
         },
     ));
     commands.spawn((
         DirectionalLight {
-            illuminance: 500.,
-            shadows_enabled: true,
+            color: Color::linear_rgb(1.0, 0.7, 0.7),
+            illuminance: 2000.,
+            shadow_maps_enabled: true,
             ..default()
         },
         CascadeShadowConfigBuilder {
@@ -128,7 +138,7 @@ pub fn setup_scene(
         .load(GltfAssetLabel::Scene(0).from_asset("models/FlightHelmet/FlightHelmet.gltf"));
 
     commands.spawn((
-        SceneRoot(helmet_scene),
+        WorldAssetRoot(helmet_scene),
         Transform::from_translation(start_location_moved),
     ));
 
@@ -155,7 +165,7 @@ pub fn setup_scene(
         PointLight {
             intensity: 800.0,
             radius: 0.125,
-            shadows_enabled: true,
+            shadow_maps_enabled: true,
             color: sphere_color,
             ..default()
         },
@@ -222,12 +232,12 @@ pub fn setup_scene(
         Text::new("test"),
         TextFont {
             // This font is loaded and will be used instead of the default font.
-            font: font_handle,
-            font_size: 25.0,
+            font: FontSource::Handle(font_handle),
+            font_size: FontSize::Px(25.0),
             ..default()
         },
         // Set the justification of the Text
-        TextLayout::new_with_justify(Justify::Left),
+        TextLayout::justify(Justify::Left),
         // Set the style of the Node itself.
         Node {
             position_type: PositionType::Absolute,

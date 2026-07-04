@@ -4,9 +4,10 @@ use esm_parser_lib::{RefId, types::magic_effect::MagicEffect};
 use mwphysics::{ActorFrameData, ActorPhysics, PositionInterpolation};
 
 use crate::{
-    defs::{ColliderEntityLink, CreatureStats, Movement, Player, WorldSettings},
-    esm::EsmStore,
+    defs::{ColliderEntityLink, Movement, Player, WorldSettings},
+    mechanics::creature_stats::CreatureStats,
 };
+use esm_store::EsmStore;
 pub fn prepare_actor_simulation(
     actor_q: Query<(
         Entity,
@@ -70,7 +71,7 @@ pub fn prepare_actor_simulation(
         let slow_fall_mult = 1.0
             - (stats
                 .magic_effects
-                .get_or_default(&MagicEffect::SLOWFALL)
+                .get_or_default(MagicEffect::SLOWFALL)
                 .get_magnitude()
                 * 0.005)
                 .clamp(0.0, 1.0);
@@ -81,7 +82,7 @@ pub fn prepare_actor_simulation(
 
         let paralyzed = stats
             .magic_effects
-            .get_or_default(&MagicEffect::PARALYZE)
+            .get_or_default(MagicEffect::PARALYZE)
             .modifier
             > 0.0;
         let inert = stats.dead || (!god_mode && paralyzed);
@@ -150,10 +151,9 @@ fn handle_jump(
         //           get_normalized_encumbrance(get_capacity(), get_encumbrance());
 
         let fatigue_decrease = fatigue_jump_base + normalized_encumbrance * fatigue_jump_mult;
-        let mut fatigue = creature_stats.get_fatigue();
+        let fatigue = &mut creature_stats.stats.fatigue;
         fatigue.set_current(fatigue.current - fatigue_decrease, false, false);
 
-        creature_stats.set_fatigue(fatigue);
         move_controller.desired_movement.y = 0.0;
     }
 }

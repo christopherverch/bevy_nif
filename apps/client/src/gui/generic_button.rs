@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+
 const DEFAULT_BORDER_SIZE: f32 = 2.0;
 const DEFAULT_MARGIN_SIZE: f32 = 5.0;
 pub fn generic_button<B: Bundle>(marker_bundle: B, text: &str) -> impl Bundle {

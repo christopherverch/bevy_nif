@@ -4,11 +4,9 @@ use bevy::{
     prelude::*,
     render::render_resource::TextureFormat,
 };
-use bevy_nif::{
-    attach_parts::AttachmentType,
-    hash_str,
-    spawner::{NifInstantiated, NifNodeIndex, NifScene},
-};
+use common::NextAvailableSkeletonId;
+use common::consts::{MW_UNITS_PER_METER, NIF_SCALE_MULTIPLIER};
+use common::state::CharCreationState;
 use esm_parser_lib::{
     RefId,
     types::{
@@ -17,12 +15,9 @@ use esm_parser_lib::{
         race::Race,
     },
 };
-use mwphysics::MW_UNITS_PER_METER;
+use esm_store::{EsmStore, Store};
 
 use crate::{
-    NextAvailableSkeletonId,
-    const_defs::NIF_SCALE_MULTIPLIER,
-    esm::{EsmStore, Store},
     gui::{
         RenderPosition,
         generic_button::generic_button,
@@ -30,7 +25,9 @@ use crate::{
             on_out_hide_tooltip, update_spell_description_tooltip, update_tooltip_position,
         },
     },
+    setup::character_preview::spawn_race_select_preview,
 };
+
 #[derive(Component)]
 pub struct RaceSelectPreviewCamera;
 #[derive(Component)]
@@ -43,20 +40,20 @@ pub struct RaceSelectUI {
     available_heads: Vec<RefId>,
     available_hairs: Vec<RefId>,
 }
-#[derive(Component)]
+#[derive(Component, Clone, Default)]
 pub struct RaceSelectSpellPowerPanel;
-#[derive(Component)]
+#[derive(Component, Clone, Default)]
 pub struct RaceSelectSpellPower(pub RefId);
-#[derive(Component)]
+#[derive(Component, Clone, Default)]
 pub struct RaceSelectSkillPanel;
-#[derive(Component)]
+#[derive(Component, Clone, Default)]
 pub struct RaceSelectSkill;
 
 #[derive(Component)]
 pub struct RaceSelectButtonIndex(usize);
-#[derive(Component)]
+#[derive(Component, Clone, Default)]
 pub struct SliderTrack;
-#[derive(Component)]
+#[derive(Component, Clone, Default)]
 pub struct SliderThumb;
 const PREVIEW_WINDOW_PX: f32 = 256.0;
 const ROTATION_SLIDER_THUMB_WIDTH: f32 = 30.0;
@@ -98,7 +95,7 @@ pub fn setup_race_select(
     );
 
     let preview_image_handle = images.add(image);
-    // 1. Spawn the camera
+    // Spawn the preview camera
     commands.spawn((
         RaceSelectPreviewCamera,
         Camera3d::default(),
@@ -115,7 +112,9 @@ pub fn setup_race_select(
         Transform::from_xyz(0.0, 1.8, 0.6),
         RenderLayers::layer(1),
     ));
-
+    let preview_area = commands
+        .spawn_scene(preview_area(preview_image_handle))
+        .id();
     let race_select_panel = commands
         .spawn((
             Node {
@@ -132,162 +131,114 @@ pub fn setup_race_select(
             ZIndex(RenderPosition::Background.as_i32()),
             Pickable::default(),
         ))
-        .with_children(|main_wrapper| {
-            // --- LEFT COLUMN: RACE SELECT (TOP) & POWERS (BOTTOM) ---
-            main_wrapper
-                .spawn(Node {
-                    flex_direction: FlexDirection::Column,
-                    width: Val::Percent(70.0),
-                    row_gap: Val::Px(20.0),
-                    ..default()
-                })
-                .with_children(|left_col| {
-                    // Race preview
-                    left_col
-                        .spawn(Node {
-                            width: Val::Px(PREVIEW_WINDOW_PX),
-                            height: Val::Px(256.0),
+        .id();
+    let left_col = commands
+        .spawn(Node {
+            flex_direction: FlexDirection::Column,
+            width: Val::Percent(70.0),
+            row_gap: Val::Px(20.0),
+            ..default()
+        })
+        .id();
+    commands.entity(preview_area).insert(ChildOf(left_col));
+    commands.entity(left_col).with_children(|left_col| {
+        // 1. Race Selection Area (Middle/Top)
+        left_col
+            .spawn(Node {
+                flex_direction: FlexDirection::Row,
+                flex_wrap: FlexWrap::Wrap,
+                justify_content: JustifyContent::Start,
+                align_items: AlignItems::Start,
+                ..default()
+            })
+            .with_children(|parent_panel| {
+                for index in 0..available_races.len() {
+                    parent_panel
+                        .spawn(generic_button(
+                            RaceSelectButtonIndex(index),
+                            &available_races[index].resolve_string(),
+                        ))
+                        .observe(race_select_button_pressed);
+                }
+
+                // Head/Hair toggles
+                parent_panel
+                    .spawn(generic_button((), "prev head"))
+                    .observe(head_select_left_pressed);
+                parent_panel
+                    .spawn(generic_button((), "next head"))
+                    .observe(head_select_right_pressed);
+                parent_panel
+                    .spawn(generic_button((), "prev hair"))
+                    .observe(hair_select_left_pressed);
+                parent_panel
+                    .spawn(generic_button((), "next hair"))
+                    .observe(hair_select_right_pressed);
+                parent_panel
+                    .spawn(generic_button((), "next sex"))
+                    .observe(change_sex);
+                parent_panel
+                    .spawn(generic_button((), "previous sex"))
+                    .observe(change_sex);
+            });
+
+        // 2. Powers Area (Bottom)
+        left_col
+            .spawn(Node {
+                flex_direction: FlexDirection::Column,
+                width: Val::Percent(100.0),
+                border: UiRect::top(Val::Px(2.0)),
+                ..default()
+            })
+            .with_children(|power_section| {
+                power_section.spawn(Text::new("Race Powers"));
+                spell_list_id = power_section
+                    .spawn((
+                        Node {
                             flex_direction: FlexDirection::Column,
                             ..default()
-                        })
-                        .with_children(|race_preview_node| {
-                            race_preview_node.spawn((
-                                // Race preview image
-                                Node {
-                                    width: Val::Px(256.0),
-                                    height: Val::Px(236.0),
-                                    ..default()
-                                },
-                                ImageNode {
-                                    image: preview_image_handle,
-                                    color: Color::WHITE,
-                                    ..default()
-                                },
-                            ));
-                            race_preview_node
-                                .spawn(
-                                    // rotation slider bar
-                                    (
-                                        Node {
-                                            width: Val::Px(256.0),
-                                            height: Val::Px(20.0),
-                                            justify_content: JustifyContent::Start,
-                                            ..default()
-                                        },
-                                        BackgroundColor(Color::srgb(0.1, 0.1, 0.1).into()),
-                                        SliderTrack,
-                                    ),
-                                )
-                                // rotation slider thumb
-                                .with_children(|slider_track| {
-                                    slider_track
-                                        .spawn((
-                                            Node {
-                                                width: Val::Px(ROTATION_SLIDER_THUMB_WIDTH),
-                                                height: Val::Px(20.0),
-                                                position_type: PositionType::Absolute, // Allows moving along the track
-                                                left: Val::Px(PREVIEW_WINDOW_PX / 1.8), // Start position
-                                                ..default()
-                                            },
-                                            BackgroundColor(Color::srgb(0.6, 0.6, 0.6).into()),
-                                            SliderThumb,
-                                        ))
-                                        .observe(rotation_slider_dragged)
-                                        .observe(on_rotation_slider_drag_start);
-                                });
-                        });
-                    // 1. Race Selection Area (Middle/Top)
-                    left_col
-                        .spawn(Node {
-                            flex_direction: FlexDirection::Row,
-                            flex_wrap: FlexWrap::Wrap,
-                            justify_content: JustifyContent::Start,
-                            align_items: AlignItems::Start,
-                            ..default()
-                        })
-                        .with_children(|parent_panel| {
-                            for index in 0..available_races.len() {
-                                parent_panel
-                                    .spawn(generic_button(
-                                        RaceSelectButtonIndex(index),
-                                        &available_races[index].resolve_string(),
-                                    ))
-                                    .observe(race_select_button_pressed);
-                            }
-
-                            // Head/Hair toggles
-                            parent_panel
-                                .spawn(generic_button((), "prev head"))
-                                .observe(head_select_left_pressed);
-                            parent_panel
-                                .spawn(generic_button((), "next head"))
-                                .observe(head_select_right_pressed);
-                            parent_panel
-                                .spawn(generic_button((), "prev hair"))
-                                .observe(hair_select_left_pressed);
-                            parent_panel
-                                .spawn(generic_button((), "next hair"))
-                                .observe(hair_select_right_pressed);
-                            parent_panel
-                                .spawn(generic_button((), "next sex"))
-                                .observe(change_sex);
-                            parent_panel
-                                .spawn(generic_button((), "previous sex"))
-                                .observe(change_sex);
-                        });
-
-                    // 2. Powers Area (Bottom)
-                    left_col
-                        .spawn(Node {
-                            flex_direction: FlexDirection::Column,
-                            width: Val::Percent(100.0),
-                            border: UiRect::top(Val::Px(2.0)),
-                            ..default()
-                        })
-                        .with_children(|power_section| {
-                            power_section.spawn(Text::new("Race Powers"));
-                            spell_list_id = power_section
-                                .spawn((
-                                    Node {
-                                        flex_direction: FlexDirection::Column,
-                                        ..default()
-                                    },
-                                    RaceSelectSpellPowerPanel,
-                                ))
-                                .id();
-                        });
-                });
-
-            // --- RIGHT COLUMN: SKILLS ---
-            main_wrapper
+                        },
+                        RaceSelectSpellPowerPanel,
+                    ))
+                    .id();
+            });
+    });
+    let right_col = commands
+        .spawn((
+            Node {
+                flex_direction: FlexDirection::Column,
+                width: Val::Percent(30.0),
+                padding: UiRect::all(Val::Px(10.0)),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.1, 0.1, 0.1, 0.8).into()),
+        ))
+        .with_children(|right_col| {
+            right_col.spawn(Text::new("Skill Bonuses"));
+            skill_list_id = right_col
                 .spawn((
                     Node {
                         flex_direction: FlexDirection::Column,
-                        width: Val::Percent(30.0),
-                        padding: UiRect::all(Val::Px(10.0)),
                         ..default()
                     },
-                    BackgroundColor(Color::srgba(0.1, 0.1, 0.1, 0.8).into()),
+                    RaceSelectSkillPanel,
                 ))
-                .with_children(|right_col| {
-                    right_col.spawn(Text::new("Skill Bonuses"));
-                    skill_list_id = right_col
-                        .spawn((
-                            Node {
-                                flex_direction: FlexDirection::Column,
-                                ..default()
-                            },
-                            RaceSelectSkillPanel,
-                        ))
-                        .with_children(|skills_column| {
-                            for _skill_bonus in &default_race.data.skill_bonuses {
-                                skills_column.spawn((RaceSelectSkill, Text::default()));
-                            }
-                        })
-                        .id();
-                });
+                .with_children(|skills_column| {
+                    for _skill_bonus in &default_race.data.skill_bonuses {
+                        skills_column.spawn((RaceSelectSkill, Text::default()));
+                    }
+                })
+                .id();
+            right_col
+                .spawn(generic_button((), "Ok"))
+                .observe(on_race_accepted);
         })
         .id();
+
+    commands.entity(left_col).insert(ChildOf(race_select_panel));
+    commands
+        .entity(right_col)
+        .insert(ChildOf(race_select_panel));
     let race_select_ui = RaceSelectUI {
         is_male: !default_player.npc_flags.contains(NpcFlags::FEMALE),
         head_index: 0,
@@ -301,6 +252,74 @@ pub fn setup_race_select(
     commands.entity(race_select_panel).insert(race_select_ui);
     commands.run_system_cached(respawn_preview);
     commands.run_system_cached(redraw_race_select_ui);
+}
+fn preview_area(handle: Handle<Image>) -> impl Scene {
+    bsn! {
+        Node { width: px(PREVIEW_WINDOW_PX), height: px(256), flex_direction: FlexDirection::Column }
+        Children [
+            ImageNode { image: {handle}, color: Color::WHITE },
+            SliderTrack
+            Children [
+                SliderThumb
+                on(rotation_slider_dragged)
+                on(on_rotation_slider_drag_start)
+            ]
+        ]
+    }
+}
+pub fn despawn_race_select_panel(
+    race_select_panel_entity: Single<Entity, With<RaceSelectUI>>,
+    race_select_preview_camera: Single<Entity, With<RaceSelectPreviewCamera>>,
+    mut commands: Commands,
+) {
+    commands.entity(*race_select_panel_entity).despawn();
+    commands.entity(*race_select_preview_camera).despawn();
+}
+fn on_race_accepted(
+    _event: On<Pointer<Press>>,
+    mut char_creation_state: ResMut<NextState<CharCreationState>>,
+    esm_store: Res<EsmStore>,
+    race_select_ui: Single<&RaceSelectUI>,
+) {
+    let is_male = race_select_ui.is_male;
+    let neck = get_body_parts(
+        BodypartId::Neck,
+        &esm_store.bodyparts,
+        &race_select_ui.current_race_refid,
+        is_male,
+    );
+    let chest = get_body_parts(
+        BodypartId::Chest,
+        &esm_store.bodyparts,
+        &race_select_ui.current_race_refid,
+        is_male,
+    );
+    let clav = get_body_parts(
+        BodypartId::Clavicle,
+        &esm_store.bodyparts,
+        &race_select_ui.current_race_refid,
+        is_male,
+    );
+
+    let path_hair = esm_store
+        .bodyparts
+        .get(&race_select_ui.available_hairs[race_select_ui.hair_index])
+        .unwrap()
+        .model
+        .clone();
+    let path_hair = prepend_path(path_hair);
+    let path_head = esm_store
+        .bodyparts
+        .get(&race_select_ui.available_heads[race_select_ui.head_index])
+        .unwrap()
+        .model
+        .clone();
+    let path_head = prepend_path(path_head);
+    dbg!(neck);
+    dbg!(chest);
+    dbg!(clav);
+
+    char_creation_state.set(CharCreationState::ChoosingClass);
 }
 #[derive(Component)]
 pub struct RacePreviewScene;
@@ -519,15 +538,6 @@ fn respawn_preview(
     for old_nif_scene in old_nif_scenes {
         commands.entity(old_nif_scene).despawn();
     }
-    let prepend_path = |path: String| -> String {
-        let mut data_path = "data/Data Files/Meshes/".to_string();
-        data_path.push_str(&path);
-        if data_path.to_lowercase().ends_with(".nif") {
-            let len = data_path.len();
-            data_path.replace_range(len - 4.., ".nif");
-        }
-        data_path
-    };
     let path_hair = esm_store
         .bodyparts
         .get(&race_select_ui.available_hairs[race_select_ui.hair_index])
@@ -547,86 +557,36 @@ fn respawn_preview(
             Name::new("race select preview mesh"),
             Transform::default(),
             Visibility::Visible,
-            // Render to the preview window
+            // Render to the preview window (propagate makes our children layer 1 as well)
             Propagate(RenderLayers::layer(1)),
             RacePreviewScene,
         ))
         .id();
-    spawn_mesh(
+    spawn_race_select_preview(
         entity,
-        commands,
-        &asset_server,
-        next_available_skeleton_id.0,
         Transform {
-            translation: Vec3::new(0.0, 0.0, 0.0),
-            rotation: Quat::default(),
             scale: Vec3::splat(NIF_SCALE_MULTIPLIER),
+            ..default()
         },
+        next_available_skeleton_id.0,
         &path_hair,
         &path_head,
+        &asset_server,
+        &mut commands,
+        on_preview_skeleton_loaded,
+        on_preview_head_loaded,
     );
-    //TODO:: loop around
+
+    //TODO:: loop around? doubt it ever reaches 4b skeletons
     next_available_skeleton_id.0 += 1;
 }
-fn spawn_mesh(
-    entity: Entity,
-    mut commands: Commands,
-    asset_server: &Res<AssetServer>,
-    skeleton_id: u64,
-    transform: Transform,
-    hair_path: &str,
-    head_path: &str,
-) -> Entity {
-    let asset_handle = asset_server.load("data/base_anim.nif");
-    let skeleton_entity = commands
-        .spawn((
-            NifScene(asset_handle),
-            AttachmentType::MainSkeleton { skeleton_id },
-            Visibility::Inherited,
-            transform,
-        ))
-        .observe(on_preview_skeleton_loaded)
-        .id();
-    commands.entity(entity).add_child(skeleton_entity);
-    let paths_with_target_bone: Vec<(&str, AttachmentType)> = vec![
-        (
-            head_path,
-            AttachmentType::Rigid {
-                target_bone: "Head".to_string(),
-                skeleton_id,
-            },
-        ),
-        (
-            hair_path,
-            AttachmentType::Rigid {
-                target_bone: "Head".to_string(),
-                skeleton_id,
-            },
-        ),
-    ];
 
-    for (path, attachment_type) in paths_with_target_bone {
-        let asset_handle = asset_server.load(path.to_string());
-        let child_second = commands
-            .spawn((
-                NifScene(asset_handle),
-                attachment_type,
-                Transform::default(),
-                Visibility::Inherited,
-            ))
-            .observe(on_preview_head_loaded)
-            .id();
-        commands.entity(skeleton_entity).add_child(child_second);
-    }
-    skeleton_entity
-}
 const LOOK_AT_OFFSET: Vec3 = Vec3::new(0.0, 5.0 / MW_UNITS_PER_METER, 0.0);
 const PREVIEW_CAMERA_OFFSET: Vec3 =
     Vec3::new(0.0, 5.0 / MW_UNITS_PER_METER, -30.0 / MW_UNITS_PER_METER);
 #[derive(Component)]
 pub struct PreviewHeadBoneEntity(pub Entity);
 pub fn on_preview_head_loaded(
-    _event: On<NifInstantiated>,
     mut slider_thumb: Single<&mut Node, With<SliderThumb>>,
     mut race_preview_scene: Single<
         &mut Transform,
@@ -649,30 +609,23 @@ pub fn on_preview_head_loaded(
     );
 }
 pub fn on_preview_skeleton_loaded(
-    event: On<NifInstantiated>,
-
+    In((original_entity, head_entity_opt)): In<(Entity, Option<Entity>)>,
     mut commands: Commands,
     // Query for the scene root and the camera
     mut camera_query: Single<&mut Transform, With<RaceSelectPreviewCamera>>,
-    nif_index_q: Query<&NifNodeIndex>,
     global_transforms_q: Query<&GlobalTransform>,
 ) {
-    let Ok(nif_index) = nif_index_q.get(event.entity) else {
-        error!("Race preview skeleton was missing nif node index!");
-        return;
-    };
-    const BIP_01_HASH: u64 = hash_str("Bip01 Head");
-    if let Some(head_entity) = nif_index.named_nodes.get(&BIP_01_HASH) {
-        if let Ok(head_global_transform) = global_transforms_q.get(*head_entity) {
-            // Snap camera to the correct position IMMEDIATELY
+    if let Some(head_entity) = head_entity_opt {
+        if let Ok(head_global_transform) = global_transforms_q.get(head_entity) {
+            // Snap camera to the correct position
             let head_pos = head_global_transform.translation();
             camera_query.translation = head_pos + PREVIEW_CAMERA_OFFSET;
             camera_query.look_at(head_pos + LOOK_AT_OFFSET, Vec3::Y);
 
-            // Tag the entity so we don't keep searching for it
+            // Give the original entity a link to the skeleton's Head entity
             commands
-                .entity(event.entity)
-                .insert(PreviewHeadBoneEntity(*head_entity));
+                .entity(original_entity)
+                .insert(PreviewHeadBoneEntity(head_entity));
         }
     }
 }
@@ -756,4 +709,14 @@ fn set_head_rotation_to_slider(
 
     slider_thumb.left = Val::Px(new_px);
     return overshoot;
+}
+fn prepend_path(path: String) -> String {
+    let mut data_path = "data/Data Files/Meshes/".to_string();
+    data_path.push_str(&path);
+    // Standardize paths like abc.NIF to abc.nif
+    if data_path.to_lowercase().ends_with(".nif") {
+        let len = data_path.len();
+        data_path.replace_range(len - 4.., ".nif");
+    }
+    data_path
 }

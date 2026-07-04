@@ -1,12 +1,13 @@
-use crate::defs::{ColliderEntityLink, CreatureStats, LocalPlayer, Player, WorldFrameData};
-use crate::esm::EsmStore;
+use crate::defs::{ColliderEntityLink, LocalPlayer, Player, WorldFrameData};
+use crate::mechanics::creature_stats::CreatureStats;
 use crate::physics::helpers::get_pitch_yaw_3d_approx_movement;
 use crate::physics::stepper::Stepper;
 use avian3d::prelude::{Collider, CollisionLayers, SpatialQuery};
+use common::consts::MW_UNITS_PER_METER;
 use esm_parser_lib::RefId;
+use esm_store::EsmStore;
 use mwphysics::{
-    ActorFrameData, ActorPhysics, ActorTracer, MW_UNITS_PER_METER, PositionInterpolation,
-    is_walkable_slope,
+    ActorFrameData, ActorPhysics, ActorTracer, PositionInterpolation, is_walkable_slope,
 };
 
 use bevy::prelude::*;
@@ -231,7 +232,7 @@ pub fn character_movement_system(
                 let mut plane_normal = actor_tracer.plane_normal;
                 let orig_plane_normal = plane_normal;
 
-                // 2. Snag Prevention (The "Wall-to-Floor" hack)
+                // 2. Snag Prevention
                 if seen_ground && !is_walkable_slope(plane_normal) && plane_normal.y != 0.0 {
                     plane_normal.y = 0.0;
                     plane_normal = plane_normal.normalize_or_zero();
@@ -268,11 +269,11 @@ pub fn character_movement_system(
                             last_slide_normal = last_slide_normal_fallback;
                         }
 
-                        // Cross product gives the "seam" direction (C++ constraintVector = bestNormal ^ origPlaneNormal)
+                        // Cross product gives the "seam" direction
                         let constraint_vector = best_normal.cross(orig_plane_normal);
                         if constraint_vector.length_squared() > 0.0 {
                             let constraint_vector = constraint_vector.normalize();
-                            // Slide ALONG the corner seam
+                            // Slide along the corner seam
                             new_velocity = project(velocity, constraint_vector);
 
                             // Adjust position to stay outside the crevice
@@ -309,14 +310,13 @@ pub fn character_movement_system(
                     let perpendicular = new_velocity.cross(orig_velocity);
                     if perpendicular.length_squared() > 0.0 {
                         let perpendicular = perpendicular.normalize();
-                        // Bevy/Y-up: Check vertical component (perpendicular.y)
                         if perpendicular.y.abs() > 0.7071 {
                             break;
                         }
                     }
                 }
 
-                // 8. Prevent sliding UP steep slopes while in the air (Gravity logic)
+                // 8. Prevent sliding up steep slopes while in the air (Gravity logic)
                 if new_position.y >= swim_level
                     && !actor_fd.flying
                     && !is_walkable_slope(plane_normal)

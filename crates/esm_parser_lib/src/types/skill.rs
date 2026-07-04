@@ -1,5 +1,6 @@
 use crate::{
-    EsmError, EsmReader, Load, RefId, StringRefId, esm_record::EsmRecord, types::flags::ObjectFlags,
+    EsmError, EsmReader, Load, RefId, StringRefId, esm_record::EsmRecord, name4,
+    types::flags::ObjectFlags,
 };
 use esm_parser_macros::LoadSave;
 #[derive(Default, Debug)]
@@ -23,6 +24,7 @@ impl EsmRecord for Skill {
     fn id(&self) -> &RefId {
         &self.id
     }
+    const RECORD_ID: u32 = name4!("SKIL").to_u32();
 }
 impl Skill {
     pub fn load(reader: &mut EsmReader, is_deleted: &mut bool) -> Result<Skill, EsmError> {
@@ -66,7 +68,7 @@ impl Skill {
             return Err(reader.fail("Missing SKDT subrecord for Skill"));
         }
         skill.index = skill_index;
-        skill.id = skill.index.index_to_refid();
+        skill.id = SkillIndex::index_to_refid(skill.index as i8);
 
         Ok(skill)
     }
@@ -224,12 +226,13 @@ impl SkillIndex {
         RefId::SizedString(StringRefId("Speechcraft")),
         RefId::SizedString(StringRefId("HandToHand")),
     ];
-    pub fn index_to_refid(self) -> RefId {
-        if (self as i32) < 0 || (self as i32) >= Self::NUM_SKILLS as i32 {
+    pub fn index_to_refid(index: i8) -> RefId {
+        if (index as i32) < 0 || (index as i32) >= Self::NUM_SKILLS as i32 {
             return RefId::default();
         }
-        Self::SKILL_IDS.get(self as usize).unwrap().clone()
+        Self::SKILL_IDS.get(index as usize).unwrap().clone()
     }
+
     pub fn refid_to_skillindex(id: &RefId) -> Option<usize> {
         for (index, skill_id) in Self::SKILL_IDS.iter().enumerate() {
             if skill_id == id {
@@ -268,6 +271,6 @@ impl MagicSchool {
         }
         let skill_enum = Self::SCHOOL_SKILLS[index as usize];
         // Now convert that specific SkillIndex to its RefId
-        skill_enum.index_to_refid()
+        SkillIndex::index_to_refid(skill_enum as i8)
     }
 }

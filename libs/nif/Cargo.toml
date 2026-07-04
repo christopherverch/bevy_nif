@@ -11,10 +11,10 @@ bevy_asset.workspace = true
 bevy_log.workspace = true
 bevy_mesh.workspace = true
 bevy_reflect.workspace = true
-glam.workspace = true
+bevy_math.workspace = true
 bstr = { version = "^1.12", default-features = false, features = ["std"] }
 bytemuck = { version = "^1.24", features = ["derive"] }
-bytes_io = { path = "../bytes_io", features = ["glam"] }
+bytes_io = { path = "../bytes_io",  }
 derive_more = { version = "^2.0", features = ["deref", "deref_mut", "from", "into" ] }
 hashbrown = "^0.16"
 nif_macros = { path = "../nif_macros" }
@@ -28,7 +28,7 @@ tempfile = "^3.23"
 [features]
 default = []
 nightly = ["bytes_io/nightly"]
-simd = ["bytes_io/simd", "glam/core-simd"]
+simd = ["bytes_io/simd", ]
 
 [lints]
 workspace = true

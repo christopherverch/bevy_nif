@@ -4,7 +4,7 @@ use std::io::{Read, Seek, Write};
 use std::path::Path;
 
 // external imports
-use slotmap::{new_key_type, DenseSlotMap, Key};
+use slotmap::{DenseSlotMap, Key, new_key_type};
 
 // internal imports
 use crate::prelude::*;
@@ -112,7 +112,9 @@ impl NiStream {
 
         // resolve links
         for (key, _) in &objects {
-            stream.context.insert(key.data().as_ffi(), stream.context.len() as u64);
+            stream
+                .context
+                .insert(key.data().as_ffi(), stream.context.len() as u64);
         }
 
         // write objects
@@ -221,7 +223,9 @@ impl NiStream {
     where
         &'a U: TryFrom<&'a NiType>,
     {
-        self.objects.get(link.key).and_then(|object| object.try_into().ok())
+        self.objects
+            .get(link.key)
+            .and_then(|object| object.try_into().ok())
     }
 
     #[inline]
@@ -238,7 +242,9 @@ impl NiStream {
     where
         &'a mut U: TryFrom<&'a mut NiType>,
     {
-        self.objects.get_mut(link.key).and_then(|object| object.try_into().ok())
+        self.objects
+            .get_mut(link.key)
+            .and_then(|object| object.try_into().ok())
     }
 
     /// Retrieve multiple objects from the stream.
@@ -280,7 +286,9 @@ impl NiStream {
     where
         &'a T: 'a + TryFrom<&'a NiType>,
     {
-        self.objects.values().filter_map(|object| object.try_into().ok())
+        self.objects
+            .values()
+            .filter_map(|object| object.try_into().ok())
     }
 
     #[inline]
@@ -288,7 +296,9 @@ impl NiStream {
     where
         &'a mut T: 'a + TryFrom<&'a mut NiType>,
     {
-        self.objects.values_mut().filter_map(|object| object.try_into().ok())
+        self.objects
+            .values_mut()
+            .filter_map(|object| object.try_into().ok())
     }
 
     #[inline]
@@ -302,7 +312,9 @@ impl NiStream {
     }
 
     #[inline]
-    pub fn objects_of_type_mut_with_link<'a, T>(&'a mut self) -> impl Iterator<Item = (NiLink<T>, &'a mut T)>
+    pub fn objects_of_type_mut_with_link<'a, T>(
+        &'a mut self,
+    ) -> impl Iterator<Item = (NiLink<T>, &'a mut T)>
     where
         &'a mut T: 'a + TryFrom<&'a mut NiType>,
     {
@@ -338,7 +350,10 @@ impl NiStream {
     }
 
     #[inline]
-    pub fn objects_with_name_mut<'a, T>(&'a mut self, name: &'a str) -> impl Iterator<Item = &'a mut T>
+    pub fn objects_with_name_mut<'a, T>(
+        &'a mut self,
+        name: &'a str,
+    ) -> impl Iterator<Item = &'a mut T>
     where
         &'a mut T: 'a + TryFrom<&'a mut NiType> + AsRef<NiObjectNET>,
     {
@@ -454,7 +469,7 @@ impl NiStream {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use glam::vec3;
+    use bevy_math::vec3;
 
     #[ignore = "visual"]
     #[test]
@@ -484,7 +499,10 @@ mod tests {
 
         let (min, max) = stream.bounding_box().unwrap();
 
-        let shape = stream.objects_with_name::<NiTriShape>("unitCube").next().unwrap();
+        let shape = stream
+            .objects_with_name::<NiTriShape>("unitCube")
+            .next()
+            .unwrap();
         let data = stream.get_mut(shape.geometry_data).unwrap();
 
         data.vertices = vec![

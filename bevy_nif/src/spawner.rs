@@ -207,13 +207,16 @@ pub fn spawn_nif_scenes(
             },
         );
     }
-    // Now the nif is fully set up, trigger that it's instantiated so any further desired
-    // setup can be done by the user
-    commands.trigger(NifInstantiated {
-        handle: asset_handle.clone(),
-        entity: original_entity,
-        skeleton_id_opt: target_skeleton_id_opt,
-    });
+    // Main skeleton will trigger NifInstantiated once its animator is fully set up
+    if !is_main_skeleton {
+        // trigger that the nif is instantiated so any further desired
+        // setup can be done by the user
+        commands.trigger(NifInstantiated {
+            handle: asset_handle.clone(),
+            entity: original_entity,
+            skeleton_id_opt: target_skeleton_id_opt,
+        });
+    }
 }
 
 struct SpawnContext<'a> {

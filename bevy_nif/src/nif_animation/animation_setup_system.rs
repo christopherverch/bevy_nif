@@ -9,7 +9,7 @@ use crate::{
             is_inherently_looping, make_bevy_curve, sample_vec3_curve,
         },
     },
-    spawner::NeedsNifAnimator,
+    spawner::{NeedsNifAnimator, NifInstantiated},
 };
 use bevy_animation::{
     AnimatedBy, AnimationClip, AnimationPlayer, AnimationTargetId, animated_field,
@@ -561,6 +561,12 @@ pub fn setup_animations(
 
         commands.entity(entity).remove::<NeedsNifAnimator>(); // Avoid retrying on error
         commands.trigger(NifAnimatorAdded(entity));
+        // This wasn't done in spawner.rs because the animator wasn't set up yet
+        commands.trigger(NifInstantiated {
+            handle: needs_animator_data.handle.clone(),
+            entity,
+            skeleton_id_opt: Some(needs_animator_data.skeleton_id),
+        });
     }
 }
 fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnimation> {

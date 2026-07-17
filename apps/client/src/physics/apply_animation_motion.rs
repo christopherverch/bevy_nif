@@ -1,4 +1,5 @@
 use crate::{
+    animation::NifAnimatorLink,
     camera::MWCamera,
     defs::{IdToEntityMap, LocalPlayer, MeshEntityLink},
     mechanics::creature_stats::CreatureStats,
@@ -29,6 +30,7 @@ pub fn calculate_animation_displacement_system(
     actor_q: Query<(
         &CharacterController,
         &CreatureStats,
+        &NifAnimatorLink,
         &mut AnimationDisplacement,
         &MeshEntityLink,
         Option<&LocalPlayer>,
@@ -44,6 +46,7 @@ pub fn calculate_animation_displacement_system(
     for (
         actor_state,
         creature_stats,
+        creature_animator_link,
         mut animation_displacement,
         mesh_entity_link,
         local_player_opt,
@@ -70,7 +73,7 @@ pub fn calculate_animation_displacement_system(
 
         let Some((_, animation_player, animator, _)) = get_anim_components_for_creature(
             creature_stats.entity_id,
-            creature_stats.nif_animator_link,
+            creature_animator_link.0,
             &id_to_entity_map,
             &mut animator_q,
         ) else {

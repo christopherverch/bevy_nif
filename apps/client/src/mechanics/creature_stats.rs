@@ -25,7 +25,6 @@ pub struct CreatureStats {
     pub attributes: HashMap<RefId, AttributeValue>,
     pub level: i16,
     pub spells: Spells,
-    pub nif_animator_link: Option<Entity>,
     pub stats: DynamicStats,
     pub magic_effects: MagicEffects,
     pub draw_state: DrawState,

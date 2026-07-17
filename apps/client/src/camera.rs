@@ -62,7 +62,7 @@ impl Default for MWCamera {
             cursor_lock_active: true,
             sensitivity: Vec2::new(1.0, 1.0),
             offset: Offset(0.0, 1.6),
-            zoom: Zoom::new(3.0, 5.0),
+            zoom: Zoom::new(1.0, 5.0),
             zoom_sensitivity: 1.0,
             first_person: true,
         }
@@ -81,7 +81,7 @@ impl Zoom {
         Self {
             min,
             max,
-            radius: min,
+            radius: (min + max) / 2.0,
         }
     }
 }

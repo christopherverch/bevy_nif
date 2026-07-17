@@ -7,9 +7,12 @@ use bevy::{
 use bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_kira_audio::{AudioPlugin, SpatialAudioPlugin};
-use bevy_nif::BevyNifPlugin;
+use bevy_nif::{BevyNifPlugin, nif_animation::SkeletonMap};
 use bevy_renet::RenetClientPlugin;
-use common::state::{CharCreationState, GameState};
+use common::{
+    NextAvailableSkeletonId,
+    state::{CharCreationState, GameState},
+};
 use serde::Deserialize;
 use std::{env, fs};
 
@@ -118,6 +121,8 @@ fn main() {
         .insert_resource(WorldFrameData::default())
         .insert_resource(WorldSettings::default())
         .insert_resource(GameSettings::default())
+        // Default to 1 because 0 is used by the initial player
+        .insert_resource(NextAvailableSkeletonId::default())
         .init_state::<GameState>()
         .init_state::<CharCreationState>()
         .add_systems(Startup, setup_scene)
@@ -131,6 +136,62 @@ fn main() {
         .add_systems(Update, handle_animation_transitions)
         //.add_systems(Update, animate_actors_using_state)
         .add_systems(Update, interpolate_visual_positions)
+        //.add_systems(Update, wireframe)
         .add_systems(PostUpdate, clear_player_rotation_input_system)
         .run();
+}
+#[allow(dead_code)]
+fn wireframe(
+    skeleton_map_res: Res<SkeletonMap>,
+    entity_q: Query<(Option<&Children>, &GlobalTransform)>,
+    mut gizmos: Gizmos,
+) {
+    for (_id, skeleton_entity) in &skeleton_map_res.root_skeleton_entity_map {
+        if let Ok((children_opt, global_transform)) = entity_q.get(*skeleton_entity) {
+            // Use the first child of the skeleton entity to draw the wireframe, the other one is
+            // the dark elf skinned mesh which we don't want to draw a wireframe for
+            let Some(children) = children_opt else { return };
+            recursive_wireframe(
+                *children.first().unwrap(),
+                global_transform.translation(),
+                &entity_q,
+                &mut gizmos,
+            );
+        }
+    }
+}
+fn recursive_wireframe(
+    parent_entity: Entity,
+    // Pass the parent's world position (if it exists)
+    parent_global_pos: Vec3,
+    entity_q: &Query<(Option<&Children>, &GlobalTransform)>,
+    gizmos: &mut Gizmos,
+) {
+    if let Ok((children_opt, gt)) = entity_q.get(parent_entity) {
+        let current_pos = gt.translation();
+
+        // 1. Draw the line to the parent
+        gizmos.line_gradient(
+            parent_global_pos,
+            current_pos,
+            Color::srgb(1.0, 0.0, 0.0),
+            Color::WHITE,
+        );
+
+        // 2. Draw the visual marker for this node
+        gizmos.cube(
+            Transform::from_translation(current_pos)
+                .with_rotation(gt.compute_transform().rotation)
+                .with_scale(Vec3::splat(0.02)),
+            Color::srgb(1.0, 0.0, 0.0),
+        );
+
+        // 3. Recurse
+        if let Some(children) = children_opt {
+            for &child in children {
+                // Pass the current entity's position as the parent position for the next call
+                recursive_wireframe(child, current_pos, entity_q, gizmos);
+            }
+        }
+    }
 }

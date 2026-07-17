@@ -2,13 +2,15 @@ use bevy::{animation::RepeatAnimation, prelude::*};
 use bevy_nif::nif_animation::{NifAnimator, bevy_types::ActiveAnimation};
 
 use crate::{
-    animation::{AnimationContext, animation_helpers::get_anim_components_for_creature},
+    animation::{
+        AnimationContext, NifAnimatorLink, animation_helpers::get_anim_components_for_creature,
+    },
     defs::IdToEntityMap,
     mechanics::creature_stats::CreatureStats,
 };
 pub fn handle_animation_transitions(
     anim_clips: Res<Assets<AnimationClip>>,
-    mut actor_query: Query<&CreatureStats>,
+    actor_query: Query<(&CreatureStats, &NifAnimatorLink)>,
     mut animator_q: Query<(
         &mut AnimationPlayer,
         &mut NifAnimator,
@@ -17,11 +19,11 @@ pub fn handle_animation_transitions(
     mut anim_graphs: ResMut<Assets<AnimationGraph>>,
     id_to_entity_map: Res<IdToEntityMap>,
 ) {
-    for creature_stats in actor_query.iter_mut() {
+    for (creature_stats, creature_animator_link) in actor_query.iter() {
         let Some((_, mut animation_player, mut animator, graph_handle)) =
             get_anim_components_for_creature(
                 creature_stats.entity_id,
-                creature_stats.nif_animator_link,
+                creature_animator_link.0,
                 &id_to_entity_map,
                 &mut animator_q,
             )

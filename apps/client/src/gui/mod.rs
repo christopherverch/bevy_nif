@@ -13,6 +13,8 @@ use server_selection::{
 };
 use spell_description::setup_spell_description_tooltip;
 
+use crate::gui::race_select::on_preview_head_loaded;
+
 // External
 
 pub struct MWGuiPlugin;
@@ -32,7 +34,8 @@ impl Plugin for MWGuiPlugin {
             .add_systems(
                 Update,
                 listen_keyboard_input_events.run_if(in_state(GameState::MainMenu)),
-            );
+            )
+            .add_systems(Update, on_preview_head_loaded);
 
         // Race selection
         app.insert_resource(SliderDragStart::default())

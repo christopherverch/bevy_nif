@@ -2,7 +2,7 @@ use std::f32::consts::PI;
 
 use crate::{
     animation::{
-        AnimationContext,
+        AnimationContext, NifAnimatorLink,
         animation_helpers::get_anim_components_for_creature,
         name_resolver::{
             fallback_short_weapon_group, get_weapon_short_group, is_real_weapon,
@@ -65,6 +65,7 @@ pub fn update_character_components(
         Entity,
         &mut CharacterController,
         &mut CreatureStats,
+        &NifAnimatorLink,
         &LiveCellRef,
         &CurrentCell,
         &mut Movement,
@@ -96,6 +97,7 @@ pub fn update_character_components(
         character_entity,
         mut character_controller,
         mut creature_stats,
+        creature_animator_link,
         live_cell_ref,
         current_cell,
         mut character_movement,
@@ -109,7 +111,7 @@ pub fn update_character_components(
         let Some((_, mut animation_player, mut animator, graph_handle)) =
             get_anim_components_for_creature(
                 creature_stats.entity_id,
-                creature_stats.nif_animator_link,
+                creature_animator_link.0,
                 &id_to_entity_map,
                 &mut animator_q,
             )

@@ -4,6 +4,7 @@ use bevy::{
     prelude::*,
     render::render_resource::TextureFormat,
 };
+use bevy_nif::loader::Nif;
 use common::NextAvailableSkeletonId;
 use common::consts::{MW_UNITS_PER_METER, NIF_SCALE_MULTIPLIER};
 use common::state::CharCreationState;
@@ -18,6 +19,7 @@ use esm_parser_lib::{
 use esm_store::{EsmStore, Store};
 
 use crate::{
+    defs::LocalPlayer,
     gui::{
         RenderPosition,
         generic_button::generic_button,
@@ -25,13 +27,18 @@ use crate::{
             on_out_hide_tooltip, update_spell_description_tooltip, update_tooltip_position,
         },
     },
-    setup::character_preview::spawn_race_select_preview,
+    setup::{
+        character_preview::{PreviewHeadBoneEntity, spawn_race_select_preview},
+        setup_npc::{NpcMesh, resolve_body_parts, spawn_npc},
+    },
+    utils::prepend_mesh_data_path,
 };
 
 #[derive(Component)]
 pub struct RaceSelectPreviewCamera;
 #[derive(Component)]
 pub struct RaceSelectUI {
+    preview_skeleton_handle: Handle<Nif>,
     is_male: bool,
     head_index: usize,
     hair_index: usize,
@@ -57,10 +64,13 @@ pub struct SliderTrack;
 pub struct SliderThumb;
 const PREVIEW_WINDOW_PX: f32 = 256.0;
 const ROTATION_SLIDER_THUMB_WIDTH: f32 = 30.0;
+const SLIDER_TRACK_START_POS: f32 = PREVIEW_WINDOW_PX / 1.8;
+const ROTATION_SLIDER_MAX_PX: f32 = PREVIEW_WINDOW_PX - ROTATION_SLIDER_THUMB_WIDTH;
 pub fn setup_race_select(
     mut commands: Commands,
     esm_store: Res<EsmStore>,
     mut images: ResMut<Assets<Image>>,
+    asset_server: Res<AssetServer>,
 ) {
     let Some(default_player) = esm_store.npcs.get(&RefId::from_str("player")) else {
         panic!("missing player def in esm file!")
@@ -239,7 +249,9 @@ pub fn setup_race_select(
     commands
         .entity(right_col)
         .insert(ChildOf(race_select_panel));
+    let skeleton_asset_handle = asset_server.load("data/base_anim.nif");
     let race_select_ui = RaceSelectUI {
+        preview_skeleton_handle: skeleton_asset_handle,
         is_male: !default_player.npc_flags.contains(NpcFlags::FEMALE),
         head_index: 0,
         hair_index: 0,
@@ -254,17 +266,35 @@ pub fn setup_race_select(
     commands.run_system_cached(redraw_race_select_ui);
 }
 fn preview_area(handle: Handle<Image>) -> impl Scene {
+    let background_color = Color::srgb(0.6, 0.6, 0.6);
     bsn! {
         Node { width: px(PREVIEW_WINDOW_PX), height: px(256), flex_direction: FlexDirection::Column }
         Children [
-            ImageNode { image: {handle}, color: Color::WHITE },
+            (Node {
+                width: Val::Px(256.0),
+                height: Val::Px(236.0),
+            }
+            ImageNode { image: {handle}, color: Color::WHITE }),
+            Node {
+                width: Val::Px(256.0),
+                height: Val::Px(20.0),
+                justify_content: JustifyContent::Start,
+            }
+        BackgroundColor(Color::srgb(0.1, 0.1, 0.1))
             SliderTrack
             Children [
-                SliderThumb
-                on(rotation_slider_dragged)
-                on(on_rotation_slider_drag_start)
+            Node {
+                width: Val::Px(ROTATION_SLIDER_THUMB_WIDTH),
+                height: Val::Px(20.0),
+                position_type: PositionType::Absolute, // Allows moving along the track
+                left: Val::Px(SLIDER_TRACK_START_POS), // Start position
+            }
+        BackgroundColor(background_color)
+            SliderThumb
+            on(rotation_slider_dragged)
+            on(on_rotation_slider_drag_start)
             ]
-        ]
+            ]
     }
 }
 pub fn despawn_race_select_panel(
@@ -280,6 +310,13 @@ fn on_race_accepted(
     mut char_creation_state: ResMut<NextState<CharCreationState>>,
     esm_store: Res<EsmStore>,
     race_select_ui: Single<&RaceSelectUI>,
+    player_location: Single<&GlobalTransform, With<LocalPlayer>>,
+    asset_server: Res<AssetServer>,
+    mut next_available_skeleton_id: ResMut<NextAvailableSkeletonId>,
+    mut commands: Commands,
+    // TEMPORARY
+    player_mesh: Single<Entity, With<NpcMesh>>,
+    player_entity: Single<Entity, With<LocalPlayer>>,
 ) {
     let is_male = race_select_ui.is_male;
     let neck = get_body_parts(
@@ -301,20 +338,40 @@ fn on_race_accepted(
         is_male,
     );
 
-    let path_hair = esm_store
+    let hair_path = esm_store
         .bodyparts
         .get(&race_select_ui.available_hairs[race_select_ui.hair_index])
         .unwrap()
         .model
         .clone();
-    let path_hair = prepend_path(path_hair);
-    let path_head = esm_store
+    let hair_path = prepend_mesh_data_path(hair_path);
+    let head_path = esm_store
         .bodyparts
         .get(&race_select_ui.available_heads[race_select_ui.head_index])
         .unwrap()
         .model
         .clone();
-    let path_head = prepend_path(path_head);
+    let head_path = prepend_mesh_data_path(head_path);
+
+    let parts = resolve_body_parts(
+        &race_select_ui.current_race_refid,
+        !race_select_ui.is_male,
+        false,
+        false,
+        &esm_store,
+    );
+    // TEMPORARY
+    commands.entity(*player_mesh).despawn();
+    let player_position = player_location.translation();
+    spawn_npc(
+        *player_entity,
+        &mut commands,
+        &asset_server,
+        next_available_skeleton_id.next(),
+        parts,
+        head_path,
+        hair_path,
+    );
     dbg!(neck);
     dbg!(chest);
     dbg!(clav);
@@ -544,18 +601,21 @@ fn respawn_preview(
         .unwrap()
         .model
         .clone();
-    let path_hair = prepend_path(path_hair);
+    let path_hair = prepend_mesh_data_path(path_hair);
     let path_head = esm_store
         .bodyparts
         .get(&race_select_ui.available_heads[race_select_ui.head_index])
         .unwrap()
         .model
         .clone();
-    let path_head = prepend_path(path_head);
+    let path_head = prepend_mesh_data_path(path_head);
+    // Pre rotate the preview mesh relative to the starting rotation of the slider
+    let t = SLIDER_TRACK_START_POS / ROTATION_SLIDER_MAX_PX;
+    let angle = t * std::f32::consts::TAU;
     let entity = commands
         .spawn((
             Name::new("race select preview mesh"),
-            Transform::default(),
+            Transform::from_rotation(Quat::from_rotation_y(angle)),
             Visibility::Visible,
             // Render to the preview window (propagate makes our children layer 1 as well)
             Propagate(RenderLayers::layer(1)),
@@ -563,29 +623,23 @@ fn respawn_preview(
         ))
         .id();
     spawn_race_select_preview(
+        race_select_ui.preview_skeleton_handle.clone(),
         entity,
         Transform {
             scale: Vec3::splat(NIF_SCALE_MULTIPLIER),
             ..default()
         },
-        next_available_skeleton_id.0,
+        next_available_skeleton_id.next(),
         &path_hair,
         &path_head,
         &asset_server,
         &mut commands,
-        on_preview_skeleton_loaded,
-        on_preview_head_loaded,
     );
-
-    //TODO:: loop around? doubt it ever reaches 4b skeletons
-    next_available_skeleton_id.0 += 1;
 }
 
 const LOOK_AT_OFFSET: Vec3 = Vec3::new(0.0, 5.0 / MW_UNITS_PER_METER, 0.0);
 const PREVIEW_CAMERA_OFFSET: Vec3 =
     Vec3::new(0.0, 5.0 / MW_UNITS_PER_METER, -30.0 / MW_UNITS_PER_METER);
-#[derive(Component)]
-pub struct PreviewHeadBoneEntity(pub Entity);
 pub fn on_preview_head_loaded(
     mut slider_thumb: Single<&mut Node, With<SliderThumb>>,
     mut race_preview_scene: Single<
@@ -597,38 +651,24 @@ pub fn on_preview_head_loaded(
         &mut Transform,
         (With<RaceSelectPreviewCamera>, Without<RacePreviewScene>),
     >,
-    head_entity: Single<&PreviewHeadBoneEntity>,
+    head_bone_entity: Single<Entity, Added<PreviewHeadBoneEntity>>,
 ) {
     set_head_rotation_to_slider(
         &mut slider_thumb,
         0.0,
         &global_transforms_q,
-        head_entity.0,
+        *head_bone_entity,
         &mut race_preview_camera,
         &mut race_preview_scene,
     );
+    dbg!(
+        global_transforms_q
+            .get(*head_bone_entity)
+            .unwrap()
+            .translation()
+    );
 }
-pub fn on_preview_skeleton_loaded(
-    In((original_entity, head_entity_opt)): In<(Entity, Option<Entity>)>,
-    mut commands: Commands,
-    // Query for the scene root and the camera
-    mut camera_query: Single<&mut Transform, With<RaceSelectPreviewCamera>>,
-    global_transforms_q: Query<&GlobalTransform>,
-) {
-    if let Some(head_entity) = head_entity_opt {
-        if let Ok(head_global_transform) = global_transforms_q.get(head_entity) {
-            // Snap camera to the correct position
-            let head_pos = head_global_transform.translation();
-            camera_query.translation = head_pos + PREVIEW_CAMERA_OFFSET;
-            camera_query.look_at(head_pos + LOOK_AT_OFFSET, Vec3::Y);
 
-            // Give the original entity a link to the skeleton's Head entity
-            commands
-                .entity(original_entity)
-                .insert(PreviewHeadBoneEntity(head_entity));
-        }
-    }
-}
 #[derive(Resource, Default)]
 pub struct SliderDragStart(pub Vec2);
 fn on_rotation_slider_drag_start(
@@ -656,26 +696,22 @@ fn rotation_slider_dragged(
         &mut Transform,
         (With<RaceSelectPreviewCamera>, Without<RacePreviewScene>),
     >,
-    // So we know how far we overshot how far we can drag the slider
-    head_entity: Single<&PreviewHeadBoneEntity>,
+    head_entity: Single<Entity, With<PreviewHeadBoneEntity>>,
 ) {
     let relative_mouse_x = event.pointer_location.position.x - slider_drag_start.0.x;
-    const MAX_PX: f32 = PREVIEW_WINDOW_PX - ROTATION_SLIDER_THUMB_WIDTH;
-    let new_px = relative_mouse_x.clamp(0.0, MAX_PX);
+    let new_px = relative_mouse_x.clamp(0.0, ROTATION_SLIDER_MAX_PX);
 
-    // Apply Rotation
-    let t = new_px / MAX_PX;
-    let angle = t * std::f32::consts::TAU;
-    race_preview_scene.rotation = Quat::from_rotation_y(angle);
     // Update UI
     slider_thumb.left = Val::Px(new_px);
 
-    // Camera logic (Moved to its own system later if possible)
-    if let Ok(head_global) = global_transforms_q.get(head_entity.0) {
-        let head_pos = head_global.translation();
-        race_preview_camera.translation = head_pos + PREVIEW_CAMERA_OFFSET;
-        race_preview_camera.look_at(head_pos + LOOK_AT_OFFSET, Vec3::Y);
-    }
+    // Call shared logic
+    update_preview_view(
+        new_px / ROTATION_SLIDER_MAX_PX,
+        &mut race_preview_scene,
+        &mut race_preview_camera,
+        *head_entity,
+        &global_transforms_q,
+    );
 }
 
 fn set_head_rotation_to_slider(
@@ -683,40 +719,51 @@ fn set_head_rotation_to_slider(
     delta: f32,
     global_transforms_q: &Query<&GlobalTransform>,
     head_entity: Entity,
-    race_preview_camera_transform: &mut Transform,
-    race_preview_scene_transform: &mut Transform,
+    race_preview_camera: &mut Transform,
+    race_preview_scene: &mut Transform,
 ) -> f32 {
-    // Get the current position
+    // 1. Calculate the new slider position (The UI logic)
     let current_px = match slider_thumb.left {
         Val::Px(px) => px,
         _ => 0.0,
     };
-    const MAX_PX: f32 = PREVIEW_WINDOW_PX - ROTATION_SLIDER_THUMB_WIDTH;
-    let unclamped = current_px + delta;
-    let new_px = (current_px + delta).clamp(0.0, MAX_PX);
-    let overshoot = unclamped - new_px;
-    //Map pixel range [0, max_px] to [-0.5, 0.5]
-    let t = new_px / MAX_PX;
-    let angle = t * std::f32::consts::TAU;
-    if let Ok(head_global_transform) = global_transforms_q.get(head_entity) {
-        let head_pos = head_global_transform.translation();
-        let target = head_pos + LOOK_AT_OFFSET;
-        let camera_pos = head_pos + PREVIEW_CAMERA_OFFSET;
-        race_preview_camera_transform.translation = camera_pos;
-        race_preview_camera_transform.look_at(target, Vec3::Y);
-    }
-    race_preview_scene_transform.rotation = Quat::from_rotation_y(angle);
 
+    let unclamped = current_px + delta;
+    let new_px = unclamped.clamp(0.0, ROTATION_SLIDER_MAX_PX);
+    let overshoot = unclamped - new_px;
+
+    // 2. Update the UI
     slider_thumb.left = Val::Px(new_px);
-    return overshoot;
+
+    // 3. Update the 3D scene (Shared logic)
+    update_preview_view(
+        new_px / ROTATION_SLIDER_MAX_PX,
+        race_preview_scene,
+        race_preview_camera,
+        head_entity,
+        global_transforms_q,
+    );
+
+    // 4. Return the calculated overshoot
+    overshoot
 }
-fn prepend_path(path: String) -> String {
-    let mut data_path = "data/Data Files/Meshes/".to_string();
-    data_path.push_str(&path);
-    // Standardize paths like abc.NIF to abc.nif
-    if data_path.to_lowercase().ends_with(".nif") {
-        let len = data_path.len();
-        data_path.replace_range(len - 4.., ".nif");
+// Shared logic to update the scene based on a normalized 0.0..1.0 value
+fn update_preview_view(
+    t: f32,
+    race_preview_scene: &mut Transform,
+    race_preview_camera: &mut Transform,
+    head_entity: Entity,
+    global_transforms: &Query<&GlobalTransform>,
+) {
+    // 1. Calculate rotation
+    let angle = t * std::f32::consts::TAU;
+    race_preview_scene.rotation = Quat::from_rotation_y(angle);
+
+    // 2. Update Camera
+    if let Ok(head_global) = global_transforms.get(head_entity) {
+        let head_pos = head_global.translation();
+        dbg!(head_pos);
+        race_preview_camera.translation = head_pos + PREVIEW_CAMERA_OFFSET;
+        race_preview_camera.look_at(head_pos + LOOK_AT_OFFSET, Vec3::Y);
     }
-    data_path
 }

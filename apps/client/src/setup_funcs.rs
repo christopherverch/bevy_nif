@@ -1,3 +1,4 @@
+use crate::animation::{NifAnimatorLink, NifSkeletonId};
 use crate::defs::{
     AnimateableEntity, ClientEntityId, CurrentCell, DrawState, LocalPlayer, LocalPlayerMesh,
     MeshEntityLink, Movement, NeedsSetup, NetworkedEntity, Player,
@@ -7,12 +8,14 @@ use crate::magic_effects::MagicEffects;
 use crate::mechanics::ActorIntent;
 use crate::mechanics::creature_stats::{CreatureStats, CreatureStatsFlags, DynamicStats};
 use crate::mechanics::spells::Spells;
+use crate::setup::setup_npc::NpcMesh;
 use avian3d::prelude::{CollisionLayers, RigidBody};
 use bevy::prelude::*;
 use bevy_kira_audio::{SpatialAudioEmitter, SpatialAudioReceiver, SpatialRadius};
 use bevy_nif::attach_parts::AttachmentType;
 use bevy_nif::nif_animation::{NifAnimator, NifAnimatorAdded};
 use bevy_nif::spawner::NifScene;
+use common::NextAvailableSkeletonId;
 use common::mechanics::{CharacterController, CharacterState};
 use common::state::CharCreationState;
 use esm_parser_lib::RefId;
@@ -34,6 +37,7 @@ pub fn setup_player(
     esm_store: Res<EsmStore>,
     client_id: Res<ClientEntityId>,
     mut char_creation_state: ResMut<NextState<CharCreationState>>,
+    mut next_available_skeleton_id: ResMut<NextAvailableSkeletonId>,
 ) {
     for (player_entity, setup_info) in &mut needs_setup_query {
         info!(
@@ -73,8 +77,6 @@ pub fn setup_player(
                 CreatureStats {
                     entity_id: setup_info.entity_id,
                     attributes: HashMap::new(),
-                    // Filled in later by insert_nif_animator_links
-                    nif_animator_link: None,
                     magic_effects: MagicEffects::default(),
                     fall_height: 0.0,
                     dead: false,
@@ -127,13 +129,14 @@ pub fn setup_player(
                 },
                 LiveCellRef::Npc(EsmPtr(player_esm_ref)),
             ));
+        let skeleton_id = next_available_skeleton_id.next();
 
         //spawn the player's mesh
         let player_mesh = spawn_player_mesh(
             player_entity,
             commands.reborrow(),
             &asset_server,
-            setup_info.entity_id,
+            skeleton_id,
             Transform::from_scale(Vec3::splat(NIF_SCALE_MULTIPLIER)),
         );
 
@@ -180,14 +183,17 @@ pub fn spawn_player_offline(mut commands: Commands) {
 pub fn insert_nif_animator_links(
     event: On<NifAnimatorAdded>,
     nif_animator_q: Query<(Entity, &mut NifAnimator)>,
-    mut creature_q: Query<&mut CreatureStats>,
+    creature_q: Query<(Entity, &NifSkeletonId)>,
+    mut commands: Commands,
 ) {
     let Ok((nif_animator_entity, nif_animator)) = nif_animator_q.get(event.0) else {
         return;
     };
-    for mut creature_stats in creature_q.iter_mut() {
-        if nif_animator.skeleton_id == creature_stats.entity_id {
-            creature_stats.nif_animator_link = Some(nif_animator_entity);
+    for (creature_entity, creature_skeleton_id) in creature_q.iter() {
+        if nif_animator.skeleton_id == creature_skeleton_id.0 {
+            commands
+                .entity(creature_entity)
+                .insert(NifAnimatorLink(nif_animator_entity));
         }
     }
 }
@@ -203,6 +209,7 @@ fn spawn_player_mesh(
     let skeleton_entity = commands
         .spawn((
             NifScene(asset_handle),
+            NpcMesh,
             AttachmentType::MainSkeleton { skeleton_id },
             CreatureControllerLink(player_entity),
             transform,
@@ -210,6 +217,9 @@ fn spawn_player_mesh(
         ))
         .id();
     commands.entity(player_entity).add_child(skeleton_entity);
+    commands
+        .entity(player_entity)
+        .insert(NifSkeletonId(skeleton_id));
     let paths_with_target_bone: Vec<(&str, AttachmentType)> = vec![
         (
             "data/Data Files/Meshes/b/B_N_Orc_M_Skins.nif",

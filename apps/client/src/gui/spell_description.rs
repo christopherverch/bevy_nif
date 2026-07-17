@@ -33,7 +33,7 @@ pub fn setup_spell_description_tooltip(mut commands: Commands) {
             ZIndex(RenderPosition::Tooltip.as_i32()),
             Pickable::default(),
             SpellDescriptionTooltip,
-            BackgroundColor(Color::srgba(0.1, 0.1, 0.1, 0.7)),
+            BackgroundColor(Color::srgba(0.1, 0.1, 0.1, 1.0)),
         ))
         .with_children(|spell_tooltip_panel| {
             // Spell name

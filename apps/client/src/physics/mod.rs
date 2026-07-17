@@ -26,6 +26,7 @@ use crate::{
         character_movement_system, init_positions, sync_actor_physics_system, update_positions,
     },
 };
+/// Allows the physics setup system to parent the collider to the desired root
 #[derive(Component)]
 pub struct CreatureControllerLink(pub Entity);
 

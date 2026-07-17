@@ -1,6 +1,13 @@
 use bevy_nif::nif_animation::BlendMask;
 use serde::{Deserialize, Serialize};
 
+use bevy::prelude::*;
+
+#[derive(Component)]
+pub struct NifAnimatorLink(pub Entity);
+#[derive(Component)]
+pub struct NifSkeletonId(pub u64);
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct AnimationConfig {
     pub name: String,

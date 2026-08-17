@@ -1,6 +1,6 @@
 use bevy_asset::RenderAssetUsages;
 use bevy_asset::{AssetLoader, LoadContext, io::Reader};
-use bevy_image::Image;
+use bevy_image::{CompressedImageFormats, Image, ImageSampler, ImageType};
 use bevy_log::error;
 use bevy_reflect::TypePath;
 use bevy_render::render_resource::{Extent3d, TextureDimension, TextureFormat};
@@ -113,28 +113,39 @@ impl AssetLoader for DDSLoader {
         let mut bytes = Vec::new();
         reader.read_to_end(&mut bytes).await?;
 
-        // 1. Parse the raw bytes into a Dds struct using the `ddsfile` crate
+        //  Parse container via ddsfile
         let dds = Dds::read(&mut Cursor::new(&bytes)).map_err(|e| {
-            std::io::Error::new(
-                ErrorKind::Other,
-                format!("DDS container parse error: {:?}", e),
-            )
+            std::io::Error::new(ErrorKind::Other, format!("DDS parse error: {:?}", e))
         })?;
 
-        // 2. Decode the DDS mip level 0 into an uncompressed RgbaImage on the CPU
+        //  Decode mip 0 into an RgbaImage
         let rgba_image = image_dds::image_from_dds(&dds, 0).map_err(|e| {
-            std::io::Error::new(ErrorKind::Other, format!("DDS decoding error: {:?}", e))
+            std::io::Error::new(ErrorKind::Other, format!("DDS decode error: {:?}", e))
         })?;
 
         let width = rgba_image.width();
         let height = rgba_image.height();
-        let rgba_data = rgba_image.into_raw(); // Already an RgbaImage, get underlying Vec<u8>
+        let rgba_data = rgba_image.into_raw();
 
-        // 3. Create the Bevy Image using plain uncompressed pixels
+        // If the header width/height multiplication doesn't match
+        // the actual byte length (due to block padding), we override the dimensions
+        // or let Bevy take the exact buffer length safely.
+        let expected_len = (width * height * 4) as usize;
+        let actual_len = rgba_data.len();
+
+        let (final_width, final_height) = if expected_len != actual_len {
+            // If there's padding mismatch, recalculate height based on actual buffer bytes
+            let corrected_height = (actual_len / 4) / width as usize;
+            (width, corrected_height as u32)
+        } else {
+            (width, height)
+        };
+
+        // Create Bevy Image with correct size and data length
         let image = Image::new(
             Extent3d {
-                width,
-                height,
+                width: final_width,
+                height: final_height,
                 depth_or_array_layers: 1,
             },
             TextureDimension::D2,

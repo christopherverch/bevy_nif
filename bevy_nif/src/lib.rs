@@ -16,6 +16,8 @@ pub use nif::types::*;
 use nif_animation::SkeletonMap;
 use nif_animation::animation_setup_system::setup_animations;
 use spawner::spawn_nif_scenes;
+
+use crate::loader::DDSLoader;
 #[derive(Component)]
 pub struct NeedsNifPhysics(pub Vec<(Entity, NiKey)>);
 pub struct BevyNifPlugin;
@@ -24,6 +26,7 @@ impl Plugin for BevyNifPlugin {
         app.init_asset::<Nif>()
             .init_asset_loader::<NifAssetLoader>()
             .init_asset_loader::<BMPLoader>()
+            .init_asset_loader::<DDSLoader>()
             .insert_resource(SkeletonMap::default())
             .add_observer(attach_parts)
             .add_systems(Update, spawn_nif_scenes)

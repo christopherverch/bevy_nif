@@ -6,7 +6,7 @@ pub mod skeleton;
 pub mod spawner;
 pub mod spawning_ni_helpers;
 use attach_parts::attach_parts;
-use bevy_app::{App, Plugin, Update};
+use bevy_app::{App, Plugin, PreUpdate, Update};
 use bevy_asset::AssetApp;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
@@ -27,6 +27,6 @@ impl Plugin for BevyNifPlugin {
             .insert_resource(SkeletonMap::default())
             .add_observer(attach_parts)
             .add_systems(Update, spawn_nif_scenes)
-            .add_systems(Update, setup_animations);
+            .add_systems(PreUpdate, setup_animations);
     }
 }

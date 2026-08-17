@@ -4,9 +4,10 @@ use bevy_image::Image;
 use bevy_log::error;
 use bevy_reflect::TypePath;
 use bevy_render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+use image_dds::ddsfile::Dds;
 pub use nif::loader::Nif;
 use nif::loader::load_nif_bytes;
-use std::io::ErrorKind;
+use std::io::{Cursor, ErrorKind};
 
 #[derive(Default, TypePath)]
 pub struct NifAssetLoader;
@@ -93,5 +94,59 @@ impl AssetLoader for BMPLoader {
 
     fn extensions(&self) -> &[&str] {
         &["BMP", "bmp"] // Register for uppercase .BMP also
+    }
+}
+#[derive(Default, TypePath)]
+pub struct DDSLoader;
+
+impl AssetLoader for DDSLoader {
+    type Asset = Image;
+    type Settings = ();
+    type Error = std::io::Error;
+
+    async fn load(
+        &self,
+        reader: &mut dyn Reader,
+        _settings: &Self::Settings,
+        _load_context: &mut LoadContext<'_>,
+    ) -> Result<Self::Asset, Self::Error> {
+        let mut bytes = Vec::new();
+        reader.read_to_end(&mut bytes).await?;
+
+        // 1. Parse the raw bytes into a Dds struct using the `ddsfile` crate
+        let dds = Dds::read(&mut Cursor::new(&bytes)).map_err(|e| {
+            std::io::Error::new(
+                ErrorKind::Other,
+                format!("DDS container parse error: {:?}", e),
+            )
+        })?;
+
+        // 2. Decode the DDS mip level 0 into an uncompressed RgbaImage on the CPU
+        let rgba_image = image_dds::image_from_dds(&dds, 0).map_err(|e| {
+            std::io::Error::new(ErrorKind::Other, format!("DDS decoding error: {:?}", e))
+        })?;
+
+        let width = rgba_image.width();
+        let height = rgba_image.height();
+        let rgba_data = rgba_image.into_raw(); // Already an RgbaImage, get underlying Vec<u8>
+
+        // 3. Create the Bevy Image using plain uncompressed pixels
+        let image = Image::new(
+            Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            TextureDimension::D2,
+            rgba_data,
+            TextureFormat::Rgba8UnormSrgb,
+            RenderAssetUsages::default(),
+        );
+
+        Ok(image)
+    }
+
+    fn extensions(&self) -> &[&str] {
+        &["DDS", "dds"]
     }
 }

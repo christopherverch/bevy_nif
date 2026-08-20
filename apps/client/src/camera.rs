@@ -1,7 +1,7 @@
 use crate::defs::{LocalPlayerMesh, TestingComponent};
+use crate::physics::actor::ActorPhysics;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
-use mwphysics::ActorPhysics;
 
 use crate::const_defs::FIRST_PERSON_CAMERA_HEIGHT_OFFSET;
 

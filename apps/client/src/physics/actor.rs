@@ -1,10 +1,11 @@
-use crate::{
-    PositionInterpolation,
-    collision::{CollisionShapeType, MWCollisionGroup},
-};
 use avian3d::prelude::LayerMask;
-use bevy_ecs::{component::Component, entity::Entity};
-use glam::{Quat, Vec2, Vec3};
+use bevy::prelude::*;
+
+use crate::physics::{
+    collision::{CollisionShapeType, MWCollisionGroup},
+    position_interpolate::PositionInterpolation,
+};
+
 #[derive(Component)]
 pub struct ActorPhysics {
     // Movement Logic

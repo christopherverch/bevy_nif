@@ -1,5 +1,4 @@
-use bevy_ecs::entity::Entity;
-use glam::Vec3;
+use bevy::prelude::*;
 
 pub struct RawTraceResult {
     pub fraction: f32,

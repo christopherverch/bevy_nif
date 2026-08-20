@@ -4,14 +4,16 @@ use crate::{
     defs::{DrawState, IdToEntityMap, Player, Stance, WorldSettings},
     magic_effects::{EffectKey, MagicEffects},
     mechanics::spells::Spells,
-    stat::{AttributeValue, DynamicStat},
 };
 use bevy::{
     ecs::{lifecycle::HookContext, world::DeferredWorld},
     prelude::*,
 };
 use bitflags::bitflags;
-use common::EntityId;
+use common::{
+    EntityId,
+    stat::{AttributeValue, DynamicStat},
+};
 use esm_parser_lib::{
     RefId,
     types::{attribute::Attribute, gmst::GameSetting, magic_effect::MagicEffect},

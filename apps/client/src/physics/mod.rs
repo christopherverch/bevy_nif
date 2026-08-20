@@ -1,19 +1,24 @@
 use avian3d::prelude::PhysicsSystems;
-use bevy::app::Plugin;
+use bevy::prelude::*;
+mod trace;
 
+pub mod actor;
+mod actor_sweep;
+pub mod collision;
 mod components;
 mod constants;
 mod helpers;
 pub mod movement;
+pub mod position_interpolate;
 mod prepare_actor_sim_data;
 mod stepper;
+mod types;
 mod unstuck;
 
 mod apply_animation_motion;
 pub mod physics_setup;
 mod world_helpers;
 pub use apply_animation_motion::*;
-use bevy::prelude::*;
 pub use components::CreaturePhysicsState;
 pub use movement::interpolate_visual_positions;
 use physics_setup::setup_nif_physics;

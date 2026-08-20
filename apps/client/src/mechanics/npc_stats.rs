@@ -1,9 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::*;
+use common::stat::SkillValue;
 use esm_parser_lib::RefId;
 
-use crate::stat::SkillValue;
 #[derive(Component, Clone, Debug, Default)]
 pub struct NpcStats {
     // Basic shared stats

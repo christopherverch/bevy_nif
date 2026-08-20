@@ -22,7 +22,6 @@ serde = { workspace = true }
 serializer = { path = "../../crates/serializer" }
 bytes = "1.11.1"
 toml = "1.1.2"
-mwphysics = { workspace = true } 
 glam.workspace = true
 avian3d = { workspace = true }
 stable-map = "0.15.0"

@@ -1,14 +1,14 @@
 use crate::defs::{ColliderEntityLink, LocalPlayer, Player, WorldFrameData};
 use crate::mechanics::creature_stats::CreatureStats;
-use crate::physics::helpers::get_pitch_yaw_3d_approx_movement;
+use crate::physics::actor::{ActorFrameData, ActorPhysics};
+use crate::physics::helpers::{get_pitch_yaw_3d_approx_movement, is_walkable_slope};
+use crate::physics::position_interpolate::PositionInterpolation;
 use crate::physics::stepper::Stepper;
+use crate::physics::trace::ActorTracer;
 use avian3d::prelude::{Collider, CollisionLayers, SpatialQuery};
 use common::consts::MW_UNITS_PER_METER;
 use esm_parser_lib::RefId;
 use esm_store::EsmStore;
-use mwphysics::{
-    ActorFrameData, ActorPhysics, ActorTracer, PositionInterpolation, is_walkable_slope,
-};
 
 use bevy::prelude::*;
 
@@ -167,7 +167,7 @@ pub fn character_movement_system(
             let next_pos = new_position + velocity * remaining_time;
             let underwater = new_position.y < swim_level;
 
-            // 1. Water Surface Ceiling (Prevent swimming up into air)
+            // Water Surface Ceiling (Prevent swimming up into air)
             if !actor_fd.flying && next_pos.y > swim_level && underwater {
                 velocity.y = 0.0;
                 continue;

@@ -1,10 +1,8 @@
 use avian3d::math::{Dir, Quaternion, Scalar, Vector3};
 use avian3d::prelude::*;
-use bevy_ecs::entity::Entity;
-use bevy_ecs::system::Query;
-use bevy_transform::components::Transform;
+use bevy::prelude::*;
 
-use crate::MWCollisionGroup;
+use crate::physics::collision::MWCollisionGroup;
 
 pub struct SweepHit {
     pub entity: Entity,

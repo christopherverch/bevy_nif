@@ -1,6 +1,9 @@
 use crate::{
     defs::{ColliderEntityLink, LocalPlayer},
-    physics::{constants::ALLOWED_PENETRATION, helpers::get_pitch_yaw_3d_approx_movement},
+    physics::{
+        actor::ActorFrameData, constants::ALLOWED_PENETRATION,
+        helpers::get_pitch_yaw_3d_approx_movement,
+    },
 };
 use avian3d::{
     collision::collider::contact_query,
@@ -8,7 +11,6 @@ use avian3d::{
 };
 use bevy::prelude::*;
 use common::consts::MW_UNITS_PER_METER;
-use mwphysics::ActorFrameData;
 
 use super::constants::COLLISION_MARGIN;
 

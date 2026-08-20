@@ -5,7 +5,6 @@ use bevy::{
     render::render_resource::TextureFormat,
 };
 use bevy_nif::loader::Nif;
-use common::NextAvailableSkeletonId;
 use common::consts::{MW_UNITS_PER_METER, NIF_SCALE_MULTIPLIER};
 use common::state::CharCreationState;
 use esm_parser_lib::{
@@ -31,6 +30,7 @@ use crate::{
         character_preview::{PreviewHeadBoneEntity, spawn_race_select_preview},
         setup_npc::{NpcMesh, resolve_body_parts, spawn_npc},
     },
+    shared_defs::skeletons::NextAvailableSkeletonId,
     utils::prepend_mesh_data_path,
 };
 

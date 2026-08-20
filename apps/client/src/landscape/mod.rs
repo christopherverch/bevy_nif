@@ -13,9 +13,11 @@ use landscape_loader::{load_landscape, setup_landscape_images};
 use landscape_spawning_despawning::spawn_despawn_landscapes;
 use std::collections::HashMap;
 use std::sync::{OnceLock, RwLock};
+mod defs;
 pub mod landscape_loader;
 pub mod landscape_spawning_despawning;
 pub mod terrain_material;
+pub use defs::*;
 
 pub static ALL_LANDSCAPES: OnceLock<RwLock<HashMap<(i32, i32), Landscape>>> = OnceLock::new();
 pub struct LandscapePlugin;

@@ -8,8 +8,8 @@ use crate::defs::{DrawState, MWCell};
 use crate::live_cell_ref::{EsmPtr, LiveCellRef};
 use crate::magic_effects::MagicEffects;
 use crate::mechanics::npc_stats::NpcStats;
+use crate::physics::actor::ActorPhysics;
 use esm_parser_lib::types::gmst::GameSetting;
-use mwphysics::ActorPhysics;
 use std::sync::OnceLock;
 
 use esm_parser_lib::RefId;

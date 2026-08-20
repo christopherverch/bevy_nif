@@ -2,8 +2,8 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     const_defs::CELL_SIZE_METERS,
-    defs::{ESM_READER, LandscapeCell, LandscapeLoader, LandscapeManagementSettings, LocalPlayer},
-    landscape::ALL_LANDSCAPES,
+    defs::{ESM_READER, LandscapeManagementSettings, LocalPlayer},
+    landscape::{ALL_LANDSCAPES, LandscapeCell, LandscapeLoader},
     setup_scene::spawn_nif_unattached,
 };
 use bevy::prelude::*;
@@ -84,10 +84,6 @@ pub fn spawn_despawn_landscapes(
                 LandscapeLoader {
                     cell_x: desired_cell.0,
                     cell_y: desired_cell.1,
-                },
-                LandscapeCell {
-                    x: desired_cell.0,
-                    y: desired_cell.1,
                 },
                 LandscapeContainedEntities(loaded_entities),
                 Visibility::Visible,

@@ -9,10 +9,7 @@ use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_kira_audio::{AudioPlugin, SpatialAudioPlugin};
 use bevy_nif::{BevyNifPlugin, nif_animation::SkeletonMap};
 use bevy_renet::RenetClientPlugin;
-use common::{
-    NextAvailableSkeletonId,
-    state::{CharCreationState, GameState},
-};
+use common::state::{CharCreationState, GameState};
 use serde::Deserialize;
 use std::{env, fs};
 
@@ -24,6 +21,7 @@ use crate::{
     mechanics::MWMechanicsPlugin,
     physics::{MWPhysicsPlugin, interpolate_visual_positions},
     setup_scene::setup_scene,
+    shared_defs::skeletons::NextAvailableSkeletonId,
 };
 use camera::MWCameraPlugin;
 use equipment::on_player_ready_weapon;
@@ -56,7 +54,6 @@ mod setup;
 mod setup_funcs;
 mod setup_scene;
 mod shared_defs;
-mod stat;
 mod temporary_funcs;
 mod utils;
 mod world;

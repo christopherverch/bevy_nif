@@ -1,6 +1,9 @@
 use std::{net::UdpSocket, time::SystemTime};
 
-use crate::defs::{IdToEntityMap, NeedsSetup};
+use crate::{
+    defs::{IdToEntityMap, NeedsSetup},
+    networking::ServerIP,
+};
 use bevy::prelude::*;
 use bevy_renet::{
     RenetClient,
@@ -9,7 +12,7 @@ use bevy_renet::{
 use networking::{PROTOCOL_ID, connection_config};
 
 use super::EntityIdToEntityMap;
-use common::{EntityId, ServerIP, state::GameState};
+use common::{EntityId, state::GameState};
 
 pub fn connect_to_server(
     mut commands: Commands,

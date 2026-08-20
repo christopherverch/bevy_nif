@@ -1,11 +1,14 @@
 use avian3d::prelude::CollisionLayers;
 use bevy::prelude::*;
 use esm_parser_lib::{RefId, types::magic_effect::MagicEffect};
-use mwphysics::{ActorFrameData, ActorPhysics, PositionInterpolation};
 
 use crate::{
     defs::{ColliderEntityLink, Movement, Player, WorldSettings},
     mechanics::creature_stats::CreatureStats,
+    physics::{
+        actor::{ActorFrameData, ActorPhysics},
+        position_interpolate::PositionInterpolation,
+    },
 };
 use esm_store::EsmStore;
 pub fn prepare_actor_simulation(

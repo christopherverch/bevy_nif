@@ -4,7 +4,9 @@ use bevy::{
     prelude::*,
     ui::FocusPolicy,
 };
-use common::{ServerIP, state::GameState};
+
+use crate::networking::ServerIP;
+use common::state::GameState;
 
 #[derive(Component)]
 pub struct IpInputField;

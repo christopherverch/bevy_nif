@@ -1,5 +1,4 @@
-use bevy_ecs::component::Component;
-use glam::Vec3;
+use bevy::prelude::*;
 
 #[derive(Component, Debug)]
 pub struct PositionInterpolation {

@@ -1,21 +1,18 @@
+use bevy::{ecs::entity::EntityHashSet, prelude::*};
+
 use avian3d::{
     math::{Scalar, Vector3},
     prelude::{Collider, CollisionLayers, LayerMask, SpatialQuery, SpatialQueryFilter},
 };
-use bevy_ecs::{
-    entity::{Entity, EntityHashSet},
-    system::Query,
-};
-use bevy_math::Dir3;
-use bevy_transform::components::Transform;
-use glam::Vec3;
 
-use crate::{
-    ActorPhysics, MWCollisionGroup,
+use crate::physics::{
+    actor::ActorPhysics,
     actor_sweep::sweep_helper,
-    const_defs::{SOLVER_GROUND_OFFSET, SOLVER_LARGE_DISTANCE},
-    is_walkable_slope,
+    collision::MWCollisionGroup,
+    constants::{SOLVER_GROUND_OFFSET, SOLVER_LARGE_DISTANCE},
+    helpers::is_walkable_slope,
 };
+
 pub struct ActorTracer {
     pub end_pos: Vector3,
     pub plane_normal: Vector3,

@@ -1,5 +1,4 @@
-use bevy_ecs::resource::Resource;
-
+use bevy::prelude::*;
 #[derive(Resource, Default)]
 pub struct NextAvailableSkeletonId(u64);
 impl NextAvailableSkeletonId {
@@ -8,5 +7,3 @@ impl NextAvailableSkeletonId {
         self.0
     }
 }
-#[derive(Resource)]
-pub struct ServerIP(pub String);

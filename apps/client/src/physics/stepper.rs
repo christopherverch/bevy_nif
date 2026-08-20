@@ -1,13 +1,14 @@
 use avian3d::prelude::{Collider, CollisionLayers, SpatialQuery};
 use bevy::prelude::*;
-use mwphysics::{ActorTracer, MWCollisionGroup, is_walkable_slope};
 
 use crate::physics::{
+    collision::MWCollisionGroup,
     constants::{
         COLLISION_MARGIN, DO_EXTRA_STAIR_HACKS, GROUND_OFFSET, MAX_SLOPE_DEGREES_COS, MIN_STEP,
         MIN_STEP_2, STEP_SIZE_DOWN, STEP_SIZE_UP,
     },
-    helpers::reject,
+    helpers::{is_walkable_slope, reject},
+    trace::ActorTracer,
 };
 
 pub struct Stepper<'a, 'w, 's> {

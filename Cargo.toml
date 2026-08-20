@@ -7,7 +7,7 @@ members = [
     "crates/to_utf8",
     "crates/serializer",
     "crates/networking",
-    "crates/esm_parser_macros", "crates/mwphysics", "crates/unordered_map", "crates/esm_store", 
+    "crates/esm_parser_macros",  "crates/unordered_map", "crates/esm_store", 
 ]
 resolver = "2"
 
@@ -26,7 +26,6 @@ common = { path = "crates/common" }
 serializer = { path = "crates/serializer" }
 networking = { path = "crates/networking" }
 to_utf8 = { path = "crates/to_utf8" }
-mwphysics = {path = "crates/mwphysics" }
 glam = "0.32.0"
 
 bevy = {version = "0.19.0", default-features = false}

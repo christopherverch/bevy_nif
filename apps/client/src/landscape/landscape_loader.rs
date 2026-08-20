@@ -1,10 +1,8 @@
 use super::terrain_material::{TerrainBlendMaterial, TerrainMaterialParams};
 use crate::{
     const_defs::CELL_SIZE_METERS,
-    defs::{
-        ESM_READER, LandTextureDefinitions, LandscapeAwaitingImages, LandscapeCell, LandscapeLoader,
-    },
-    landscape::ALL_LANDSCAPES,
+    defs::{ESM_READER, LandTextureDefinitions, LandscapeAwaitingImages},
+    landscape::{ALL_LANDSCAPES, LandscapeCell, LandscapeLoader},
 };
 use avian3d::prelude::{Collider, RigidBody};
 use bevy::mesh::{Indices, PrimitiveTopology};

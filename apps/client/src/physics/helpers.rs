@@ -1,7 +1,7 @@
 use bevy::math::Vec3;
-use glam::Quat;
-use mwphysics::ActorFrameData;
+use bevy::prelude::*;
 
+use crate::physics::actor::ActorFrameData;
 use crate::physics::constants::COLLISION_MARGIN;
 
 /// Projects the `direction` vector onto the `normal` vector.
@@ -21,6 +21,11 @@ pub fn add_margin_to_delta(delta: Vec3) -> Vec3 {
     }
     // Adds COLLISION_MARGIN units in the direction of the push
     delta + delta.normalize() * COLLISION_MARGIN
+}
+pub fn is_walkable_slope(normal: Vec3) -> bool {
+    // cos(46 deg) ≈ 0.694
+    const MAX_SLOPE_COS: f32 = 0.69465837;
+    normal.y > MAX_SLOPE_COS
 }
 #[inline]
 pub fn get_pitch_yaw_3d_approx_movement(actor_fd: &ActorFrameData) -> Vec3 {

@@ -1,3 +1,4 @@
+use bevy::prelude::*;
 use std::f32::consts::PI;
 
 use crate::{
@@ -17,6 +18,7 @@ use crate::{
         creature_stats::{CreatureStats, CreatureStatsFlags},
         npc_stats::NpcStats,
     },
+    physics::{actor::ActorPhysics, position_interpolate::PositionInterpolation},
     shared_defs::{common_funcs::is_swimming, container::Container, npc::Npc},
 };
 use crate::{
@@ -24,8 +26,6 @@ use crate::{
     live_cell_ref::LiveCellRef,
     mechanics::const_defs::IS_MOVING_THRESHOLD,
 };
-use avian3d::character_controller;
-use bevy::prelude::*;
 use bevy_nif::nif_animation::{
     BlendMask, NUM_DISCRETE_REGIONS, NifAnimator, REGION_INDEX_LEFT_ARM, REGION_INDEX_LOWER_BODY,
     bevy_types::{AnimType, Priority},
@@ -37,7 +37,6 @@ use common::{
 };
 use esm_parser_lib::types::{enums::WeaponType, flags::CreatureFlags, magic_effect::MagicEffect};
 use esm_store::EsmStore;
-use mwphysics::{ActorPhysics, PositionInterpolation};
 use rand::RngExt;
 pub fn update_movement_component_from_intent(
     actor_q: Query<

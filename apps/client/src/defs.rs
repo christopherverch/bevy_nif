@@ -1,16 +1,6 @@
-use crate::magic_effects::{EffectKey, MagicEffects};
-use crate::stat::{AttributeValue, DynamicStat};
-use bevy::ecs::lifecycle::HookContext;
-use bevy::ecs::world::DeferredWorld;
 use bevy::prelude::*;
-use bitflags::bitflags;
 use common::EntityId;
-use esm_parser_lib::types::attribute::Attribute;
-use esm_parser_lib::types::enums::AttributeId;
-use esm_parser_lib::types::gmst::GameSetting;
-use esm_parser_lib::types::magic_effect::MagicEffect;
-use esm_parser_lib::{EsmReader, LandTexture, RefId};
-use esm_store::{EsmStore, Store};
+use esm_parser_lib::{EsmReader, LandTexture};
 use networking::NetworkEvent;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
@@ -182,11 +172,6 @@ pub struct LandscapeAwaitingImages {
     pub image_handles: Vec<Handle<Image>>,
     pub texture_index_map: HashMap<u16, usize>,
 }
-#[derive(Component)]
-pub struct LandscapeLoader {
-    pub cell_x: i32,
-    pub cell_y: i32,
-}
 #[derive(Resource, Debug, Copy, Clone)]
 pub struct LandscapeManagementSettings {
     pub load_radius_cells: u32, // e.g., 2 means a 5x5 grid (current + 2 in each direction)
@@ -196,11 +181,6 @@ pub struct LandscapeManagementSettings {
 pub struct LoadedLandscapeEntities {
     // Maps cell (x, y) coordinates to the Bevy Entity ID that represents that landscape cell's entity
     pub cell_to_entity: HashMap<(i32, i32), Entity>,
-}
-#[derive(Component, Debug, Copy, Clone)]
-pub struct LandscapeCell {
-    pub x: i32,
-    pub y: i32,
 }
 #[derive(Resource, Default)]
 pub struct IdToEntityMap(pub HashMap<u64, Entity>);

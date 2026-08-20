@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use common::{ServerIP, state::GameState};
+use common::state::GameState;
 use handle_other_players::{apply_received_animation_state, interpolate_players};
 use networking::EntityIdToEntityMap;
 use send_data::{
@@ -15,6 +15,8 @@ use bevy_renet::netcode::NetcodeClientPlugin;
 use std::collections::HashMap;
 
 mod connecting_disconnecting;
+mod defs;
+pub use defs::*;
 mod handle_other_players;
 mod send_data;
 pub use connecting_disconnecting::connect_to_server;

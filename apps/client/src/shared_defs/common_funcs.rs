@@ -2,12 +2,11 @@ use crate::{
     defs::{MWCell, Stance, WorldSettings},
     live_cell_ref::LiveCellRef,
     mechanics::creature_stats::CreatureStats,
-    shared_defs::actor::Actor,
+    physics::actor::ActorPhysics,
 };
 use bevy::prelude::*;
 use common::mechanics::CharacterController;
 use esm_parser_lib::types::{flags::CreatureFlags, magic_effect::MagicEffect};
-use mwphysics::ActorPhysics;
 
 pub fn get_normalized_encumbrance(capacity: f32, encumbrance: f32) -> f32 {
     // Intentional deviation: Morrowind doesn't do this

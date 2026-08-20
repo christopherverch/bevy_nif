@@ -1,14 +1,16 @@
 use crate::animation::{NifAnimatorLink, NifSkeletonId};
+use crate::const_defs::CELL_SIZE_METERS;
 use crate::defs::{
-    AnimateableEntity, ClientEntityId, CurrentCell, DrawState, LocalPlayer, LocalPlayerMesh,
-    MeshEntityLink, Movement, NeedsSetup, NetworkedEntity, Player,
+    AnimateableEntity, ClientEntityId, CurrentCell, LocalPlayer, LocalPlayerMesh, MeshEntityLink,
+    Movement, NeedsSetup, NetworkedEntity, Player,
 };
 use crate::live_cell_ref::{EsmPtr, LiveCellRef};
-use crate::magic_effects::MagicEffects;
 use crate::mechanics::ActorIntent;
-use crate::mechanics::creature_stats::{CreatureStats, CreatureStatsFlags, DynamicStats};
-use crate::mechanics::spells::Spells;
+use crate::mechanics::creature_stats::CreatureStats;
+use crate::mechanics::npc_stats::NpcStats;
 use crate::setup::setup_npc::NpcMesh;
+use crate::shared_defs::container::Container;
+use crate::stat::{AttributeValue, SkillValue};
 use avian3d::prelude::{CollisionLayers, RigidBody};
 use bevy::prelude::*;
 use bevy_kira_audio::{SpatialAudioEmitter, SpatialAudioReceiver, SpatialRadius};
@@ -19,9 +21,10 @@ use common::NextAvailableSkeletonId;
 use common::mechanics::{CharacterController, CharacterState};
 use common::state::CharCreationState;
 use esm_parser_lib::RefId;
+use esm_parser_lib::types::attribute::Attribute;
+use esm_parser_lib::types::skill::SkillIndex;
 use mwphysics::{ActorPhysics, PositionInterpolation};
 use serializer::SerializableTransform;
-use std::collections::HashMap;
 use std::f32::consts::{FRAC_PI_2, PI};
 use std::time::Instant;
 
@@ -46,7 +49,7 @@ pub fn setup_player(
         );
 
         // spawn the root of the player
-        let player_start_location = Vec3::new(190.0, 2.8, -890.0);
+        let player_start_location = Vec3::new(2.0 * CELL_SIZE_METERS, 2.8, -9.0 * CELL_SIZE_METERS);
         let rotation = Quat::from_euler(EulerRot::YXZ, 0.0, -PI, -PI);
         let can_water_walk = true;
         let on_ground = true;
@@ -59,6 +62,36 @@ pub fn setup_player(
         character_controller.movement.state = CharacterState::RunForward;
         // Sets the character's animations to be based on their movement speed, like walking running
         character_controller.movement.adjust_anim_speed = true;
+        let mut creature_stats = CreatureStats::new(setup_info.entity_id);
+        creature_stats.attributes.insert(
+            Attribute::STRENGTH,
+            AttributeValue {
+                base: 10.0,
+                modifier: 0.0,
+                damage: 0.0,
+            },
+        );
+        creature_stats.attributes.insert(
+            Attribute::SPEED,
+            AttributeValue {
+                base: 10.0,
+                modifier: 0.0,
+                damage: 0.0,
+            },
+        );
+
+        let mut npc_stats = NpcStats::default();
+        npc_stats.skills.insert(
+            SkillIndex::Athletics.to_refid(),
+            SkillValue {
+                attribute: AttributeValue {
+                    base: 10.0,
+                    modifier: 0.0,
+                    damage: 0.0,
+                },
+                progress: 0.0,
+            },
+        );
         let player_esm_ref = esm_store
             .npcs
             .get_raw(&RefId::from_str("Player"))
@@ -74,26 +107,8 @@ pub fn setup_player(
                     rotation,
                     ..default()
                 },
-                CreatureStats {
-                    entity_id: setup_info.entity_id,
-                    attributes: HashMap::new(),
-                    magic_effects: MagicEffects::default(),
-                    fall_height: 0.0,
-                    dead: false,
-                    teleported: false,
-                    stats: DynamicStats::default(),
-                    death_animation_finished: false,
-                    movement_flags: CreatureStatsFlags::RUN,
-                    level: 0,
-                    spells: Spells::default(),
-                    max_speed: 200.0,
-                    side_movement_angle: 0.0,
-                    draw_state: DrawState::Nothing,
-                    knocked_down: false,
-                    block: false,
-                    hit_recovery: false,
-                },
                 Movement::default(),
+                creature_stats,
                 ActorPhysics::new(
                     can_water_walk,
                     on_ground,
@@ -127,8 +142,11 @@ pub fn setup_player(
                 CurrentCell {
                     coords: UVec2::ZERO,
                 },
+                Container::default(),
+                npc_stats,
                 LiveCellRef::Npc(EsmPtr(player_esm_ref)),
             ));
+
         let skeleton_id = next_available_skeleton_id.next();
 
         //spawn the player's mesh

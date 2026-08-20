@@ -22,6 +22,7 @@ pub struct RootMotionState {
 // Speed determined by how far the movement animation moved in this frame
 // ex: runforward moved 0.1 meter forward since last frame, this would be 0.1
 // used for the physics movement system to determine how far we should move in 3rd person
+// TODO:: currently unused
 #[derive(Component, Default)]
 pub struct AnimationDisplacement(pub Vec3);
 
@@ -130,6 +131,7 @@ pub fn calculate_animation_displacement_system(
                         // The vertical (Y) component of root motion is discarded
                         // since the physics system handles y-motion with gravity
                         // TODO:: check if openmw flattens the y (scaled_delta.z) to 0.0
+                        // I'm pretty certain it does
                         frame_displacement = Vec3::new(scaled_delta.x, 0.0, -scaled_delta.y);
 
                         root_motion_state.previous_time = current_time;

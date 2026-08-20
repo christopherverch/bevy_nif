@@ -76,6 +76,9 @@ impl ActorPhysics {
             active: false,
         }
     }
+    pub fn is_on_ground(&self) -> bool {
+        self.on_ground && self.internal_collision_mode
+    }
     pub fn set_can_water_walk(
         &mut self,
         can_water_walk: bool,

@@ -2,7 +2,7 @@ use std::collections::LinkedList;
 
 use crate::{
     ESM3ExteriorCellRefId, EsmContext, EsmError, EsmReader, FormId, Load, RefId, StringRefId,
-    esm_reader::ConsumptionType, name4, string_interning::get_or_intern,
+    esm_reader::ConsumptionType, esm_record::EsmRecord, name4, string_interning::get_or_intern,
 };
 
 use super::{
@@ -26,6 +26,12 @@ pub struct Cell {
     pub leased_refs: LinkedList<(CellRef, bool)>,
     pub moved_refs: LinkedList<MovedCellRef>,
     pub context_list: Vec<EsmContext>,
+}
+impl EsmRecord for Cell {
+    fn id(&self) -> &RefId {
+        &self.id
+    }
+    const RECORD_ID: u32 = name4!("CELL").to_u32();
 }
 pub type RefNum = FormId;
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -131,14 +137,14 @@ pub enum GetNextRefMode {
 
 impl Cell {
     pub fn load(
-        &mut self,
         reader: &mut EsmReader,
         is_deleted: &mut bool,
         save_context: bool,
-    ) -> Result<(), EsmError> {
-        self.load_name_and_data(reader, is_deleted)?;
-        self.load_cell(reader, save_context)?;
-        return Ok(());
+    ) -> Result<Cell, EsmError> {
+        let mut cell = Cell::default();
+        cell.load_name_and_data(reader, is_deleted)?;
+        cell.load_cell(reader, save_context)?;
+        return Ok(cell);
     }
 
     fn load_name_and_data(
@@ -249,13 +255,13 @@ impl Cell {
         }
     }
 
-    fn post_load(&mut self, reader: &mut EsmReader) -> Result<(), EsmError> {
+    pub fn post_load(&mut self, reader: &mut EsmReader) -> Result<(), EsmError> {
         // Save position of the cell references and move on
         self.context_list.push(reader.get_cloned_context()?);
         reader.skip_record()?;
         Ok(())
     }
-    fn restore(&self, reader: &mut EsmReader, context_index: usize) -> Result<(), EsmError> {
+    pub fn restore(&self, reader: &mut EsmReader, context_index: usize) -> Result<(), EsmError> {
         let context = self
             .context_list
             .get(context_index)
@@ -313,10 +319,12 @@ impl Cell {
             return Ok(false);
         }
         while reader.is_next_sub(name4!("MVRF"))? {
-            let mut moved_cell_ref = MovedCellRef::default();
-            moved_cell_ref.ref_num.index = reader.read_typed_header()?;
+            // This is still read so the reader will be in the right spot,
+            // but it's only returned in the "full" version of this function
+            let mut _moved_cell_ref = MovedCellRef::default();
+            _moved_cell_ref.ref_num.index = reader.read_typed_header()?;
             if let Some(val) = reader.read_typed_named_header_opt(name4!("CNDT"))? {
-                moved_cell_ref.target = val;
+                _moved_cell_ref.target = val;
             }
             let mut skipped_cell_ref = CellRef::default();
             if reader.peek_next_sub(name4!("FRMR"))? {

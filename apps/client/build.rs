@@ -2,9 +2,9 @@ use std::fmt::Write;
 use std::path::Path;
 use std::{env, fs};
 
-// Import your constants here or define them
-const MORROWIND_CELL_SIZE: f32 = 102.0;
 const LAND_SIDE_VERTICES: usize = 65;
+const MW_UNITS_PER_METER: f32 = 69.991251091;
+const CELL_SIZE_METERS: f32 = 8192.0 / MW_UNITS_PER_METER;
 
 fn main() {
     println!("cargo::rerun-if-changed=build.rs");
@@ -56,7 +56,7 @@ fn main() {
     }
     writeln!(buffer, "];").unwrap();
 
-    let half_cell = MORROWIND_CELL_SIZE / 2.0;
+    let half_cell = CELL_SIZE_METERS / 2.0;
     let max_idx = (LAND_SIDE_VERTICES - 1) as f32;
 
     // Positions LUT
@@ -67,7 +67,7 @@ fn main() {
     )
     .unwrap();
     for i in 0..LAND_SIDE_VERTICES {
-        let val = (i as f32 / max_idx * MORROWIND_CELL_SIZE) - half_cell;
+        let val = (i as f32 / max_idx * CELL_SIZE_METERS) - half_cell;
         writeln!(buffer, "{:.20}_f32,", val).unwrap();
     }
     writeln!(buffer, "];").unwrap();

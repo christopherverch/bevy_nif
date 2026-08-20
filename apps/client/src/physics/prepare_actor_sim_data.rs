@@ -85,7 +85,7 @@ pub fn prepare_actor_simulation(
             .get_or_default(MagicEffect::PARALYZE)
             .modifier
             > 0.0;
-        let inert = stats.dead || (!god_mode && paralyzed);
+        let inert = stats.is_dead() || (!god_mode && paralyzed);
         // 4. Update the snapshot for the solver
         // TODO::
         let flying = false;

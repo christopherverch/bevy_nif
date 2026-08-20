@@ -1,6 +1,8 @@
 use crate::defs::{ESM_READER, LandTextureDefinitions};
 use crate::landscape::ALL_LANDSCAPES;
 use bevy::prelude::*;
+use esm_parser_lib::types::cell::Cell;
+use esm_parser_lib::types::static_object::Static;
 use esm_parser_lib::{
     EsmError, EsmReader, Header, LandTexture, Landscape, Load, MAGIC_EFFECT_ID_TO_INDEX, RefId,
     Weapon,
@@ -53,10 +55,23 @@ pub fn run_initial_parse() -> Result<
     let start_time = Instant::now();
     let mut file_paths = Vec::new();
     file_paths.push(file_path);
+    let file_path_str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/assets/data/Data Files/Bloodmoon.esm"
+    );
+    let file_path = Path::new(file_path_str);
+    file_paths.push(file_path);
+    let file_path_str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/assets/data/Data Files/Tribunal.esm"
+    );
+    let file_path = Path::new(file_path_str);
+    file_paths.push(file_path);
     let file_path_str = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/test.esp");
     let file_path = Path::new(file_path_str);
     file_paths.push(file_path);
     let mut esm_store = EsmStore::default();
+    let mut previous_loop_tex_amount = 0;
     for file_path in file_paths {
         match reader.open(file_path) {
             Ok(_) => {
@@ -77,9 +92,10 @@ pub fn run_initial_parse() -> Result<
                 let target_record_types = [
                     // "GMST", "BSGN", "CONT", "FACT", "LOCK", "PROB", "GLOB", "SKIL", "CLAS", "RACE",
                     //"SOUN", "REGN", "MGEF", "SPEL", "BOOK", "WEAP", "ARMO", "MISC", "LIGH", "CREA",
-                    //"INGR", "CLOT", "APPA", "ALCH", "LEVI", "STAT", "DOOR", "LEVC", "ENCH", "ACTI",
-                    //"BODY", "REPA", "PGRD", "CELL", "NPC_", "SNDG", "AMMO", "LVLN", "SCPT", "DIAL", "INFO", "LTEX", "WAYP", "LAND", "KEYM",
+                    //"INGR", "CLOT", "APPA", "ALCH", "LEVI",  "DOOR", "LEVC", "ENCH", "ACTI",
+                    //"BODY", "REPA", "PGRD",  "NPC_", "SNDG", "AMMO", "LVLN", "SCPT", "DIAL", "INFO", "LTEX", "WAYP", "LAND", "KEYM",
                     "LAND", "LTEX", "WEAP", "RACE", "BODY", "NPC_", "SPEL", "MGEF", "GMST", "SKIL",
+                    "STAT", "CELL",
                 ];
                 'record_loop: while reader.has_more_recs()? {
                     let mut all_targets_done = true;
@@ -123,6 +139,7 @@ pub fn run_initial_parse() -> Result<
                                             &record_name_bytes, // Pass the raw bytes for matching
                                             &mut land_textures,
                                             &mut landscapes,
+                                            previous_loop_tex_amount,
                                         )
                                     } else {
                                         if let Err(e) = reader.skip_record() {
@@ -169,6 +186,7 @@ pub fn run_initial_parse() -> Result<
                 )));
             }
         }
+        previous_loop_tex_amount = land_textures.len() as u32;
     }
     // we have to insert this because it's always available as the "default texture"
     let default_texture = LandTexture {
@@ -216,6 +234,7 @@ pub fn load_record(
     rec_name_bytes: &[u8; 4], // Pass the raw bytes for direct comparison
     textures: &mut HashMap<u32, LandTexture>,
     landscapes: &mut HashMap<(i32, i32), Landscape>,
+    previous_loop_tex_amount: u32,
 ) {
     if *rec_name_bytes == *b"LTEX" {
         match LandTexture::load(reader) {
@@ -224,8 +243,7 @@ pub fn load_record(
                     // Remove if a mod deleted it.
                     textures.remove(&tex.index);
                 } else {
-                    // Add or overwrite.
-                    textures.insert(tex.index, tex);
+                    textures.insert(tex.index + previous_loop_tex_amount, tex);
                 }
             }
             Err(e) => eprintln!("Failed to parse LTEX record: {}", e),
@@ -241,8 +259,14 @@ pub fn load_record(
                     landscapes.remove(&key);
                 } else {
                     if let Some(indices) = landscape.texture_indices.as_mut() {
+                        // Subtract 1 because 0 is the default texture, which we add at the end
                         for index in indices.iter_mut() {
                             *index = index.wrapping_sub(1);
+                            // So bloodmoon/tribunal don't override base mw textures
+
+                            if *index < u16::MAX {
+                                *index += previous_loop_tex_amount as u16;
+                            }
                         }
                     }
                     // Add or overwrite.
@@ -380,13 +404,47 @@ pub fn load_record(
             }
         }
     }
+    if *rec_name_bytes == *b"CELL" {
+        let mut is_deleted = false;
+        match Cell::load(reader, &mut is_deleted, false) {
+            Ok(mut cell) => {
+                cell.post_load(reader).unwrap();
+                if is_deleted {
+                    esm_store.cells.remove_static(&cell.id);
+                } else {
+                    // TODO:: handle expansions, should put these in separate maps by esm or
+                    // something, for now just don't replace old ones
+                    if !esm_store.cells.get(&cell.id).is_some() {
+                        esm_store.cells.insert_static(cell.id.clone(), cell);
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to parse SKIL record: {}", e);
+            }
+        }
+    }
+    if *rec_name_bytes == *b"STAT" {
+        let mut is_deleted = false;
+        match Static::load(reader, &mut is_deleted) {
+            Ok(stat) => {
+                if is_deleted {
+                    esm_store.statics.remove_static(&stat.id);
+                } else {
+                    esm_store.statics.insert_static(stat.id.clone(), stat);
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to parse SKIL record: {}", e);
+            }
+        }
+    }
 }
 fn finish_magic_effect_setup(
     magic_effects: &mut Store<MagicEffect>,
     gamesettings: &Store<GameSetting>,
 ) {
     for effect in magic_effects.static_rec.values_mut() {
-        dbg!(&effect.id);
         // Step A: Map RefId to Index (O(1))
         if let Some(&index) = MAGIC_EFFECT_ID_TO_INDEX.get(&effect.id) {
             // Step B: Map Index to GMST Key string (e.g., "sMagicWaterBreathingName")

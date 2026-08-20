@@ -20,15 +20,20 @@ pub enum RefId {
     Index(IndexRefId),
     ESM3ExteriorCell(ESM3ExteriorCellRefId),
 }
+#[macro_export]
+macro_rules! refid {
+    ($s:literal) => {{ RefId::from_str($s) }};
+}
+
 impl Hash for RefId {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
-            // CRITICAL: We treat Sized and Unsized as the same "category"
+            // We treat Sized and Unsized as the same "category"
             // so they generate the same hash for the same characters.
             RefId::SizedString(s) | RefId::UnsizedString(s) => {
                 state.write_u8(1); // Shared discriminant for ALL strings
                 for b in s.0.as_bytes() {
-                    // Case-insensitive hashing to match eq_ignore_ascii_case
+                    // Morrowind uses case-insensitive strings
                     state.write_u8(b.to_ascii_lowercase());
                 }
             }
@@ -344,7 +349,6 @@ pub type FormId32 = u32;
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub struct FormId {
     pub index: u32,
-    // Corresponds to C++ 'int32_t mContentFile = -1;'
     pub content_file: Option<i16>,
 }
 impl Load for FormId {

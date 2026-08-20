@@ -26,9 +26,23 @@ pub struct NpcStats {
 
     // State
     pub time_to_start_drowning: f32,
-    pub is_werewolf: bool,
+    is_werewolf: bool,
 
     // Player-only stats
     pub bounty: i32,
-    pub werewolf_kills: i32,
+    werewolf_kills: i32,
+}
+impl NpcStats {
+    pub fn set_werewolf(&mut self, set: bool) {
+        if self.is_werewolf == set {
+            return;
+        }
+        if set != false {
+            self.werewolf_kills = 0;
+        }
+        self.is_werewolf = set;
+    }
+    pub fn is_werewolf(&self) -> bool {
+        self.is_werewolf
+    }
 }

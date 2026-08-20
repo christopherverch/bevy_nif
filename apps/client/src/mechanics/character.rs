@@ -15,14 +15,16 @@ use crate::{
     mechanics::{
         ActorIntent,
         creature_stats::{CreatureStats, CreatureStatsFlags},
+        npc_stats::NpcStats,
     },
+    shared_defs::{common_funcs::is_swimming, container::Container, npc::Npc},
 };
 use crate::{
     defs::{CurrentCell, DrawState, GameSettings, MWCell, Movement, Player, Stance},
     live_cell_ref::LiveCellRef,
     mechanics::const_defs::IS_MOVING_THRESHOLD,
-    world::is_swimming,
 };
+use avian3d::character_controller;
 use bevy::prelude::*;
 use bevy_nif::nif_animation::{
     BlendMask, NUM_DISCRETE_REGIONS, NifAnimator, REGION_INDEX_LEFT_ARM, REGION_INDEX_LOWER_BODY,
@@ -38,23 +40,68 @@ use esm_store::EsmStore;
 use mwphysics::{ActorPhysics, PositionInterpolation};
 use rand::RngExt;
 pub fn update_movement_component_from_intent(
-    actor_q: Query<(&mut ActorIntent, &mut Movement, &mut CreatureStats), Changed<ActorIntent>>,
+    actor_q: Query<
+        (
+            &mut ActorIntent,
+            &mut Movement,
+            &mut CreatureStats,
+            &CharacterController,
+            &PositionInterpolation,
+            &LiveCellRef,
+            &CurrentCell,
+            &NpcStats,
+            &mut Container,
+            Option<&ActorPhysics>,
+            Option<&LocalPlayer>,
+        ),
+        Changed<ActorIntent>,
+    >,
+    cells: Query<&MWCell>,
+    cell_entity_lookup: Res<CellLookup>,
+    esm_store: Res<EsmStore>,
+    world_settings: Res<WorldSettings>,
 ) {
-    for (mut actor_intent, mut movement, mut creature_stats) in actor_q {
+    for (
+        mut actor_intent,
+        mut movement,
+        mut creature_stats,
+        actor_character_controller,
+        position_interpolation,
+        live_cell_ref,
+        currently_in_cell,
+        npc_stats,
+        mut actor_container,
+        actor_physics_opt,
+        local_player_opt,
+    ) in actor_q
+    {
+        let current_cell = cells
+            .get(*cell_entity_lookup.0.get(&currently_in_cell.coords).unwrap())
+            .unwrap();
         movement.desired_movement.x = -actor_intent.movement.x;
         movement.desired_movement.z = actor_intent.movement.y;
         if actor_intent.jump {
             movement.desired_movement.y = 1.0;
-            // We have to reset this here rather than in input collection, because input collection runs on update
+            // We have to reset jump here rather than in input collection, because input collection runs on update
             // so the input might have changed before it gets to this fixedupdate function
             actor_intent.jump = false;
         }
         movement.speed_factor = actor_intent.movement.length();
-        if actor_intent.run {
-            creature_stats.max_speed = 4.0;
-        } else {
-            creature_stats.max_speed = 2000.0;
-        }
+        creature_stats.max_speed = Npc::get_max_speed(
+            position_interpolation.current_position,
+            actor_physics_opt,
+            actor_character_controller,
+            live_cell_ref,
+            current_cell,
+            &esm_store,
+            npc_stats,
+            &mut actor_container,
+            &creature_stats,
+            &world_settings,
+            local_player_opt.is_some(),
+        );
+        // if is_strafing
+        // creature_stats.
         creature_stats.set_movement_flag(CreatureStatsFlags::RUN, actor_intent.run);
         creature_stats.set_movement_flag(CreatureStatsFlags::SNEAK, actor_intent.sneak);
     }
@@ -152,7 +199,7 @@ pub fn update_character_components(
         }
         if !is_actor {
             update_anim_queue();
-        } else if !creature_stats.dead {
+        } else if !creature_stats.is_dead() {
             let on_ground = actor_physics_opt
                 .map(|actor_physics| {
                     actor_physics.on_ground && actor_physics.internal_collision_mode
@@ -477,7 +524,7 @@ pub fn update_character_components(
             }
 
             movement = move_vec;
-        } else if creature_stats.dead {
+        } else if creature_stats.is_dead() {
             // initial start of death animation for actors that started the game as dead
             // not done in constructor since we need to give scripts a chance to set the mSkipAnim flag
             if !character_controller.animation.skip_anim
@@ -509,7 +556,7 @@ fn is_flying(
     if !is_actor {
         return false;
     }
-    if stats.dead {
+    if stats.is_dead() {
         return false;
     }
     let is_paralyzed_not_godmode = !(is_local_player && world_settings.god_mode)

@@ -9,7 +9,10 @@ use strum::EnumCount;
 use strum_macros::EnumCount as EnumCountMacro;
 
 use crate::{
-    animation::NifSkeletonId, physics::CreatureControllerLink, utils::prepend_mesh_data_path,
+    animation::NifSkeletonId,
+    defs::{LocalPlayerMesh, MeshEntityLink},
+    physics::{CreatureControllerLink, RootMotionState},
+    utils::prepend_mesh_data_path,
 };
 
 #[derive(Component)]
@@ -22,6 +25,7 @@ pub fn spawn_npc(
     parts: Vec<Option<&Bodypart>>,
     head_path: String,
     hair_path: String,
+    is_local_player: bool,
 ) -> Entity {
     let asset_handle = asset_server.load("data/base_anim.nif");
     let skeleton_entity = commands
@@ -34,6 +38,20 @@ pub fn spawn_npc(
             Visibility::Inherited,
         ))
         .id();
+    commands.entity(skeleton_entity).insert((
+        // for tracking animation times with the animation system
+        RootMotionState::default(),
+        Name::new("player mesh"),
+    ));
+    commands
+        .entity(root_entity)
+        .insert(MeshEntityLink(skeleton_entity));
+    if is_local_player {
+        commands.entity(skeleton_entity).insert((
+            //Default to first person, so hide the player's mesh
+            LocalPlayerMesh,
+        ));
+    }
     commands.entity(root_entity).add_child(skeleton_entity);
     commands
         .entity(root_entity)

@@ -1,6 +1,8 @@
 use crate::{
-    EsmError, EsmReader, Load, RefId, StringRefId, esm_record::EsmRecord, name4,
-    types::flags::ObjectFlags,
+    EsmError, EsmReader, Load, RefId, StringRefId,
+    esm_record::EsmRecord,
+    name4,
+    types::{enums::Specialization, flags::ObjectFlags},
 };
 use esm_parser_macros::LoadSave;
 #[derive(Default, Debug)]
@@ -77,8 +79,8 @@ impl Skill {
 #[derive(LoadSave, Debug)]
 pub struct SkillData {
     pub attribute: i32,
-    ///  0 - Combat, 1 - Magic, 2 - Stealth
-    pub specialization: i32,
+    /// 0 - Combat, 1 - Magic, 2 - Stealth
+    pub specialization: Specialization,
 
     /// How much skill improves through use. Meaning of each field depends on what skill
     /// this is. See SkillUsage above
@@ -88,7 +90,7 @@ impl Default for SkillData {
     fn default() -> Self {
         Self {
             attribute: 0,
-            specialization: 0,
+            specialization: Specialization::Combat,
             use_value: [1.0; 4],
         }
     }
@@ -240,6 +242,9 @@ impl SkillIndex {
             }
         }
         None
+    }
+    pub fn to_refid(self) -> RefId {
+        Self::SKILL_IDS.get(self as usize).unwrap().clone()
     }
 }
 #[derive(Debug, Default)]

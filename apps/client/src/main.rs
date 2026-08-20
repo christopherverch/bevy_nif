@@ -40,7 +40,6 @@ mod animation;
 mod camera;
 mod const_defs;
 mod defs;
-mod engine;
 mod equipment;
 mod events;
 mod gui;
@@ -56,6 +55,7 @@ mod player_input;
 mod setup;
 mod setup_funcs;
 mod setup_scene;
+mod shared_defs;
 mod stat;
 mod temporary_funcs;
 mod utils;
@@ -104,6 +104,8 @@ fn main() {
             SpatialAudioPlugin,
             NetworkingPlugin,
         ))
+        .add_plugins(EguiPlugin::default())
+        .add_plugins(WorldInspectorPlugin::default())
         .add_plugins(MWCameraPlugin)
         .insert_resource(Pause(true));
     app.edit_schedule(FixedUpdate, |schedule| {
@@ -125,9 +127,8 @@ fn main() {
         .insert_resource(NextAvailableSkeletonId::default())
         .init_state::<GameState>()
         .init_state::<CharCreationState>()
-        .add_systems(Startup, setup_scene)
+        .add_systems(Startup, (populate_esm_resources, setup_scene).chain())
         .add_systems(Update, setup_player)
-        .add_systems(Startup, populate_esm_resources)
         .add_observer(handle_nif_event)
         .add_observer(on_player_ready_weapon)
         .add_observer(insert_nif_animator_links)

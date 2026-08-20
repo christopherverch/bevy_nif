@@ -23,8 +23,8 @@ impl Plugin for LandscapePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(MaterialPlugin::<TerrainBlendMaterial>::default())
             .insert_resource(LandscapeManagementSettings {
-                load_radius_cells: 3,
-                unload_radius_cells: 4,
+                load_radius_cells: 1,
+                unload_radius_cells: 2,
             })
             .insert_resource(LoadedLandscapeEntities::default())
             .add_systems(Update, setup_landscape_images)

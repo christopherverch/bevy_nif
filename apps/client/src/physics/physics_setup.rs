@@ -16,6 +16,7 @@ pub fn setup_nif_physics(
     mut commands: Commands,
     nif_assets: Res<Assets<Nif>>,
     query: Query<(Entity, &NifScene, &NeedsNifPhysics, &CreatureControllerLink)>,
+    collider_entity_links: Query<&ColliderEntityLink>,
 ) {
     for (top_level_entity, nif_scene, needs_physics, creature_controller_link) in query.iter() {
         let Some(nif_asset) = nif_assets.get(&nif_scene.0) else {
@@ -103,6 +104,9 @@ pub fn setup_nif_physics(
         // height to align its base with the entity's transform.
         //let vertical_offset = aabb.half_extents().y;
         let vertical_offset = aabb.half_extents().y;
+        if let Ok(existing_collider_link) = collider_entity_links.get(creature_controller_link.0) {
+            commands.entity(existing_collider_link.0).despawn();
+        }
         commands.entity(creature_controller_link.0).insert((
             CreaturePhysicsState {
                 // Also add a "copy" (sharedshape) of the collider to our state component for easy access

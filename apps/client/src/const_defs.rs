@@ -1,2 +1,4 @@
-pub const MORROWIND_CELL_SIZE: f32 = 102.0;
+use common::consts::MW_UNITS_PER_METER;
+
 pub const FIRST_PERSON_CAMERA_HEIGHT_OFFSET: f32 = 2.64;
+pub const CELL_SIZE_METERS: f32 = 8192.0 / MW_UNITS_PER_METER;

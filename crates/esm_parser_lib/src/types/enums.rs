@@ -52,10 +52,9 @@ pub enum AttributeIdI8 {
 }
 
 #[repr(i32)]
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Default)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Default, LoadSave)]
 pub enum Specialization {
     #[default]
-    None = -1,
     Combat = 0,
     Magic = 1,
     Stealth = 2,

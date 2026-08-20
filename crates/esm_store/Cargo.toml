@@ -1,0 +1,15 @@
+[package]
+name = "esm_store"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+bevy_ecs.workspace = true
+esm_parser_lib.workspace = true
+unordered_map.workspace = true
+
+[lints]
+workspace = true

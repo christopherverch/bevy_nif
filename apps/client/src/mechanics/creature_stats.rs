@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    defs::{DrawState, IdToEntityMap, Player, Stance},
+    defs::{DrawState, IdToEntityMap, Player, Stance, WorldSettings},
     magic_effects::{EffectKey, MagicEffects},
     mechanics::spells::Spells,
     stat::{AttributeValue, DynamicStat},
@@ -34,13 +34,36 @@ pub struct CreatureStats {
     pub max_speed: f32,
     pub side_movement_angle: f32,
     pub knocked_down: bool,
+    pub knocked_down_over_one_frame: bool,
     pub death_animation_finished: bool,
     pub block: bool,
-    pub dead: bool,
+    dead: bool,
     pub hit_recovery: bool,
     pub teleported: bool,
 }
 impl CreatureStats {
+    pub fn new(entity_id: EntityId) -> Self {
+        Self {
+            entity_id,
+            attributes: HashMap::new(),
+            magic_effects: MagicEffects::default(),
+            fall_height: 0.0,
+            dead: false,
+            teleported: false,
+            stats: DynamicStats::default(),
+            death_animation_finished: false,
+            movement_flags: CreatureStatsFlags::RUN,
+            level: 0,
+            spells: Spells::default(),
+            max_speed: 200.0,
+            side_movement_angle: 0.0,
+            draw_state: DrawState::Nothing,
+            knocked_down: false,
+            knocked_down_over_one_frame: false,
+            block: false,
+            hit_recovery: false,
+        }
+    }
     fn health(&self) -> &DynamicStat<f32> {
         &self.stats.health
     }
@@ -100,6 +123,36 @@ impl CreatureStats {
         } else {
             self.movement_flags &= !flag;
         }
+    }
+    pub fn set_knocked_down(&mut self, value: bool) {
+        self.knocked_down = value;
+        if !value {
+            self.knocked_down_over_one_frame = false;
+        }
+    }
+    pub fn knocked_down(&self) -> bool {
+        self.knocked_down
+    }
+
+    pub fn set_knocked_down_over_one_frame(&mut self, value: bool) {
+        self.knocked_down_over_one_frame = value;
+    }
+
+    pub fn knocked_down_over_one_frame(&self) -> bool {
+        self.knocked_down_over_one_frame
+    }
+    pub fn is_paralyzed(&self, is_player: bool, world_settings: &WorldSettings) -> bool {
+        if world_settings.god_mode && is_player {
+            return false;
+        }
+        return self
+            .magic_effects
+            .get_or_default(MagicEffect::PARALYZE)
+            .get_magnitude()
+            > 0.0;
+    }
+    pub fn is_dead(&self) -> bool {
+        self.dead
     }
 }
 bitflags! {

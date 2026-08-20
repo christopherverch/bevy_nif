@@ -67,7 +67,7 @@ fn test_print_samples() {
             //"BODY", "REPA", "PGRD", "CELL", "NPC_", "SNDG", "AMMO", "LVLN", "SCPT", "DIAL",
             //"INFO", "LTEX", "WAYP", "LAND", "KEYM",
             // "LAND", "LTEX", "WEAP",
-            "SPEL",
+            "CELL",
         ];
         while reader.has_more_recs().unwrap() {
             let name = reader.read_rec_name().unwrap();
@@ -76,10 +76,10 @@ fn test_print_samples() {
 
             let count = *parsed_counts.get(&name_str).unwrap_or(&0);
 
-            if target_types.contains(&name_str.as_str()) && count < 100 {
+            if target_types.contains(&name_str.as_str()) {
                 // Pass a printing closure to the dispatcher
                 process_record(reader, &name.data, |tag, data| {
-                    println!("[{}] {:#?}", std::str::from_utf8(tag).unwrap(), data);
+                    println!("[{}] {:?}", std::str::from_utf8(tag).unwrap(), data);
                 })
                 .unwrap();
 
@@ -88,5 +88,6 @@ fn test_print_samples() {
                 reader.skip_record().unwrap();
             }
         }
+        dbg!("finished");
     });
 }

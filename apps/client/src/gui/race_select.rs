@@ -19,7 +19,7 @@ use esm_parser_lib::{
 use esm_store::{EsmStore, Store};
 
 use crate::{
-    defs::LocalPlayer,
+    defs::{ColliderEntityLink, LocalPlayer},
     gui::{
         RenderPosition,
         generic_button::generic_button,
@@ -316,7 +316,7 @@ fn on_race_accepted(
     mut commands: Commands,
     // TEMPORARY
     player_mesh: Single<Entity, With<NpcMesh>>,
-    player_entity: Single<Entity, With<LocalPlayer>>,
+    player_components: Single<(Entity, &ColliderEntityLink), With<LocalPlayer>>,
 ) {
     let is_male = race_select_ui.is_male;
     let neck = get_body_parts(
@@ -362,15 +362,17 @@ fn on_race_accepted(
     );
     // TEMPORARY
     commands.entity(*player_mesh).despawn();
-    let player_position = player_location.translation();
+
     spawn_npc(
-        *player_entity,
+        player_components.0,
         &mut commands,
         &asset_server,
         next_available_skeleton_id.next(),
         parts,
         head_path,
         hair_path,
+        //TEMPORARY
+        true,
     );
     dbg!(neck);
     dbg!(chest);

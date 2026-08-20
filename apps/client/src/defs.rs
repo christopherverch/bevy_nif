@@ -173,8 +173,6 @@ pub enum Direction {
 
 #[derive(Component)]
 pub struct AnimateableEntity;
-#[derive(Resource)]
-pub struct EsmReaderResource(pub EsmReader);
 
 pub static ESM_READER: OnceLock<RwLock<EsmReader>> = OnceLock::new();
 #[derive(Resource)]
@@ -196,7 +194,7 @@ pub struct LandscapeManagementSettings {
 }
 #[derive(Resource, Default, Debug)]
 pub struct LoadedLandscapeEntities {
-    // Maps cell (x, y) coordinates to the Bevy Entity ID that represents that landscape cell's mesh.
+    // Maps cell (x, y) coordinates to the Bevy Entity ID that represents that landscape cell's entity
     pub cell_to_entity: HashMap<(i32, i32), Entity>,
 }
 #[derive(Component, Debug, Copy, Clone)]

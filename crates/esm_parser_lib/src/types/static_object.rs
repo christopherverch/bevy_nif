@@ -1,17 +1,25 @@
-use crate::{EsmError, EsmReader, Load, RefId, types::flags::ObjectFlags};
+use crate::{EsmError, EsmReader, RefId, esm_record::EsmRecord, name4, types::flags::ObjectFlags};
 
 #[derive(Debug, Default, Clone)]
 pub struct Static {
-    pub flags: ObjectFlags,
+    pub record_flags: ObjectFlags,
     pub id: RefId,
+    pub name: String,
     pub model: String,
 }
+impl EsmRecord for Static {
+    fn id(&self) -> &RefId {
+        &self.id
+    }
 
-// Implement the Load trait for your new struct
-impl Load for Static {
-    fn load(reader: &mut EsmReader) -> Result<Self, EsmError> {
+    const RECORD_ID: u32 = name4!("STAT").to_u32();
+}
+
+impl Static {
+    pub fn load(reader: &mut EsmReader, is_deleted: &mut bool) -> Result<Self, EsmError> {
+        *is_deleted = false;
         let mut stat = Self::default();
-        stat.flags = reader.get_record_flags();
+        stat.record_flags = reader.get_record_flags();
 
         let mut has_name = false;
         while reader.has_more_subs() {
@@ -24,9 +32,12 @@ impl Load for Static {
                 b"MODL" => {
                     stat.model = reader.read_header_decode_str()?.to_string();
                 }
+                b"FNAM" => {
+                    stat.name = reader.read_header_decode_str()?.to_string();
+                }
                 b"DELE" => {
                     reader.skip_sub_header()?;
-                    stat.flags.insert(ObjectFlags::DELETED);
+                    *is_deleted = true;
                 }
                 _ => {
                     return Err(reader.fail(&format!(

@@ -65,6 +65,7 @@ pub fn interpolate_visual_positions(
     time: Res<Time>,
 ) {
     for (mut interpolation, mut transform) in interpolation_q {
+        dbg!(transform.translation);
         transform.translation = interpolation.get_and_update_interpolated_pos(time.delta_secs());
     }
 }
@@ -433,8 +434,6 @@ pub fn character_movement_system(
         // --- Finalize Position ---
         actor_fd.is_on_ground = is_on_ground;
         actor_fd.is_on_slope = is_on_slope;
-        // The final subtraction of half_extents_y converts from "Center of Mass"
-        // back to "Foot Position" which Bevy/Morrowind use for the Transform.
         actor_fd.position = new_position;
         position_interpolation.velocity = velocity;
     }

@@ -1,5 +1,5 @@
 use esm_parser_lib::{
-    EsmError, EsmReader, LandTexture, Landscape, Weapon,
+    ESM3ExteriorCellRefId, EsmError, EsmReader, LandTexture, Landscape, RefId, Weapon,
     types::{
         bodypart::Bodypart, cell::Cell, cell_ref::CellRef, creature::Creature, gmst::GameSetting,
         magic_effect::MagicEffect, race::Race, reference::Reference, skill::Skill, spell::Spell,
@@ -18,6 +18,7 @@ pub fn process_record<F>(
 where
     F: FnMut(&[u8; 4], &dyn Debug),
 {
+    let mut seyda_neen_cell = None;
     let mut is_deleted = false;
 
     match name {
@@ -38,14 +39,15 @@ where
             on_load(name, &weap);
         }
         b"CELL" => {
-            let mut cell = Cell::default();
-            cell.load(reader, &mut is_deleted, false)?;
-            if cell.name == "Seyda Neen" {
-                on_load(name, &cell);
-            }
+            let mut cell = Cell::load(reader, &mut is_deleted, false)?;
             let mut cell_ref = CellRef::default();
-            while Cell::get_next_ref(reader, &mut cell_ref, &mut is_deleted)? {
-                on_load(b"REFR", &cell_ref); // Sub-records are debugged here
+            if cell.id == RefId::ESM3ExteriorCell(ESM3ExteriorCellRefId::new(-2, -9)) {
+                on_load(name, &cell);
+                cell.post_load(reader).unwrap();
+                seyda_neen_cell = Some(cell);
+                dbg!(&seyda_neen_cell);
+            } else {
+                while Cell::get_next_ref(reader, &mut cell_ref, &mut is_deleted)? {}
             }
         }
         b"REFR" => {
@@ -53,7 +55,7 @@ where
             on_load(name, &reference);
         }
         b"STAT" => {
-            let static_obj: Static = reader.load()?;
+            let static_obj: Static = Static::load(reader, &mut is_deleted)?;
             on_load(name, &static_obj);
         }
         b"RACE" => {
@@ -89,6 +91,13 @@ where
         }
         _ => {
             reader.skip_record()?;
+        }
+    }
+    if let Some(seyda_neen) = seyda_neen_cell {
+        seyda_neen.restore(reader, 0).unwrap();
+        let mut cell_ref = CellRef::default();
+        while Cell::get_next_ref(reader, &mut cell_ref, &mut is_deleted)? {
+            on_load(b"REFR", &cell_ref); // Sub-records are debugged here
         }
     }
     Ok(())

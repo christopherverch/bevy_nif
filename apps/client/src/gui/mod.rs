@@ -1,3 +1,4 @@
+mod debug_menu;
 mod generic_button;
 mod race_select;
 mod server_selection;
@@ -13,7 +14,7 @@ use server_selection::{
 };
 use spell_description::setup_spell_description_tooltip;
 
-use crate::gui::race_select::on_preview_head_loaded;
+use crate::gui::{debug_menu::spawn_debug_menu_scene, race_select::on_preview_head_loaded};
 
 // External
 
@@ -29,6 +30,10 @@ impl Plugin for MWGuiPlugin {
             .add_systems(
                 OnExit(CharCreationState::ChoosingRace),
                 despawn_race_select_panel,
+            )
+            .add_systems(
+                OnExit(CharCreationState::ChoosingRace),
+                spawn_debug_menu_scene,
             )
             .add_systems(Update, button_system.run_if(in_state(GameState::MainMenu)))
             .add_systems(

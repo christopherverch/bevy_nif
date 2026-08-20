@@ -20,7 +20,8 @@ pub const LAND_VTEX_TEXTURE_PALETTE_SIZE: usize = LAND_NUM_TEXTURES * 2;
 pub const VNML_PAYLOAD_SIZE: usize = LAND_NUM_VERTS * 3;
 pub const VHGT_PAYLOAD_SIZE: usize = std::mem::size_of::<f32>() + LAND_NUM_VERTS + 3;
 pub const WNAM_PAYLOAD_SIZE: usize = 81;
-pub const MORROWIND_HEIGHT_SCALE: f32 = 0.1;
+/// This is 1 / (morrowind units -> bevy units)/8 because 1 vertex height = 8 mw units
+pub const MORROWIND_HEIGHT_SCALE: f32 = 1.0 / 8.748906386;
 pub const VCLR_PAYLOAD_SIZE: usize = LAND_NUM_VERTS * 3;
 pub const LAND_INTV_PAYLOAD_SIZE: usize = std::mem::size_of::<i32>() * 2;
 pub const LAND_DATA_PAYLOAD_SIZE: usize = std::mem::size_of::<u32>();
@@ -383,7 +384,6 @@ impl Landscape {
                 b"VHGT" => {
                     if self.present_data_types.contains(LandDataTypes::VHGT) {
                         if reader.get_sub_size() as usize == VHGT_PAYLOAD_SIZE {
-                            // --- This is the new decoding logic, moved from your Bevy app ---
                             let height_offset: f32 =
                                 reader.read_typed(ConsumptionType::SubrecordPayload)?;
 
@@ -398,7 +398,6 @@ impl Landscape {
                             reader.read_exact(buffer, ConsumptionType::SubrecordPayload)?;
                             reader.skip_raw_bytes(3, ConsumptionType::SubrecordPayload)?; // Skip padding
 
-                            // Now, perform the decoding immediately
                             let mut decoded_heights = vec![0.0f32; LAND_NUM_VERTS];
                             let mut current_z_at_first_col_unscaled = height_offset;
 
@@ -421,7 +420,6 @@ impl Landscape {
                             payload_data.vertex_heights = Some(LandVertexHeightData {
                                 heights: decoded_heights,
                             });
-                            // --- End of new decoding logic ---
                         } else if reader.get_sub_size() > 0 {
                             eprintln!(
                                 "WARN: VHGT size mismatch for LAND ({},{}). Expected {}, got {}. Skipping.",
@@ -448,7 +446,7 @@ impl Landscape {
                 }
                 b"WNAM" => {
                     // WNAM is special: Landscape::load already attempts to load it into self.wnam_data_direct.
-                    // Here, we can choose to populate payload_data.wnam_global_map_data as well.
+                    // We can choose to populate payload_data.wnam_global_map_data as well.
                     if self.present_data_types.contains(LandDataTypes::WNAM) {
                         if reader.get_sub_size() as usize == WNAM_PAYLOAD_SIZE {
                             // If wnam_data_direct was successfully loaded, we could copy from there.
@@ -464,7 +462,7 @@ impl Landscape {
                                 .read_exact(u8_slice_for_read, ConsumptionType::SubrecordPayload)?;
                             payload_data.wnam_global_map_data = Some(wnam_array);
 
-                            // Verify against already loaded wnam_data_direct if desired (optional debug check)
+                            // Verify against already loaded wnam_data_direct (optional debug check)
                             // if let Some(existing_wnam_box) = &self.wnam_data_direct {
                             //     if &wnam_array[..] != &existing_wnam_box[..] {
                             //         eprintln!("WARN: WNAM data re-read differs from initially loaded for LAND ({},{})", self.grid_x, self.grid_y);

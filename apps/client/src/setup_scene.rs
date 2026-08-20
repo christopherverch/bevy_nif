@@ -1,4 +1,7 @@
-use crate::defs::{CellLookup, MWCell, PlayerCamera, TestingComponent};
+use crate::{
+    const_defs::CELL_SIZE_METERS,
+    defs::{CellLookup, ESM_READER, MWCell, PlayerCamera, TestingComponent},
+};
 use bevy::{
     camera::Hdr,
     core_pipeline::prepass::{DeferredPrepass, DepthPrepass, MotionVectorPrepass},
@@ -7,7 +10,16 @@ use bevy::{
     prelude::*,
 };
 use bevy_anti_alias::fxaa::Fxaa;
-use bevy_nif::{loader::Nif, spawner::NifScene};
+use bevy_nif::{
+    check_exists, check_exists_lowercase_extension, clean_path_common, loader::Nif,
+    resolve_bevy_asset_path, spawner::NifScene,
+};
+use common::consts::MW_UNITS_PER_METER;
+use esm_parser_lib::{
+    ESM3ExteriorCellRefId, EmptyRefId, EsmReader, RefId, refid,
+    types::{cell::Cell, cell_ref::CellRef},
+};
+use esm_store::EsmStore;
 use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 
 #[derive(Component)]
@@ -19,11 +31,19 @@ pub fn setup_scene(
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
+    esm_store: Res<EsmStore>,
 ) {
+    let mut esm_reader = ESM_READER.get().unwrap().write().unwrap();
+
     let start_location = Vec3::new(185.0, 4.8, -890.0);
     let glass_helmet_pos = Vec3::new(195.0, 4.8, -890.0);
     let head_handle = asset_server.load("data/A_Glass_Helmet.nif");
-    spawn_nif_unattached(&mut commands, head_handle, glass_helmet_pos);
+    spawn_nif_unattached(
+        &mut commands,
+        head_handle,
+        glass_helmet_pos,
+        Quat::default(),
+    );
     let head = asset_server.load("data/Data Files/Meshes/b/B_N_High Elf_M_Head_01.nif");
     let hair = asset_server.load("data/Data Files/Meshes/b/B_N_High Elf_M_Hair_04.nif");
     commands.spawn((
@@ -72,14 +92,6 @@ pub fn setup_scene(
         Transform::from_translation(camera_start_pos).looking_at(Vec3::new(0.0, 0.3, 0.0), Vec3::Y),
         // MSAA needs to be off for Deferred rendering
         Msaa::Off,
-        DistanceFog {
-            color: Color::srgb_u8(43, 44, 47),
-            falloff: FogFalloff::Linear {
-                start: 10.0,
-                end: 40.0,
-            },
-            ..default()
-        },
         AmbientLight {
             color: Color::linear_rgb(1.0, 1.0, 1.0),
             brightness: 500.0,
@@ -123,7 +135,7 @@ pub fn setup_scene(
         },
         CascadeShadowConfigBuilder {
             num_cascades: 3,
-            maximum_distance: 10.0,
+            maximum_distance: 100.0,
             ..default()
         }
         .build(),
@@ -248,15 +260,75 @@ pub fn setup_scene(
         HudText,
     ));
 }
+fn test_build_seyda_neen(
+    store: &EsmStore,
+    commands: &mut Commands,
+    esm_reader: &mut EsmReader,
+    asset_server: &AssetServer,
+) {
+    let cell = store
+        .cells
+        .get(&RefId::ESM3ExteriorCell(ESM3ExteriorCellRefId::new(-2, -9)))
+        .unwrap();
 
-pub fn spawn_nif_unattached(commands: &mut Commands, nif_handle: Handle<Nif>, pos: Vec3) {
-    commands.spawn((
-        NifScene(nif_handle),
-        Visibility::Visible,
-        Transform {
-            translation: pos,
-            rotation: Quat::from_rotation_y(PI),
-            scale: Vec3::splat(0.03), //nifs are huge otherwise
-        },
-    ));
+    cell.restore(esm_reader, 0).unwrap();
+    dbg!(&cell);
+    let mut cell_ref = CellRef::default();
+    let mut is_deleted = false;
+    let parent = commands
+        .spawn((Transform::default(), Name::new("PARENT")))
+        .id();
+    while let Ok(has_ref) = Cell::get_next_ref(esm_reader, &mut cell_ref, &mut is_deleted) {
+        if !has_ref {
+            return;
+        }
+        if cell_ref.id != RefId::Empty(EmptyRefId) {
+            dbg!(&cell_ref.id);
+            if let Some(stat) = store.statics.get(&cell_ref.id) {
+                let pos = cell_ref.pos.pos;
+                let path = format!("data/Data Files/Meshes/{}", stat.model);
+                let path = clean_path_common(&path);
+                let path = if check_exists(&path) {
+                    path
+                } else {
+                    resolve_bevy_asset_path(&path).unwrap()
+                };
+                dbg!(&path);
+                let handle = asset_server.load(path);
+                let mut pos = pos / MW_UNITS_PER_METER;
+                let tmp = pos.z;
+                pos.z = pos.y;
+                pos.y = tmp;
+                pos.y = tmp - 1.0 / MW_UNITS_PER_METER;
+                pos.x = -pos.x;
+                pos.x += CELL_SIZE_METERS / 2.0;
+                pos.z -= CELL_SIZE_METERS / 2.0;
+                dbg!(pos);
+                let rot = cell_ref.pos.rot;
+                dbg!(rot);
+                let rot = Quat::from_euler(EulerRot::XYZ, -rot.x, rot.y, -rot.z);
+                let nif = spawn_nif_unattached(commands, handle, pos, rot);
+                commands.entity(parent).add_child(nif);
+            }
+        }
+    }
+}
+
+pub fn spawn_nif_unattached(
+    commands: &mut Commands,
+    nif_handle: Handle<Nif>,
+    pos: Vec3,
+    rotation: Quat,
+) -> Entity {
+    commands
+        .spawn((
+            NifScene(nif_handle),
+            Visibility::Visible,
+            Transform {
+                translation: pos,
+                rotation: Quat::from_rotation_x(-FRAC_PI_2) * Quat::from_rotation_z(-PI) * rotation,
+                scale: Vec3::splat(1.0 / MW_UNITS_PER_METER), //nifs are huge otherwise
+            },
+        ))
+        .id()
 }

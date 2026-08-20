@@ -15,7 +15,7 @@ where
         let sum = self.base + self.modifier;
         let zero = T::default();
 
-        // Can't use max without further restricting T, so just use < instead
+        // Can't use .max() without further restricting T, so just use < instead
         if capped && sum < zero { zero } else { sum }
     }
 }
@@ -94,28 +94,25 @@ where
         self.current / modifier
     }
 }
-// Partial Equality: Compares the "current" values
 impl PartialEq<f32> for DynamicStat<f32> {
     fn eq(&self, other: &f32) -> bool {
         self.current == *other
     }
 }
 
-// Required for the derive/generic parity
 impl PartialEq for DynamicStat<f32> {
     fn eq(&self, other: &Self) -> bool {
         self.current == other.current
     }
 }
 
-// Partial Comparison: Allows using <, >, <=, >= against f32
+// Partial Comparison against f32
 impl PartialOrd<f32> for DynamicStat<f32> {
     fn partial_cmp(&self, other: &f32) -> Option<std::cmp::Ordering> {
         self.current.partial_cmp(other)
     }
 }
 
-// Allows comparing DynamicStat to DynamicStat
 impl PartialOrd for DynamicStat<f32> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.current.partial_cmp(&other.current)

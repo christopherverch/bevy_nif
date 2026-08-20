@@ -1,16 +1,26 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    defs::{LandscapeCell, LandscapeLoader, LandscapeManagementSettings, LocalPlayer},
+    const_defs::CELL_SIZE_METERS,
+    defs::{ESM_READER, LandscapeCell, LandscapeLoader, LandscapeManagementSettings, LocalPlayer},
     landscape::ALL_LANDSCAPES,
+    setup_scene::spawn_nif_unattached,
 };
 use bevy::prelude::*;
+use bevy_nif::{check_exists, clean_path_common, resolve_bevy_asset_path};
+use common::consts::MW_UNITS_PER_METER;
+use esm_parser_lib::{
+    ESM3ExteriorCellRefId, EmptyRefId, EsmReader, RefId,
+    types::{cell::Cell, cell_ref::CellRef},
+};
+use esm_store::EsmStore;
+#[derive(Component)]
+pub struct LandscapeContainedEntities(pub Vec<Entity>);
 
-use crate::const_defs::MORROWIND_CELL_SIZE;
 pub fn spawn_despawn_landscapes(
     player_transform: Single<&Transform, With<LocalPlayer>>,
     landscapes_query: Query<
-        (Entity, &LandscapeCell),
+        (Entity, &LandscapeCell, &LandscapeContainedEntities),
         (With<LandscapeCell>, Without<LandscapeLoader>),
     >,
     already_loading_landscapes: Query<
@@ -18,6 +28,8 @@ pub fn spawn_despawn_landscapes(
         (Without<LandscapeCell>, With<LandscapeLoader>),
     >,
     settings: Res<LandscapeManagementSettings>,
+    store: Res<EsmStore>,
+    asset_server: Res<AssetServer>,
     mut commands: Commands,
     mut old_player_cell: Local<Option<(i32, i32)>>,
 ) {
@@ -25,8 +37,9 @@ pub fn spawn_despawn_landscapes(
         return;
     };
     // have to negate x because morrowind is left-handed coordinate system
-    let current_cell_x = (-player_transform.translation.x / MORROWIND_CELL_SIZE).floor() as i32;
-    let current_cell_y = (player_transform.translation.z / MORROWIND_CELL_SIZE).floor() as i32;
+    let current_cell_x = (-player_transform.translation.x / CELL_SIZE_METERS).floor() as i32;
+    let current_cell_y = (player_transform.translation.z / CELL_SIZE_METERS).floor() as i32;
+    dbg!(current_cell_x, current_cell_y);
     let current_player_cell_coords = (current_cell_x, current_cell_y);
     if *old_player_cell == Some(current_player_cell_coords) {
         return; // Player hasn't changed cells
@@ -39,8 +52,11 @@ pub fn spawn_despawn_landscapes(
         }
     }
     let mut currently_loaded_cells = HashMap::new();
-    for (landscape_entity, landscape) in landscapes_query {
-        currently_loaded_cells.insert((landscape.x, landscape.y), landscape_entity);
+    for (landscape_entity, landscape, contained_entities) in landscapes_query {
+        currently_loaded_cells.insert(
+            (landscape.x, landscape.y),
+            (landscape_entity, contained_entities),
+        );
     }
     let mut loading_cells = HashMap::new();
     for (landscape_entity, loading_cell) in already_loading_landscapes {
@@ -55,6 +71,14 @@ pub fn spawn_despawn_landscapes(
         if !currently_loaded_cells.contains_key(&desired_cell)
             && !loading_cells.contains_key(&desired_cell)
         {
+            let mut esm_reader = ESM_READER.get().unwrap().write().unwrap();
+            let loaded_entities = load_setup_exterior(
+                &store,
+                &mut commands,
+                &mut esm_reader,
+                &asset_server,
+                IVec2::new(desired_cell.0, desired_cell.1),
+            );
             //if one isn't loaded:
             commands.spawn((
                 LandscapeLoader {
@@ -65,16 +89,70 @@ pub fn spawn_despawn_landscapes(
                     x: desired_cell.0,
                     y: desired_cell.1,
                 },
+                LandscapeContainedEntities(loaded_entities),
                 Visibility::Visible,
             ));
         }
     }
-    for (currently_loaded_cell, landscape_entity) in currently_loaded_cells {
+    for (currently_loaded_cell, (landscape_entity, contained_entities)) in currently_loaded_cells {
         let dist_x = (currently_loaded_cell.0 - current_cell_x).abs();
         let dist_y = (currently_loaded_cell.1 - current_cell_y).abs();
         let unload_radius = settings.unload_radius_cells as i32;
         if dist_x > unload_radius || dist_y > unload_radius {
+            for entity in &contained_entities.0 {
+                commands.entity(*entity).despawn();
+            }
             commands.entity(landscape_entity).despawn();
         }
     }
+}
+fn load_setup_exterior(
+    store: &EsmStore,
+    commands: &mut Commands,
+    esm_reader: &mut EsmReader,
+    asset_server: &AssetServer,
+    pos: IVec2,
+) -> Vec<Entity> {
+    let mut spawned_entities = Vec::new();
+    let cell = store
+        .cells
+        .get(&RefId::ESM3ExteriorCell(ESM3ExteriorCellRefId::new(
+            pos.x, pos.y,
+        )))
+        .unwrap();
+
+    cell.restore(esm_reader, 0).unwrap();
+    let mut cell_ref = CellRef::default();
+    let mut is_deleted = false;
+    while let Ok(has_ref) = Cell::get_next_ref(esm_reader, &mut cell_ref, &mut is_deleted) {
+        if !has_ref {
+            return spawned_entities;
+        }
+        if cell_ref.id != RefId::Empty(EmptyRefId) {
+            if let Some(stat) = store.statics.get(&cell_ref.id) {
+                let pos = cell_ref.pos.pos;
+                let path = format!("data/Data Files/Meshes/{}", stat.model);
+                let path = clean_path_common(&path);
+                let path = if check_exists(&path) {
+                    path
+                } else {
+                    resolve_bevy_asset_path(&path).unwrap()
+                };
+                let handle = asset_server.load(path);
+                let mut pos = pos / MW_UNITS_PER_METER;
+                let tmp = pos.z;
+                pos.z = pos.y;
+                pos.y = tmp;
+                pos.y = tmp - 1.0 / MW_UNITS_PER_METER;
+                pos.x = -pos.x;
+                pos.x += CELL_SIZE_METERS / 2.0;
+                pos.z -= CELL_SIZE_METERS / 2.0;
+                let rot = cell_ref.pos.rot;
+                let rot = Quat::from_euler(EulerRot::XYZ, -rot.x, rot.y, -rot.z);
+                let nif = spawn_nif_unattached(commands, handle, pos, rot);
+                spawned_entities.push(nif);
+            }
+        }
+    }
+    spawned_entities
 }

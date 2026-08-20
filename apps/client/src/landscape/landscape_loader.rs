@@ -1,6 +1,6 @@
 use super::terrain_material::{TerrainBlendMaterial, TerrainMaterialParams};
 use crate::{
-    const_defs::MORROWIND_CELL_SIZE,
+    const_defs::CELL_SIZE_METERS,
     defs::{
         ESM_READER, LandTextureDefinitions, LandscapeAwaitingImages, LandscapeCell, LandscapeLoader,
     },
@@ -273,9 +273,9 @@ fn finish_landscape_setup(
         },
     ));
     let cell_translation = Vec3::new(
-        -cell_position.0 as f32 * MORROWIND_CELL_SIZE,
+        -cell_position.0 as f32 * CELL_SIZE_METERS,
         0.0,
-        cell_position.1 as f32 * MORROWIND_CELL_SIZE,
+        cell_position.1 as f32 * CELL_SIZE_METERS,
     );
 
     commands
@@ -294,7 +294,7 @@ pub fn poll_task_finished(
 ) {
     for (landscape_entity, mut task) in &mut tasks {
         if let Some(landscape_task_result_opt) = check_ready(&mut task.0) {
-                        let Some(landscape_task_result) = landscape_task_result_opt else {
+            let Some(landscape_task_result) = landscape_task_result_opt else {
                 warn!("failed to build landscape! despawning entity from task_finished.");
                 commands.entity(landscape_entity).despawn();
                 return;
@@ -613,7 +613,7 @@ fn create_heightfield_collider(positions: &[[f32; 3]]) -> Collider {
         }
         grid.push(row);
     }
-    let scale_xz = MORROWIND_CELL_SIZE;
+    let scale_xz = CELL_SIZE_METERS;
     let scale = Vec3::new(scale_xz, 1.0, scale_xz);
 
     Collider::heightfield(grid, scale)
@@ -665,7 +665,7 @@ fn transform_mw_normal_to_bevy(mw_normal: Vec3) -> Vec3 {
         mw_normal.z / 127.0,
         mw_normal.y / 127.0,
     )
-        .normalize_or_zero()
+    .normalize_or_zero()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -756,7 +756,7 @@ pub fn generate_alpha_maps_for_active_layers(
                 TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST;
             alpha_map_image
         })
-    .collect();
+        .collect();
 
     let mut sampled_grid_texture_ids =
         vec![DEFAULT_TEXTURE_ID; blendmap_grid_dim * blendmap_grid_dim];

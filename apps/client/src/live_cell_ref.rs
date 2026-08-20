@@ -12,8 +12,8 @@ pub enum LiveCellRef {
 #[derive(Debug, Clone)]
 pub struct EsmPtr<T>(pub *const T);
 
-// SAFETY: This is safe because our EsmStore is a Global Resource
-// that never moves or deletes the Boxed records.
+// SAFETY: This is safe because EsmStore is a Global Resource
+// that never moves or deletes the Boxed records, and the backing data is only mutated in PostUpdate
 unsafe impl<T> Send for EsmPtr<T> {}
 unsafe impl<T> Sync for EsmPtr<T> {}
 
@@ -25,8 +25,12 @@ impl<T> Deref for EsmPtr<T> {
         unsafe { &*self.0 }
     }
 }
-/// Casts the esm ptr to a *mut T, takes in &mut EsmStore to make sure we have exclusive access to
-/// it since esmptr points into it
-pub fn esm_ptr_as_mut<T>(ptr: EsmPtr<T>, _esm_store: &mut EsmStore) -> *mut T {
-    ptr.0 as *mut T
+impl<T> EsmPtr<T> {
+    /// Safely yields a mutable reference
+    /// Because it borrows _esm_store mutably nothing else can touch EsmStore until this reference drops.
+    pub fn as_mut<'a>(&self, _esm_store: &'a mut EsmStore) -> &'a mut T {
+        // SAFETY: We know the pointer originates from this store,
+        // and taking &mut esm_store guarantees exclusive access.
+        unsafe { &mut *(self.0 as *mut T) }
+    }
 }

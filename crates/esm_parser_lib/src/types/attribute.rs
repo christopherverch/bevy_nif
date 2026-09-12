@@ -1,8 +1,6 @@
 use crate::{RefId, StringRefId};
-
-pub struct Attribute {
-    // who knows what goes here
-}
+/// Just so we can impl attribute so we access attributes like Attribute::Speed
+pub struct Attribute;
 impl Attribute {
     pub const STRENGTH: RefId = RefId::SizedString(StringRefId("Strength"));
     pub const INTELLIGENCE: RefId = RefId::SizedString(StringRefId("Intelligence"));
@@ -16,24 +14,24 @@ impl Attribute {
 
     // Array for indexing
     const ATTRIBUTES: [RefId; 8] = [
-        Self::STRENGTH,
-        Self::INTELLIGENCE,
-        Self::WILLPOWER,
-        Self::AGILITY,
-        Self::SPEED,
-        Self::ENDURANCE,
-        Self::PERSONALITY,
-        Self::LUCK,
+        Attribute::STRENGTH,
+        Attribute::INTELLIGENCE,
+        Attribute::WILLPOWER,
+        Attribute::AGILITY,
+        Attribute::SPEED,
+        Attribute::ENDURANCE,
+        Attribute::PERSONALITY,
+        Attribute::LUCK,
     ];
 
-    pub fn index_to_refid(index: i32) -> RefId {
-        if index < 0 || index >= Self::NUM_ATTRIBUTES as i32 {
+    pub fn attr_index_to_refid(index: i32) -> RefId {
+        if index < 0 || index >= Attribute::NUM_ATTRIBUTES as i32 {
             return RefId::default();
         }
-        Self::ATTRIBUTES.get(index as usize).unwrap().clone()
+        Attribute::ATTRIBUTES.get(index as usize).unwrap().clone()
     }
 
-    pub fn ref_id_to_index(id: &RefId) -> Option<usize> {
-        Self::ATTRIBUTES.iter().position(|x| x == id)
+    pub fn attr_ref_id_to_index(id: &RefId) -> Option<usize> {
+        Attribute::ATTRIBUTES.iter().position(|x| x == id)
     }
 }

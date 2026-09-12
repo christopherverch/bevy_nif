@@ -236,10 +236,11 @@ pub fn load_record(
     landscapes: &mut HashMap<(i32, i32), Landscape>,
     previous_loop_tex_amount: u32,
 ) {
+    let mut is_deleted = false;
     if *rec_name_bytes == *b"LTEX" {
-        match LandTexture::load(reader) {
+        match LandTexture::load(reader, &mut is_deleted) {
             Ok(tex) => {
-                if tex.flags.contains(ObjectFlags::DELETED) {
+                if is_deleted {
                     // Remove if a mod deleted it.
                     textures.remove(&tex.index);
                 } else {
@@ -327,7 +328,8 @@ pub fn load_record(
         match Npc::load(reader, &mut is_deleted) {
             Ok(npc) => {
                 if is_deleted {
-                    esm_store.npcs.remove_static(&npc.id);
+                    // TODO::
+                    // esm_store.npcs.remove_static(&npc.id);
                 } else {
                     esm_store.npcs.insert_static(npc.id.clone(), npc);
                 }

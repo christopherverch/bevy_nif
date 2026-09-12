@@ -208,7 +208,6 @@ impl CellRef {
 
                 // NAM0 / DELE: Skip headers (no data read)
                 b"NAM0" | b"DELE" => {
-                    // C++: esm.skipHSub();
                     reader.skip_sub_header()?;
                     if sub_name.as_bytes() == b"DELE" {
                         *is_deleted = true;

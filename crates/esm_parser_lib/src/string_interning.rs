@@ -5,7 +5,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::Mutex;
 
 #[derive(Debug, Eq)]
-struct CiString(Box<str>);
+struct CiString(&'static str);
 
 // Implement Hash/Eq to be case-insensitive
 impl Hash for CiString {
@@ -77,11 +77,10 @@ pub fn get_or_intern(s: &str) -> &'static str {
     }
 
     // Only allocate and leak if the string wasn't found.
-    let boxed: Box<str> = s.to_owned().into_boxed_str();
-    let static_ref: &'static str = Box::leak(boxed);
+    let static_ref: &'static str = Box::leak(s.to_owned().into_boxed_str());
 
     // Wrap the leaked str in the case-insensitive wrapper and insert.
-    locked.insert(CiString(Box::from(static_ref)));
+    locked.insert(CiString(static_ref));
 
     static_ref
 }

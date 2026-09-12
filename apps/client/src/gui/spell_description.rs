@@ -6,7 +6,6 @@ use esm_parser_lib::{
         effect_list::ENAMStruct,
         enums::EffectRange,
         flags::MagicEffectFlags,
-        gmst::GameSettingVariant,
         magic_effect::{MagicEffect, MagnitudeDisplayType},
         spell::{Spell, SpellType},
     },
@@ -91,7 +90,7 @@ pub fn update_spell_description_tooltip(
         };
         let effect_path_cleaned = clean_path_common(&effect.icon);
         let full_effect_path = format!("data/Data Files/Icons/{}", effect_path_cleaned);
-        let desc = get_magic_effect_string(
+        let _desc = get_magic_effect_string(
             effect,
             &indexed_enam_struct.data.attribute,
             &indexed_enam_struct.data.skill,
@@ -218,7 +217,7 @@ fn format_effect_string(data: &ENAMStruct, effect: &MagicEffect, esm_store: &Esm
         if data.min_magnitude == data.max_magnitude {}
     }
 
-    let effect_name = get_magic_effect_string(effect, &data.attribute, &data.skill, &esm_store);
+    let _effect_name = get_magic_effect_string(effect, &data.attribute, &data.skill, &esm_store);
 }
 pub fn format_spell_effect_line(
     spell: &Spell,

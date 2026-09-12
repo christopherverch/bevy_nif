@@ -10,7 +10,7 @@ use bevy::prelude::*;
 use bevy_nif::{check_exists, clean_path_common, resolve_bevy_asset_path};
 use common::consts::MW_UNITS_PER_METER;
 use esm_parser_lib::{
-    ESM3ExteriorCellRefId, EmptyRefId, EsmReader, RefId,
+    ESM3ExteriorCellRefId, EsmReader, RefId,
     types::{cell::Cell, cell_ref::CellRef},
 };
 use esm_store::EsmStore;
@@ -32,14 +32,23 @@ pub fn spawn_despawn_landscapes(
     asset_server: Res<AssetServer>,
     mut commands: Commands,
     mut old_player_cell: Local<Option<(i32, i32)>>,
+    mut last_player_pos: Local<Option<Vec2>>,
 ) {
+    // So we don't have to do all the cell spawning and despawning checks
+    // if the player hasn't moved much
+    if let Some(last_player_pos) = *last_player_pos {
+        if last_player_pos.distance_squared(player_transform.translation.xz()) < 2.0 {
+            return;
+        }
+    }
+    *last_player_pos = Some(player_transform.translation.xz());
+
     let Ok(landscapes) = ALL_LANDSCAPES.get().unwrap().try_read() else {
         return;
     };
     // have to negate x because morrowind is left-handed coordinate system
     let current_cell_x = (-player_transform.translation.x / CELL_SIZE_METERS).floor() as i32;
     let current_cell_y = (player_transform.translation.z / CELL_SIZE_METERS).floor() as i32;
-    dbg!(current_cell_x, current_cell_y);
     let current_player_cell_coords = (current_cell_x, current_cell_y);
     if *old_player_cell == Some(current_player_cell_coords) {
         return; // Player hasn't changed cells
@@ -124,30 +133,26 @@ fn load_setup_exterior(
         if !has_ref {
             return spawned_entities;
         }
-        if cell_ref.id != RefId::Empty(EmptyRefId) {
-            if let Some(stat) = store.statics.get(&cell_ref.id) {
-                let pos = cell_ref.pos.pos;
-                let path = format!("data/Data Files/Meshes/{}", stat.model);
-                let path = clean_path_common(&path);
-                let path = if check_exists(&path) {
-                    path
-                } else {
-                    resolve_bevy_asset_path(&path).unwrap()
-                };
-                let handle = asset_server.load(path);
-                let mut pos = pos / MW_UNITS_PER_METER;
-                let tmp = pos.z;
-                pos.z = pos.y;
-                pos.y = tmp;
-                pos.y = tmp - 1.0 / MW_UNITS_PER_METER;
-                pos.x = -pos.x;
-                pos.x += CELL_SIZE_METERS / 2.0;
-                pos.z -= CELL_SIZE_METERS / 2.0;
-                let rot = cell_ref.pos.rot;
-                let rot = Quat::from_euler(EulerRot::XYZ, -rot.x, rot.y, -rot.z);
-                let nif = spawn_nif_unattached(commands, handle, pos, rot);
-                spawned_entities.push(nif);
-            }
+        if let Some(stat) = store.statics.get(&cell_ref.id) {
+            let pos = cell_ref.pos.pos;
+            let path = format!("data/Data Files/Meshes/{}", stat.model);
+            let path = clean_path_common(&path);
+            let path = if check_exists(&path) {
+                path
+            } else {
+                resolve_bevy_asset_path(&path).unwrap()
+            };
+            //   let handle = asset_server.load(path);
+            let mut pos = pos / MW_UNITS_PER_METER;
+            let tmp = pos.z;
+            pos.z = pos.y;
+            pos.y = tmp;
+            pos.y = tmp - 1.0 / MW_UNITS_PER_METER;
+            pos.x = -pos.x;
+            pos.x += CELL_SIZE_METERS / 2.0;
+            pos.z -= CELL_SIZE_METERS / 2.0;
+            let rot = cell_ref.pos.rot;
+            let rot = Quat::from_euler(EulerRot::XYZ, -rot.x, rot.y, -rot.z);
         }
     }
     spawned_entities

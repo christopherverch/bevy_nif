@@ -10,20 +10,18 @@ use bevy::{
     prelude::*,
 };
 use bitflags::bitflags;
-use common::{
-    EntityId,
-    stat::{AttributeValue, DynamicStat},
-};
+use common::stat::{AttributeValue, DynamicStat};
 use esm_parser_lib::{
     RefId,
     types::{attribute::Attribute, gmst::GameSetting, magic_effect::MagicEffect},
 };
 use esm_store::Store;
+use networking::NetworkId;
 
 #[derive(Component, Clone, Debug)]
 #[component(on_add = add_creature_to_id_map)]
 pub struct CreatureStats {
-    pub entity_id: EntityId,
+    pub network_id: NetworkId,
     pub attributes: HashMap<RefId, AttributeValue>,
     pub level: i16,
     pub spells: Spells,
@@ -44,9 +42,9 @@ pub struct CreatureStats {
     pub teleported: bool,
 }
 impl CreatureStats {
-    pub fn new(entity_id: EntityId) -> Self {
+    pub fn new(network_id: NetworkId) -> Self {
         Self {
-            entity_id,
+            network_id,
             attributes: HashMap::new(),
             magic_effects: MagicEffects::default(),
             fall_height: 0.0,
@@ -167,7 +165,7 @@ pub struct CreatureStatsFlags: u8 {
     const FORCE_JUMP      = 1 << 4; // 16
     const FORCE_MOVE_JUMP = 1 << 5; // 32
 }}
-// add this creature's id to the id->Entity hashmap, so we can get the entity by its id
+// add this creature's id to the id->Entity hashmap, so we can get the entity by its network id
 fn add_creature_to_id_map(
     mut world: DeferredWorld,
     HookContext {
@@ -175,11 +173,11 @@ fn add_creature_to_id_map(
         ..
     }: HookContext,
 ) {
-    let entity_id_opt = world
+    let network_id_opt = world
         .get::<CreatureStats>(creature_entity)
-        .map(|stats| stats.entity_id);
+        .map(|stats| stats.network_id);
 
-    if let Some(actual_id) = entity_id_opt {
+    if let Some(actual_id) = network_id_opt {
         world
             .resource_mut::<IdToEntityMap>()
             .0

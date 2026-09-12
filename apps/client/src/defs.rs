@@ -1,7 +1,6 @@
 use bevy::prelude::*;
-use common::EntityId;
 use esm_parser_lib::{EsmReader, LandTexture};
-use networking::NetworkEvent;
+use networking::{NetworkEvent, NetworkId};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use serde::{Deserialize, Serialize};
@@ -104,7 +103,7 @@ pub struct Pause(pub bool);
 pub struct TestingComponent;
 #[derive(Component)]
 pub struct NetworkedEntity {
-    pub entity_id: EntityId,
+    pub network_id: NetworkId,
     pub entity: Entity,
     pub serializable_transform: SerializableTransform,
     pub last_packet_time: Instant,
@@ -125,18 +124,18 @@ pub struct Player {
     pub jumping: bool,
 }
 #[derive(Debug, Resource)]
-pub struct ClientEntityId(pub u64);
+pub struct ClientNetworkId(pub u64);
 
 #[derive(Component)]
 pub struct NeedsSetup {
-    pub entity_id: EntityId,
+    pub network_id: NetworkId,
     pub player_transform: Transform,
 }
 #[derive(Component)]
 pub struct PlayerCamera;
 #[derive(Component, Default)]
 pub struct LocalPlayer {
-    pub entity_id: EntityId,
+    pub network_id: NetworkId,
 }
 #[derive(Component)]
 pub struct MeshEntityLink(pub Entity);

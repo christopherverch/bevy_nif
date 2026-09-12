@@ -31,7 +31,7 @@ where
             }
         }
         b"LTEX" => {
-            let tex: LandTexture = reader.load()?;
+            let tex: LandTexture = LandTexture::load(reader, &mut is_deleted)?;
             on_load(name, &tex);
         }
         b"WEAP" => {

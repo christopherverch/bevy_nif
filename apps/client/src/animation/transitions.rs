@@ -22,7 +22,7 @@ pub fn handle_animation_transitions(
     for (creature_stats, creature_animator_link) in actor_query.iter() {
         let Some((_, mut animation_player, mut animator, graph_handle)) =
             get_anim_components_for_creature(
-                creature_stats.entity_id,
+                creature_stats.network_id,
                 creature_animator_link.0,
                 &id_to_entity_map,
                 &mut animator_q,

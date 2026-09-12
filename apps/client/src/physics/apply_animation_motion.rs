@@ -73,7 +73,7 @@ pub fn calculate_animation_displacement_system(
         }
 
         let Some((_, animation_player, animator, _)) = get_anim_components_for_creature(
-            creature_stats.entity_id,
+            creature_stats.network_id,
             creature_animator_link.0,
             &id_to_entity_map,
             &mut animator_q,

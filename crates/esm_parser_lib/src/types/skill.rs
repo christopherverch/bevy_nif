@@ -1,8 +1,10 @@
 use crate::{
     EsmError, EsmReader, Load, RefId, StringRefId,
     esm_record::EsmRecord,
-    name4,
-    types::{enums::Specialization, flags::ObjectFlags},
+    types::{
+        enums::{RecInt, Specialization},
+        flags::ObjectFlags,
+    },
 };
 use esm_parser_macros::LoadSave;
 #[derive(Default, Debug)]
@@ -26,7 +28,7 @@ impl EsmRecord for Skill {
     fn id(&self) -> &RefId {
         &self.id
     }
-    const RECORD_ID: u32 = name4!("SKIL").to_u32();
+    const RECORD_ID: RecInt = RecInt::Skil;
 }
 impl Skill {
     pub fn load(reader: &mut EsmReader, is_deleted: &mut bool) -> Result<Skill, EsmError> {
@@ -186,7 +188,6 @@ impl TryFrom<i32> for SkillIndex {
 
     #[inline]
     fn try_from(value: i32) -> Result<Self, Self::Error> {
-        // Benchmarks to a single CMP and JMP instruction
         if value >= 0 && value < Self::NUM_SKILLS as i32 {
             // SAFETY: SkillIndex is repr(i32) and we have verified the
             // value is within the valid range of the enum variants.
@@ -275,7 +276,7 @@ impl MagicSchool {
             return RefId::default();
         }
         let skill_enum = Self::SCHOOL_SKILLS[index as usize];
-        // Now convert that specific SkillIndex to its RefId
+        // convert that specific SkillIndex to its RefId
         SkillIndex::index_to_refid(skill_enum as i8)
     }
 }

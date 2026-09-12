@@ -11,12 +11,12 @@ use bevy::{
 };
 use bevy_anti_alias::fxaa::Fxaa;
 use bevy_nif::{
-    check_exists, check_exists_lowercase_extension, clean_path_common, loader::Nif,
+    MW_SCALE_TO_BEVY, NIF_TO_BEVY_ROTATION, check_exists, clean_path_common, loader::Nif,
     resolve_bevy_asset_path, spawner::NifScene,
 };
 use common::consts::MW_UNITS_PER_METER;
 use esm_parser_lib::{
-    ESM3ExteriorCellRefId, EmptyRefId, EsmReader, RefId, refid,
+    ESM3ExteriorCellRefId, EmptyRefId, EsmReader, RefId,
     types::{cell::Cell, cell_ref::CellRef},
 };
 use esm_store::EsmStore;
@@ -31,9 +31,9 @@ pub fn setup_scene(
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    esm_store: Res<EsmStore>,
+    _esm_store: Res<EsmStore>,
 ) {
-    let mut esm_reader = ESM_READER.get().unwrap().write().unwrap();
+    let _esm_reader = ESM_READER.get().unwrap().write().unwrap();
 
     let start_location = Vec3::new(185.0, 4.8, -890.0);
     let glass_helmet_pos = Vec3::new(195.0, 4.8, -890.0);
@@ -44,6 +44,16 @@ pub fn setup_scene(
         glass_helmet_pos,
         Quat::default(),
     );
+    test_spawn("Terrain_rock_BC_15.nif", &asset_server, &mut commands, 0.0);
+    test_spawn("Terrain_rock_BC_14.nif", &asset_server, &mut commands, 15.0);
+    test_spawn("Terrain_rock_BC_18.nif", &asset_server, &mut commands, 30.0);
+    test_spawn(
+        "Terrain_rock_BC_12.nif",
+        &asset_server,
+        &mut commands,
+        -15.0,
+    );
+
     let head = asset_server.load("data/Data Files/Meshes/b/B_N_High Elf_M_Head_01.nif");
     let hair = asset_server.load("data/Data Files/Meshes/b/B_N_High Elf_M_Hair_04.nif");
     commands.spawn((
@@ -326,9 +336,25 @@ pub fn spawn_nif_unattached(
             Visibility::Visible,
             Transform {
                 translation: pos,
-                rotation: Quat::from_rotation_x(-FRAC_PI_2) * Quat::from_rotation_z(-PI) * rotation,
-                scale: Vec3::splat(1.0 / MW_UNITS_PER_METER), //nifs are huge otherwise
+                rotation: NIF_TO_BEVY_ROTATION * rotation,
+                scale: MW_SCALE_TO_BEVY,
             },
         ))
         .id()
+}
+fn test_spawn(name: &str, asset_server: &AssetServer, commands: &mut Commands, offset: f32) {
+    let path = format!("data/Data Files/Meshes/f/{}", name);
+    let path = clean_path_common(&path);
+    let path = if check_exists(&path) {
+        path
+    } else {
+        resolve_bevy_asset_path(&path).unwrap()
+    };
+    let player_start_location = Vec3::new(
+        2.0 * CELL_SIZE_METERS + offset,
+        2.8,
+        -9.0 * CELL_SIZE_METERS,
+    );
+    let rock = asset_server.load(path);
+    spawn_nif_unattached(commands, rock, player_start_location, Quat::default());
 }

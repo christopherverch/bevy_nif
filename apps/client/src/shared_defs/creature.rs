@@ -4,7 +4,7 @@ use esm_parser_lib::{
 };
 use esm_store::EsmStore;
 
-use crate::live_cell_ref::{EsmPtr, LiveCellRef};
+use crate::esm_ptr::EsmPtr;
 
 pub fn get_skill(esm_store: &EsmStore, skill: RefId, creature_ptr: EsmPtr<Creature>) -> f32 {
     let skill_record = esm_store.skills.get(&skill).unwrap();

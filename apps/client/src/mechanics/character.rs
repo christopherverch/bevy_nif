@@ -3,7 +3,7 @@ use std::f32::consts::PI;
 
 use crate::{
     animation::{
-        AnimationContext, NifAnimatorLink,
+        AnimPlaySettings, AnimationContext, NifAnimatorLink,
         animation_helpers::get_anim_components_for_creature,
         name_resolver::{
             fallback_short_weapon_group, get_weapon_short_group, is_real_weapon,
@@ -13,6 +13,7 @@ use crate::{
     },
     camera::MWCamera,
     defs::{CellLookup, IdToEntityMap, LocalPlayer, WorldSettings},
+    live_cell_ref::CellRefBase,
     mechanics::{
         ActorIntent,
         creature_stats::{CreatureStats, CreatureStatsFlags},
@@ -156,7 +157,7 @@ pub fn update_character_components(
     {
         let Some((_, mut animation_player, mut animator, graph_handle)) =
             get_anim_components_for_creature(
-                creature_stats.entity_id,
+                creature_stats.network_id,
                 creature_animator_link.0,
                 &id_to_entity_map,
                 &mut animator_q,
@@ -178,7 +179,7 @@ pub fn update_character_components(
         let godmode = is_local_player && world_settings.god_mode;
         let mut scale = transform.scale;
         if !game_settings.normalize_race_speed
-            && let LiveCellRef::Npc(npc) = live_cell_ref
+            && let CellRefBase::Npc(npc) = &live_cell_ref.base
         {
             if let Some(race) = esm_store.races.get(&npc.race) {
                 let weight = if npc.is_male() {
@@ -189,7 +190,7 @@ pub fn update_character_components(
                 scale *= weight;
             }
         }
-        let is_actor = matches!(live_cell_ref, LiveCellRef::Npc(_));
+        let is_actor = matches!(live_cell_ref.base, CellRefBase::Npc(_));
         let is_npc = is_actor;
         let is_player = player_opt.is_some();
         if is_actor && creature_stats.teleported {
@@ -275,9 +276,9 @@ pub fn update_character_components(
             let mut effective_rotation = rot.y;
             let can_move = creature_stats.max_speed > 0.0;
             let is_biped = {
-                match live_cell_ref {
-                    LiveCellRef::Npc(_npc) => true,
-                    LiveCellRef::Creature(creature) => {
+                match &live_cell_ref.base {
+                    CellRefBase::Npc(_npc) => true,
+                    CellRefBase::Creature(creature) => {
                         creature.flags.contains(CreatureFlags::BIPED)
                     }
                 }
@@ -365,9 +366,9 @@ pub fn update_character_components(
                     let jump_move_base = esm_store.gamesettings.find("fJumpMoveBase").as_float();
                     let jump_move_mult = esm_store.gamesettings.find("fJumpMoveMult").as_float();
                     //TODO::
-                    let acrobatics = 50.0;
+                    let acrobatics = 50000.0;
                     let mut factor = jump_move_base + jump_move_mult * acrobatics / 100.0;
-                    factor = factor.min(1.0);
+                    factor = factor.min(500000.0);
                     move_vec.x *= factor;
                     move_vec.z *= factor;
                     move_vec.y = 0.0;
@@ -568,8 +569,8 @@ fn is_flying(
     if is_paralyzed_not_godmode {
         return false;
     }
-    match cell_ref {
-        LiveCellRef::Creature(creature) => {
+    match &cell_ref.base {
+        CellRefBase::Creature(creature) => {
             if creature.flags.contains(CreatureFlags::FLIES) {
                 return true;
             }
@@ -680,7 +681,7 @@ fn get_current_speed(
 #[inline]
 fn get_jump_height() -> f32 {
     //TODO::
-    100.0
+    40.0
 }
 fn get_fall_damage() -> f32 {
     //TODO::
@@ -980,17 +981,14 @@ pub fn refresh_hit_recoil_anims(
     }
 
     let suffix = if did_block { ": block" } else { "" };
+    let mut play_settings = AnimPlaySettings::default();
+    play_settings.extra_suffix = suffix;
+    play_settings.auto_disable = true;
     animation_context.play_animation(
         animations,
         &char_cont.vitals.current_hit_group,
-        suffix,
+        play_settings,
         priorities,
-        BlendMask::all(),
-        true,
-        AnimType::Intro,
-        1.0,
-        0.0,
-        0,
         commands,
     );
 }
@@ -1037,35 +1035,30 @@ fn refresh_jump_anims(
     } else {
         AnimType::Intro
     };
+    let mut play_settings = AnimPlaySettings::default();
+    play_settings.blend_mask = jump_mask;
+    play_settings.loop_count = u32::MAX;
+
     char_cont.jumping.state = new_jump;
     clear_state_animation(&mut char_cont.jumping.current_group, animation_context);
     char_cont.jumping.current_group = jump_anim_name;
     if char_cont.jumping.state == JumpingStateKind::InAir {
+        play_settings.anim_type = start_at_loop;
         animation_context.play_animation(
             animations,
             &char_cont.jumping.current_group,
-            "",
+            play_settings,
             [Priority::Jump; 4],
-            jump_mask,
-            false,
-            start_at_loop,
-            1.0,
-            0.0,
-            u32::MAX,
             commands,
         );
     } else if char_cont.jumping.state == JumpingStateKind::Landing {
+        play_settings.anim_type = AnimType::Outro;
+        play_settings.auto_disable = true;
         animation_context.play_animation(
             animations,
             &char_cont.jumping.current_group,
-            "",
+            play_settings,
             [Priority::Jump; 4],
-            jump_mask,
-            true,
-            AnimType::Outro,
-            1.0,
-            0.0,
-            u32::MAX,
             commands,
         );
     }
@@ -1163,7 +1156,7 @@ fn refresh_movement_anims(
     // For non-flying creatures, MW uses the Walk animation to calculate the animation velocity
     // even if we are running. This must be replicated, otherwise the observed speed would differ drastically.
     char_cont.movement.adjust_anim_speed = true;
-    if let LiveCellRef::Creature(creature) = live_ref {
+    if let CellRefBase::Creature(creature) = &live_ref.base {
         if !creature.flags.contains(CreatureFlags::FLIES) {
             let walk_state = run_state_to_walk_state(char_cont.movement.state);
             let anim = movement_state_to_anim_group(walk_state);
@@ -1201,17 +1194,15 @@ fn refresh_movement_anims(
         }
     }
 
+    let mut play_settings = AnimPlaySettings::default();
+    play_settings.blend_mask = move_mask;
+    play_settings.start_time = start_point;
+    play_settings.loop_count = u32::MAX;
     animation_context.play_animation(
         animations,
         &movement_anim_name,
-        "",
+        play_settings,
         [Priority::Movement; 4],
-        move_mask,
-        false,
-        AnimType::Intro,
-        1.0,
-        start_point,
-        u32::MAX,
         commands,
     );
 }
@@ -1293,19 +1284,10 @@ fn refresh_idle_anims(
     clear_state_animation(&mut char_cont.vitals.current_idle_group, animation_context);
     char_cont.vitals.current_idle_group = idle_group.clone();
 
-    animation_context.play_animation(
-        animations,
-        &idle_group,
-        "",
-        priority,
-        BlendMask::all(),
-        false,
-        AnimType::Intro,
-        1.0, // playback speed
-        start_point,
-        num_loops,
-        commands,
-    );
+    let mut play_settings = AnimPlaySettings::default();
+    play_settings.start_time = start_point;
+    play_settings.loop_count = num_loops;
+    animation_context.play_animation(animations, &idle_group, play_settings, priority, commands);
 }
 fn reset_current_idle_state(
     character_controller: &mut CharacterController,

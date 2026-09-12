@@ -97,7 +97,7 @@ fn refresh_movement_anims(
             return;
         }
     }
-    let mut start_point = 0.0;
+    let _start_point = 0.0;
     // If we're playing the same animation, start it from the point it ended
 
     if !character_controller.movement.current_group.is_empty()

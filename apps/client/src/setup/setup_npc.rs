@@ -1,7 +1,7 @@
 use std::f32::consts::{FRAC_PI_2, PI};
 
 use bevy::prelude::*;
-use bevy_nif::{attach_parts::AttachmentType, spawner::NifScene};
+use bevy_nif::{NIF_TO_BEVY_ROTATION, attach_parts::AttachmentType, spawner::NifScene};
 use common::consts::NIF_SCALE_MULTIPLIER;
 use esm_parser_lib::{Bodypart, BodypartId, BodypartType, RefId, types::bodypart::BodypartFlags};
 use esm_store::EsmStore;
@@ -34,8 +34,13 @@ pub fn spawn_npc(
             NpcMesh,
             AttachmentType::MainSkeleton { skeleton_id },
             CreatureControllerLink(root_entity),
-            Transform::from_scale(Vec3::splat(NIF_SCALE_MULTIPLIER)),
+            Transform {
+                translation: Vec3::ZERO,
+                rotation: NIF_TO_BEVY_ROTATION,
+                scale: Vec3::splat(NIF_SCALE_MULTIPLIER),
+            },
             Visibility::Inherited,
+            ShowAabbGizmo::default(),
         ))
         .id();
     commands.entity(skeleton_entity).insert((
@@ -146,13 +151,7 @@ fn spawn_nifs(
                 Visibility::Inherited,
             ))
             .id();
-        if matches!(attachment_type, AttachmentType::Skinned { skeleton_id: _ }) {
-            // Needs to rotate skinned attachments since these aren't attached to the pre-rotated
-            // skeleton, they're just a child of the mesh
-            commands.entity(child).insert(Transform::from_rotation(
-                Quat::from_rotation_x(-FRAC_PI_2) * Quat::from_rotation_z(PI),
-            ));
-        }
+
         commands.entity(skeleton_entity).add_child(child);
     }
 }

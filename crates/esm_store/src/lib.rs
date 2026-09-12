@@ -10,7 +10,6 @@ use esm_parser_lib::{
     },
 };
 use unordered_map::UnorderedMap;
-/// Defines if the store can have values overwritten
 
 #[derive(Resource, Default)]
 pub struct EsmStore {
@@ -32,11 +31,18 @@ pub struct EsmStore {
     pub skills: Store<Skill>,
 }
 impl EsmStore {
-    pub fn find<T>(&self, refid: &RefId) -> Option<&T> {
-        let Some(type_tag) = self.ids.get(refid) else {
+    pub fn find<T>(&self, refid: &RefId) -> Option<&T>
+    where
+        T: EsmRecord,
+    {
+        let &type_tag = self.ids.get(refid)?;
+
+        // make sure the type_tag matches the requested type T's type_tag
+        if type_tag != T::RECORD_ID {
             return None;
-        };
-        self.get_by_type_tag(*type_tag, refid)
+        }
+        // SAFETY:: we checked type_tag corresponds to the T we're requesting
+        unsafe { self.get_by_type_tag(refid) }
     }
     pub fn find_static(&self, refid: &RefId) -> u32 {
         *self.static_ids.get(refid).unwrap_or(&0)
@@ -51,6 +57,7 @@ impl EsmStore {
     {
         let store = self.get_writable();
         let id = store.generate_id();
+        #[cfg(debug_assertions)]
         if store.search(&id.resolve_string()).is_some() {
             panic!("Try to override existing record: {}", id);
         }
@@ -64,10 +71,13 @@ impl EsmStore {
         ptr
     }
 
-    pub fn get_by_type_tag<T>(&self, type_tag: RecInt, id: &RefId) -> Option<&T> {
+    pub unsafe fn get_by_type_tag<T>(&self, id: &RefId) -> Option<&T>
+    where
+        T: EsmRecord,
+    {
         // The ugliness of the unsafe is just to have it map to a T, so we can make a generic
         // function. Maybe make this a macro instead?
-        match type_tag {
+        match T::RECORD_ID {
             RecInt::Crea => {
                 // Explicitly map to Option<&T>
                 self.creatures
@@ -176,16 +186,11 @@ impl<T: EsmRecord> Store<T> {
             .or_else(|| self.static_rec.get_mut(id))
     }
 
-    /// Public use: returns a safe reference for game systems
     pub fn get(&self, id: &RefId) -> Option<&T> {
-        self.get_raw(id).map(|ptr| unsafe {
-            // SAFETY: We guarantee that during gameplay,
-            // these records are immutable and the pointers are stable.
-            &*ptr
-        })
+        self.dynamic.get(id).or_else(|| self.static_rec.get(id))
     }
     /// Searches dynamic overrides and static records, returning an Option containing
-    /// a raw pointer. Safe because nodes are frozen during gameplay
+    /// a raw pointer.
     pub fn search_raw(&self, id: &str) -> Option<*const T> {
         let interned = find_interned(id)?;
         let search_key = RefId::SizedString(StringRefId(interned));
@@ -230,8 +235,7 @@ impl<T: EsmRecord> Store<T> {
         return RefId::Generated(GeneratedRefId::new(tmp));
     }
 
-    /// Adds a record to the static store during loading phases, Should never be used during
-    /// active gameplay
+    /// Adds a record to the static store, should never be used asyncronously
     pub fn insert_static(&mut self, id: RefId, record: T) {
         // Because it's a UnorderedMap, this memory slot is permanent.
         // Only insert into shared if this wasn't an update on an existing record

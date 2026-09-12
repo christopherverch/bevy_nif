@@ -1,4 +1,9 @@
-use crate::{EsmError, EsmReader, RefId, esm_record::EsmRecord, name4, types::flags::ObjectFlags};
+use crate::{
+    EsmError, EsmReader, RefId,
+    esm_record::EsmRecord,
+    name4,
+    types::{enums::RecInt, flags::ObjectFlags},
+};
 
 #[derive(Debug)]
 pub struct GameSetting {
@@ -33,7 +38,7 @@ impl EsmRecord for GameSetting {
     fn id(&self) -> &RefId {
         &self.id
     }
-    const RECORD_ID: u32 = name4!("GMST").to_u32();
+    const RECORD_ID: RecInt = RecInt::Gmst;
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum GameSettingVariant {
@@ -93,18 +98,15 @@ impl GameSettingVariant {
                 };
             }
         }
-        // --- PART 2: LOAD DATA
+        // Load data
         let value = match var_type {
             VarType::None | VarType::Unknown => GameSettingVariant::None,
-            VarType::String => {
-                // getHString -> read_header_decode_string
-                GameSettingVariant::String(reader.read_header_decode_string()?)
-            }
+            VarType::String => GameSettingVariant::String(reader.read_header_decode_string()?),
             VarType::Int | VarType::Short | VarType::Long => {
                 if format == VariantFormat::Global {
                     let raw_float: f32 = reader.read_typed_named_header(name4!("FLTV"))?;
 
-                    // cast the f32 to i16 or i32, using specific openmw cast logic
+                    // cast the f32 to i16 or i32
                     match var_type {
                         VarType::Short => {
                             // Stored in i32 variant, but truncated to 16-bit range
@@ -127,9 +129,7 @@ impl GameSettingVariant {
                     }
                     // GMSTs/Locals usually have the proper subrecord type
                     GameSettingVariant::Int(reader.read_typed_header()?)
-                }
-                // VariantFormat::Local
-                else {
+                } else {
                     match var_type {
                         VarType::Short => {
                             let value: i16 = reader.read_typed_header()?;
@@ -167,7 +167,6 @@ fn openmw_float_to_i32(value: f32) -> i32 {
 }
 
 fn openmw_float_to_i16(value: f32) -> i16 {
-    // OpenMW casts the float to i32 first, then to the target type (i16)
     openmw_float_to_i32(value) as i16
 }
 #[derive(Debug, Clone, Copy, PartialEq)]

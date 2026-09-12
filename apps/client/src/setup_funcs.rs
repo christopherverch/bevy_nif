@@ -1,10 +1,11 @@
 use crate::animation::{NifAnimatorLink, NifSkeletonId};
 use crate::const_defs::CELL_SIZE_METERS;
 use crate::defs::{
-    AnimateableEntity, ClientEntityId, CurrentCell, LocalPlayer, LocalPlayerMesh, MeshEntityLink,
+    AnimateableEntity, ClientNetworkId, CurrentCell, LocalPlayer, LocalPlayerMesh, MeshEntityLink,
     Movement, NeedsSetup, NetworkedEntity, Player,
 };
-use crate::live_cell_ref::{EsmPtr, LiveCellRef};
+use crate::esm_ptr::EsmPtr;
+use crate::live_cell_ref::{CellRefBase, LiveCellRef};
 use crate::mechanics::ActorIntent;
 use crate::mechanics::creature_stats::CreatureStats;
 use crate::mechanics::npc_stats::NpcStats;
@@ -17,6 +18,7 @@ use crate::shared_defs::skeletons::NextAvailableSkeletonId;
 use avian3d::prelude::{CollisionLayers, RigidBody};
 use bevy::prelude::*;
 use bevy_kira_audio::{SpatialAudioEmitter, SpatialAudioReceiver, SpatialRadius};
+use bevy_nif::NIF_TO_BEVY_ROTATION;
 use bevy_nif::attach_parts::AttachmentType;
 use bevy_nif::nif_animation::{NifAnimator, NifAnimatorAdded};
 use bevy_nif::spawner::NifScene;
@@ -40,19 +42,19 @@ pub fn setup_player(
     asset_server: Res<AssetServer>,
     mut needs_setup_query: Query<(Entity, &NeedsSetup), Added<NeedsSetup>>,
     esm_store: Res<EsmStore>,
-    client_id: Res<ClientEntityId>,
+    client_id: Res<ClientNetworkId>,
     mut char_creation_state: ResMut<NextState<CharCreationState>>,
     mut next_available_skeleton_id: ResMut<NextAvailableSkeletonId>,
 ) {
     for (player_entity, setup_info) in &mut needs_setup_query {
         info!(
             "setting up player with client id: {} {}",
-            client_id.0, setup_info.entity_id
+            client_id.0, setup_info.network_id
         );
 
         // spawn the root of the player
-        let player_start_location = Vec3::new(2.0 * CELL_SIZE_METERS, 2.8, -9.0 * CELL_SIZE_METERS);
-        let rotation = Quat::from_euler(EulerRot::YXZ, 0.0, -PI, -PI);
+        let player_start_location =
+            Vec3::new(2.0 * CELL_SIZE_METERS, 100.8, -9.0 * CELL_SIZE_METERS);
         let can_water_walk = true;
         let on_ground = true;
         let collision_shape_type = CollisionShapeType::RotatingBox;
@@ -64,7 +66,7 @@ pub fn setup_player(
         character_controller.movement.state = CharacterState::RunForward;
         // Sets the character's animations to be based on their movement speed, like walking running
         character_controller.movement.adjust_anim_speed = true;
-        let mut creature_stats = CreatureStats::new(setup_info.entity_id);
+        let mut creature_stats = CreatureStats::new(setup_info.network_id);
         creature_stats.attributes.insert(
             Attribute::STRENGTH,
             AttributeValue {
@@ -102,11 +104,11 @@ pub fn setup_player(
             .entity(player_entity)
             .insert((
                 Player { jumping: false },
-                Name::new(format!("Player {}", setup_info.entity_id)),
+                Name::new(format!("Player {}", setup_info.network_id)),
                 PositionInterpolation::new(Vec3::ZERO, player_start_location),
                 Transform {
                     translation: player_start_location,
-                    rotation,
+                    rotation: NIF_TO_BEVY_ROTATION,
                     ..default()
                 },
                 Movement::default(),
@@ -122,11 +124,11 @@ pub fn setup_player(
                 CollisionLayers::default(),
                 character_controller,
                 NetworkedEntity {
-                    entity_id: setup_info.entity_id,
+                    network_id: setup_info.network_id,
                     entity: player_entity,
                     serializable_transform: SerializableTransform {
                         translation: player_start_location,
-                        rotation: Quat::IDENTITY,
+                        rotation: NIF_TO_BEVY_ROTATION,
                         scale: Vec3::splat(1.0),
                     },
                     last_packet_time: Instant::now(),
@@ -146,7 +148,9 @@ pub fn setup_player(
                 },
                 Container::default(),
                 npc_stats,
-                LiveCellRef::Npc(EsmPtr(player_esm_ref)),
+                LiveCellRef {
+                    base: CellRefBase::Npc(EsmPtr(player_esm_ref)),
+                },
             ));
 
         let skeleton_id = next_available_skeleton_id.next();
@@ -157,7 +161,11 @@ pub fn setup_player(
             commands.reborrow(),
             &asset_server,
             skeleton_id,
-            Transform::from_scale(Vec3::splat(NIF_SCALE_MULTIPLIER)),
+            Transform {
+                rotation: NIF_TO_BEVY_ROTATION,
+                scale: Vec3::splat(NIF_SCALE_MULTIPLIER),
+                ..default()
+            },
         );
 
         commands.entity(player_mesh).insert((
@@ -171,7 +179,7 @@ pub fn setup_player(
             .insert(MeshEntityLink(player_mesh));
 
         //if this is the local player, add camera and marker component
-        if client_id.0 == setup_info.entity_id {
+        if client_id.0 == setup_info.network_id {
             commands.entity(player_mesh).insert((
                 //Default to first person, so hide the player's mesh
                 Visibility::Hidden,
@@ -180,7 +188,7 @@ pub fn setup_player(
             commands.entity(player_entity).insert((
                 MWCameraTarget,
                 LocalPlayer {
-                    entity_id: setup_info.entity_id,
+                    network_id: setup_info.network_id,
                 },
                 SpatialAudioReceiver,
             ));
@@ -196,7 +204,7 @@ pub fn setup_player(
 pub fn spawn_player_offline(mut commands: Commands) {
     info!("spawning player offline");
     commands.spawn(NeedsSetup {
-        entity_id: 0,
+        network_id: 0,
         player_transform: Transform::from_xyz(0.0, 0.0, 0.0),
     });
 }

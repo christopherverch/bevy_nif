@@ -3,6 +3,7 @@ use std::collections::LinkedList;
 use crate::{
     ESM3ExteriorCellRefId, EsmContext, EsmError, EsmReader, FormId, Load, RefId, StringRefId,
     esm_reader::ConsumptionType, esm_record::EsmRecord, name4, string_interning::get_or_intern,
+    types::enums::RecInt,
 };
 
 use super::{
@@ -31,7 +32,7 @@ impl EsmRecord for Cell {
     fn id(&self) -> &RefId {
         &self.id
     }
-    const RECORD_ID: u32 = name4!("CELL").to_u32();
+    const RECORD_ID: RecInt = RecInt::Cell;
 }
 pub type RefNum = FormId;
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -273,9 +274,7 @@ impl Cell {
         reader.restore_context(context)
     }
     pub fn get_description(&self) -> String {
-        // C++: if (mData.mFlags & Interior)
         if self.data.flags.contains(CellFlags::IS_INTERIOR) {
-            // C++: return nameString;
             return self.name.clone();
         }
 
@@ -286,7 +285,7 @@ impl Cell {
             return format!("{} {}", self.name, cell_grid);
         }
 
-        // 1. Get the region name string from the Option<RefId>
+        // Get the region name string from the Option<RefId>
         let region_ref_name = self
             .region
             .as_ref()
@@ -295,7 +294,7 @@ impl Cell {
             // If region is None, default to an empty string.
             .unwrap_or_default();
 
-        // 2. Check if the resolved region name is empty.
+        // Check if the resolved region name is empty.
         let region_output = if region_ref_name.is_empty() {
             // TODO::
             // sDefaultCellname GMST should be used, but isn't available since
@@ -386,7 +385,7 @@ impl Cell {
             return Ok(true);
         }
 
-        // --- Execution reaches here only if the record is NOT skipped ---
+        // Execution reaches here only if the record is not skipped
 
         cell_ref.load(reader, is_deleted, FALSE_WIDE_REF_NUM)?;
 

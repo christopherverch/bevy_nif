@@ -1,8 +1,8 @@
+use crate::Load;
 use crate::esm_reader::{ConsumptionType, EsmError, EsmReader};
 use crate::esm_record::EsmRecord;
 use crate::refid_types::RefId;
-use crate::types::enums::WeaponType;
-use crate::{Load, name4};
+use crate::types::enums::{RecInt, WeaponType};
 use bitflags::bitflags;
 
 use super::flags::ObjectFlags;
@@ -90,7 +90,7 @@ impl EsmRecord for Weapon {
     fn id(&self) -> &RefId {
         &self.id
     }
-    const RECORD_ID: u32 = name4!("WEAP").to_u32();
+    const RECORD_ID: RecInt = RecInt::Weap;
 }
 
 impl Weapon {

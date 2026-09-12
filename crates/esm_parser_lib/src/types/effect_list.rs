@@ -70,7 +70,7 @@ fn from_binary(src: &EsmENAMStruct) -> Result<ENAMStruct, EsmError> {
     Ok(ENAMStruct {
         effect_id: MagicEffect::index_to_refid(index.into()),
         skill: SkillIndex::index_to_refid(src.skill),
-        attribute: Attribute::index_to_refid(src.attribute.into()),
+        attribute: Attribute::attr_index_to_refid(src.attribute.into()),
         range: src.range,
         area: src.area,
         duration: src.duration,

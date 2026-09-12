@@ -1,10 +1,13 @@
+use std::f32::consts::PI;
+
+use avian3d::math::FRAC_PI_2;
 use bevy::{
     app::Propagate,
     camera::{RenderTarget, visibility::RenderLayers},
     prelude::*,
     render::render_resource::TextureFormat,
 };
-use bevy_nif::loader::Nif;
+use bevy_nif::{NIF_TO_BEVY_ROTATION, loader::Nif};
 use common::consts::{MW_UNITS_PER_METER, NIF_SCALE_MULTIPLIER};
 use common::state::CharCreationState;
 use esm_parser_lib::{
@@ -46,6 +49,8 @@ pub struct RaceSelectUI {
     current_race_refid: RefId,
     available_heads: Vec<RefId>,
     available_hairs: Vec<RefId>,
+    // Just to keep all the nifs loaded
+    race_select_handles: Vec<Handle<Nif>>,
 }
 #[derive(Component, Clone, Default)]
 pub struct RaceSelectSpellPowerPanel;
@@ -73,6 +78,9 @@ pub fn setup_race_select(
     asset_server: Res<AssetServer>,
 ) {
     let Some(default_player) = esm_store.npcs.get(&RefId::from_str("player")) else {
+        for def in esm_store.npcs.iter_shared() {
+            dbg!(def);
+        }
         panic!("missing player def in esm file!")
     };
     // TODO:: get and set player's current race, for now just default to index 0 on available races
@@ -250,6 +258,21 @@ pub fn setup_race_select(
         .entity(right_col)
         .insert(ChildOf(race_select_panel));
     let skeleton_asset_handle = asset_server.load("data/base_anim.nif");
+    let mut race_select_handles = Vec::new();
+    for i in 0..available_hairs.len() {
+        let hair = &available_hairs[i];
+        let hair_path = esm_store.bodyparts.get(hair).unwrap().model.clone();
+        let hair_path = prepend_mesh_data_path(hair_path);
+        race_select_handles.push(asset_server.load(hair_path));
+    }
+    for i in 0..available_heads.len() {
+        let head = &available_heads[i];
+        let head_path = esm_store.bodyparts.get(head).unwrap().model.clone();
+        let head_path = prepend_mesh_data_path(head_path);
+        race_select_handles.push(asset_server.load(head_path));
+    }
+
+    dbg!(&race_select_handles);
     let race_select_ui = RaceSelectUI {
         preview_skeleton_handle: skeleton_asset_handle,
         is_male: !default_player.npc_flags.contains(NpcFlags::FEMALE),
@@ -259,8 +282,8 @@ pub fn setup_race_select(
         playable_race_refids: available_races,
         available_heads,
         available_hairs,
+        race_select_handles,
     };
-    dbg!(race_select_ui.is_male);
     commands.entity(race_select_panel).insert(race_select_ui);
     commands.run_system_cached(respawn_preview);
     commands.run_system_cached(redraw_race_select_ui);
@@ -310,7 +333,7 @@ fn on_race_accepted(
     mut char_creation_state: ResMut<NextState<CharCreationState>>,
     esm_store: Res<EsmStore>,
     race_select_ui: Single<&RaceSelectUI>,
-    player_location: Single<&GlobalTransform, With<LocalPlayer>>,
+    _player_location: Single<&GlobalTransform, With<LocalPlayer>>,
     asset_server: Res<AssetServer>,
     mut next_available_skeleton_id: ResMut<NextAvailableSkeletonId>,
     mut commands: Commands,
@@ -374,9 +397,6 @@ fn on_race_accepted(
         //TEMPORARY
         true,
     );
-    dbg!(neck);
-    dbg!(chest);
-    dbg!(clav);
 
     char_creation_state.set(CharCreationState::ChoosingClass);
 }
@@ -399,7 +419,6 @@ fn race_select_button_pressed(
     commands.run_system_cached(redraw_race_select_ui);
 }
 fn recount_bodyparts(bodyparts: &Store<Bodypart>, race_select_ui: &mut RaceSelectUI, male: bool) {
-    dbg!(male);
     let available_heads = get_body_parts(
         BodypartId::Head,
         bodyparts,
@@ -412,7 +431,6 @@ fn recount_bodyparts(bodyparts: &Store<Bodypart>, race_select_ui: &mut RaceSelec
         &race_select_ui.current_race_refid,
         male,
     );
-    dbg!(&available_heads);
     race_select_ui.available_heads = available_heads;
     race_select_ui.available_hairs = available_hairs;
     race_select_ui.head_index = 0;
@@ -461,7 +479,6 @@ fn change_sex(
     esm_store: Res<EsmStore>,
 ) {
     race_select_ui.is_male = !race_select_ui.is_male;
-    dbg!(race_select_ui.is_male);
     let is_male = race_select_ui.is_male;
     recount_bodyparts(&esm_store.bodyparts, &mut race_select_ui, is_male);
     commands.run_system_cached(respawn_preview);
@@ -564,6 +581,7 @@ fn redraw_race_select_ui(
         }
     }
     for &child in existing_power_children.iter().skip(power_list.len()) {
+        // Hide any unused power children nodes
         commands.entity(child).insert(Visibility::Hidden);
     }
     // --- Update Skills ---
@@ -588,6 +606,7 @@ fn redraw_race_select_ui(
 }
 fn respawn_preview(
     race_select_ui: Single<&RaceSelectUI>,
+    slider_thumb: Single<&Node, With<SliderThumb>>,
     old_nif_scenes: Query<Entity, With<RacePreviewScene>>,
     esm_store: Res<EsmStore>,
     mut commands: Commands,
@@ -595,8 +614,10 @@ fn respawn_preview(
     mut next_available_skeleton_id: ResMut<NextAvailableSkeletonId>,
 ) {
     for old_nif_scene in old_nif_scenes {
+        dbg!("despawning");
         commands.entity(old_nif_scene).despawn();
     }
+
     let path_hair = esm_store
         .bodyparts
         .get(&race_select_ui.available_hairs[race_select_ui.hair_index])
@@ -611,26 +632,33 @@ fn respawn_preview(
         .model
         .clone();
     let path_head = prepend_mesh_data_path(path_head);
-    // Pre rotate the preview mesh relative to the starting rotation of the slider
-    let t = SLIDER_TRACK_START_POS / ROTATION_SLIDER_MAX_PX;
+    // Pre rotate the preview mesh according to the starting rotation of the slider
+    let current_px = match slider_thumb.left {
+        Val::Px(px) => px,
+        _ => 0.0,
+    };
+    let t = current_px / ROTATION_SLIDER_MAX_PX;
+
     let angle = t * std::f32::consts::TAU;
-    let entity = commands
+    dbg!(angle);
+    let race_preview_entity = commands
         .spawn((
             Name::new("race select preview mesh"),
-            Transform::from_rotation(Quat::from_rotation_y(angle)),
+            Transform {
+                scale: Vec3::splat(NIF_SCALE_MULTIPLIER),
+                rotation: NIF_TO_BEVY_ROTATION * Quat::from_rotation_z(angle),
+                ..default()
+            },
             Visibility::Visible,
-            // Render to the preview window (propagate makes our children layer 1 as well)
+            // Render to the preview window (propagate makes all children layer 1 as well)
             Propagate(RenderLayers::layer(1)),
             RacePreviewScene,
         ))
         .id();
     spawn_race_select_preview(
         race_select_ui.preview_skeleton_handle.clone(),
-        entity,
-        Transform {
-            scale: Vec3::splat(NIF_SCALE_MULTIPLIER),
-            ..default()
-        },
+        race_preview_entity,
+        Transform::default(),
         next_available_skeleton_id.next(),
         &path_hair,
         &path_head,
@@ -654,7 +682,9 @@ pub fn on_preview_head_loaded(
         (With<RaceSelectPreviewCamera>, Without<RacePreviewScene>),
     >,
     head_bone_entity: Single<Entity, Added<PreviewHeadBoneEntity>>,
+    time: Res<Time>,
 ) {
+    dbg!(time.elapsed());
     set_head_rotation_to_slider(
         &mut slider_thumb,
         0.0,
@@ -662,12 +692,6 @@ pub fn on_preview_head_loaded(
         *head_bone_entity,
         &mut race_preview_camera,
         &mut race_preview_scene,
-    );
-    dbg!(
-        global_transforms_q
-            .get(*head_bone_entity)
-            .unwrap()
-            .translation()
     );
 }
 
@@ -749,6 +773,7 @@ fn set_head_rotation_to_slider(
     // 4. Return the calculated overshoot
     overshoot
 }
+
 // Shared logic to update the scene based on a normalized 0.0..1.0 value
 fn update_preview_view(
     t: f32,
@@ -759,12 +784,11 @@ fn update_preview_view(
 ) {
     // 1. Calculate rotation
     let angle = t * std::f32::consts::TAU;
-    race_preview_scene.rotation = Quat::from_rotation_y(angle);
+    race_preview_scene.rotation = NIF_TO_BEVY_ROTATION * Quat::from_rotation_z(angle);
 
     // 2. Update Camera
     if let Ok(head_global) = global_transforms.get(head_entity) {
         let head_pos = head_global.translation();
-        dbg!(head_pos);
         race_preview_camera.translation = head_pos + PREVIEW_CAMERA_OFFSET;
         race_preview_camera.look_at(head_pos + LOOK_AT_OFFSET, Vec3::Y);
     }

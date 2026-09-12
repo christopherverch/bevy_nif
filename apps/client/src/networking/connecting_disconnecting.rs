@@ -9,10 +9,8 @@ use bevy_renet::{
     RenetClient,
     netcode::{ClientAuthentication, NetcodeClientTransport},
 };
-use networking::{PROTOCOL_ID, connection_config};
-
-use super::EntityIdToEntityMap;
-use common::{EntityId, state::GameState};
+use common::state::GameState;
+use networking::{NetworkId, NetworkIdToEntityMap, PROTOCOL_ID, connection_config};
 
 pub fn connect_to_server(
     mut commands: Commands,
@@ -61,29 +59,29 @@ pub fn connect_to_server(
 }
 // Player creation logic
 pub fn create_player(
-    entity_id: EntityId,
+    network_id: NetworkId,
     translation: [f32; 3],
-    lobby: &mut EntityIdToEntityMap,
+    lobby: &mut NetworkIdToEntityMap,
     id_to_entity_map: &mut IdToEntityMap,
     commands: &mut Commands,
 ) {
-    dbg!(entity_id);
+    dbg!(network_id);
     dbg!(&id_to_entity_map.0);
-    println!("Player {} connected. {}", entity_id, translation[1]);
+    println!("Player {} connected. {}", network_id, translation[1]);
     let player_transform = Transform::from_xyz(1.0, 2.0, 1.0);
     let player_root = commands
         .spawn((NeedsSetup {
-            entity_id,
+            network_id,
             player_transform,
         },))
         .id();
 
     let player_info = player_root;
-    lobby.players.insert(entity_id, player_info);
+    lobby.players.insert(network_id, player_info);
 
-    if id_to_entity_map.0.get(&entity_id).is_none() {
+    if id_to_entity_map.0.get(&network_id).is_none() {
         // this should always succeed
-        id_to_entity_map.0.insert(entity_id, player_root);
+        id_to_entity_map.0.insert(network_id, player_root);
     } else {
         error!("tried to insert a player with an existing id!");
     }
@@ -91,14 +89,14 @@ pub fn create_player(
 
 // Player removal logic
 pub fn remove_player(
-    entity_id: EntityId,
-    lobby: &mut EntityIdToEntityMap,
+    network_id: NetworkId,
+    lobby: &mut NetworkIdToEntityMap,
     id_to_entity_map: &mut IdToEntityMap,
     commands: &mut Commands,
 ) {
-    println!("Player {} disconnected.", entity_id);
-    if let Some(client_entity) = lobby.players.remove(&entity_id) {
+    println!("Player {} disconnected.", network_id);
+    if let Some(client_entity) = lobby.players.remove(&network_id) {
         commands.entity(client_entity).despawn();
-        id_to_entity_map.0.remove(&entity_id);
+        id_to_entity_map.0.remove(&network_id);
     }
 }

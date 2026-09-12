@@ -1,8 +1,13 @@
 // External imports
-use avian3d::{PhysicsPlugins, prelude::PhysicsSystems};
+use avian3d::PhysicsPlugins;
 use bevy::{
-    app::HierarchyPropagatePlugin, camera::visibility::RenderLayers,
-    light::DirectionalLightShadowMap, pbr::DefaultOpaqueRendererMethod, prelude::*,
+    app::HierarchyPropagatePlugin,
+    camera::visibility::RenderLayers,
+    gizmos::aabb::AabbGizmoPlugin,
+    image::{ImageAddressMode, ImageSamplerDescriptor},
+    light::DirectionalLightShadowMap,
+    pbr::DefaultOpaqueRendererMethod,
+    prelude::*,
 };
 use bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
@@ -39,6 +44,7 @@ mod camera;
 mod const_defs;
 mod defs;
 mod equipment;
+mod esm_ptr;
 mod events;
 mod gui;
 mod handle_nif_events;
@@ -88,7 +94,15 @@ fn main() {
             HierarchyPropagatePlugin::<RenderLayers>::new(PostUpdate),
         ))
         .add_plugins((
-            DefaultPlugins,
+            DefaultPlugins.set(ImagePlugin {
+                // Sets the default fallback sampler for all standard asset loads
+                default_sampler: ImageSamplerDescriptor {
+                    address_mode_u: ImageAddressMode::Repeat,
+                    address_mode_v: ImageAddressMode::Repeat,
+                    address_mode_w: ImageAddressMode::Repeat,
+                    ..default()
+                },
+            }),
             // Internal plugins
             BevyNifPlugin,
             MWInputPlugin,
@@ -101,20 +115,8 @@ fn main() {
             SpatialAudioPlugin,
             NetworkingPlugin,
         ))
-        .add_plugins(EguiPlugin::default())
-        .add_plugins(WorldInspectorPlugin::default())
         .add_plugins(MWCameraPlugin)
         .insert_resource(Pause(true));
-    app.edit_schedule(FixedUpdate, |schedule| {
-        schedule.configure_sets(
-            (
-                PhysicsSystems::Prepare,
-                PhysicsSystems::StepSimulation,
-                PhysicsSystems::Writeback,
-            )
-                .chain(),
-        );
-    });
     app.insert_resource(PlayerInput::default())
         .insert_resource(IdToEntityMap::default())
         .insert_resource(WorldFrameData::default())
@@ -132,9 +134,7 @@ fn main() {
         .add_systems(OnEnter(GameState::Offline), spawn_player_offline)
         .add_systems(Update, (switch_mode, animate_light_direction))
         .add_systems(Update, handle_animation_transitions)
-        //.add_systems(Update, animate_actors_using_state)
         .add_systems(Update, interpolate_visual_positions)
-        //.add_systems(Update, wireframe)
         .add_systems(PostUpdate, clear_player_rotation_input_system)
         .run();
 }

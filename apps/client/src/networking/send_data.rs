@@ -1,9 +1,9 @@
 //use crate::client::animation::play_animation_local;
 
 use super::connecting_disconnecting::{create_player, remove_player};
-use super::{EntityIdToEntityMap, InterpolationSpeeds};
+use super::{InterpolationSpeeds, NetworkIdToEntityMap};
 use crate::defs::{
-    ClientEntityId, IdToEntityMap, LocalPlayer, NetworkEventWithIdCounter, NetworkedEntity,
+    ClientNetworkId, IdToEntityMap, LocalPlayer, NetworkEventWithIdCounter, NetworkedEntity,
     PendingServerAcks, SentActionInfo,
 };
 use bevy::prelude::*;
@@ -33,12 +33,12 @@ pub fn client_send_transform(
 pub fn client_sync_players(
     mut commands: Commands,
     mut client: ResMut<RenetClient>,
-    mut lobby: ResMut<EntityIdToEntityMap>,
+    mut lobby: ResMut<NetworkIdToEntityMap>,
     mut networked_entity_q: Query<&mut NetworkedEntity>,
     mut interpolation_speeds: ResMut<InterpolationSpeeds>,
     mut id_to_entity_map: ResMut<IdToEntityMap>,
     mut actor_state_query: Query<&mut CharacterController, Without<LocalPlayer>>,
-    mut local_entity_id: ResMut<ClientEntityId>,
+    mut local_entity_id: ResMut<ClientNetworkId>,
 ) {
     // Process server messages (player creation, removal)
     process_server_messages(
@@ -64,34 +64,34 @@ pub fn client_sync_players(
 
 fn process_server_messages(
     client: &mut RenetClient,
-    lobby: &mut EntityIdToEntityMap,
+    lobby: &mut NetworkIdToEntityMap,
     commands: &mut Commands,
     mut id_to_entity_map: &mut IdToEntityMap,
     actor_state_query: &mut Query<&mut CharacterController, Without<LocalPlayer>>,
-    local_entity_id: &mut ClientEntityId,
+    local_entity_id: &mut ClientNetworkId,
 ) {
     while let Some(message) = client.receive_message(ServerChannel::ServerMessages) {
         let server_message = bincode::deserialize(&message).unwrap();
         match server_message {
             ServerMessages::PlayerCreate {
-                entity_id,
+                network_id,
                 translation,
             } => {
                 create_player(
-                    entity_id,
+                    network_id,
                     translation,
                     lobby,
                     &mut id_to_entity_map,
                     commands,
                 );
             }
-            ServerMessages::PlayerRemove { entity_id } => {
-                remove_player(entity_id, lobby, &mut id_to_entity_map, commands);
+            ServerMessages::PlayerRemove { network_id } => {
+                remove_player(network_id, lobby, &mut id_to_entity_map, commands);
             }
 
-            ServerMessages::StateUpdate { entity_id, state } => {
-                // Use EntityIdToEntityMap to find the client-side entity for this entity Id
-                if let Some(client_server_entity) = lobby.players.get(&entity_id) {
+            ServerMessages::StateUpdate { network_id, state } => {
+                // Use NetworkIdToEntityMap to find the client-side entity for this entity Id
+                if let Some(client_server_entity) = lobby.players.get(&network_id) {
                     let client_entity = client_server_entity;
 
                     // Get the ActorState component for that entity from our new query parameter
@@ -104,8 +104,8 @@ fn process_server_messages(
                     }
                 }
             }
-            ServerMessages::Welcome { entity_id } => {
-                local_entity_id.0 = entity_id;
+            ServerMessages::Welcome { network_id } => {
+                local_entity_id.0 = network_id;
             }
         }
     }
@@ -115,7 +115,7 @@ fn process_networked_entities(
     client: &mut RenetClient,
     networked_entity_q: &mut Query<&mut NetworkedEntity>,
     interpolation_speeds: &mut ResMut<InterpolationSpeeds>,
-    lobby: &mut EntityIdToEntityMap,
+    lobby: &mut NetworkIdToEntityMap,
     local_entity_id: u64,
     id_to_entity_map: &IdToEntityMap,
 ) {
@@ -306,26 +306,26 @@ pub fn client_handle_server_acks_system(
 pub fn client_handle_relayed_actions_system(
     mut client: ResMut<RenetClient>,
     mut commands: Commands,
-    lobby: Res<EntityIdToEntityMap>,
+    lobby: Res<NetworkIdToEntityMap>,
     mut remote_player_query: Query<&mut CharacterController, Without<LocalPlayer>>,
 ) {
     while let Some(message_bytes) = client.receive_message(ServerChannel::CriticalRelay) {
         match bincode::deserialize::<ServerRelayMessage>(&message_bytes) {
             Ok(ServerRelayMessage::RelayClientAction {
-                performing_entity_id,
+                performing_network_id,
                 action,
             }) => {
-                // This client is NOT `performing_entity_id`
+                // This client is NOT `performing_network_id`
 
                 info!(
                     "Received relayed action from client {}: {:?}",
-                    performing_entity_id, action,
+                    performing_network_id, action,
                 );
                 match action.payload {
                     NetworkEvent::Animation(animation_event) => {
                         // Find the entity that this event belongs to
                         if let Some(target_entity) =
-                            lobby.players.get(&performing_entity_id).map(|e| e)
+                            lobby.players.get(&performing_network_id).map(|e| e)
                         {
                             // Get its ActorState component
                             if let Ok(mut actor_state) = remote_player_query.get_mut(*target_entity)
@@ -366,7 +366,7 @@ pub fn client_handle_relayed_actions_system(
                     NetworkEvent::Sound(mut sound) => {
                         if sound.sound_source == SoundSource::LocalPlayer {
                             if let Some(target_entity) =
-                                lobby.players.get(&performing_entity_id).map(|e| e)
+                                lobby.players.get(&performing_network_id).map(|e| e)
                             {
                                 sound.sound_source = SoundSource::Attached(*target_entity);
                             }

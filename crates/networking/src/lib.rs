@@ -8,18 +8,24 @@ use esm_parser_lib::types::enums::WeaponType;
 use serde::{Deserialize, Serialize};
 
 use common::{
-    EntityId,
     events::{SetAnimSpeedSeekEvent, SoundEvent, TriggerHit},
     mechanics::{CharacterController, CharacterState, JumpingStateKind, UpperBodyState},
 };
 use serializer::SerializableTransform;
+// Pretty unfinished, probably want to get client much further along before working on server
 
+/// A shared id that both the server and client agree on, so the server sends id 0 and the client
+/// knows it's entity 192, and the client converts 192->0 when it sends messages about that entity
+pub type NetworkId = u64;
+// Should be set by the server and inputted by the client as a 32 bit hash
 pub const PRIVATE_KEY: &[u8; bevy_renet::netcode::NETCODE_KEY_BYTES] =
     b"an example very very secret key."; // 32-bytes
 pub const PROTOCOL_ID: u64 = 7;
 
 pub enum ClientChannel {
     EntityTransforms,
+    // Acions that should be essentially tcp-handshaked that they were received
+    // i.e. attacks, item pickups
     CriticalActions,
     State,
 }
@@ -37,23 +43,23 @@ pub struct Velocity(pub Vec3);
 #[derive(Debug, Serialize, Deserialize, Component)]
 pub enum ServerMessages {
     PlayerCreate {
-        entity_id: EntityId,
+        network_id: NetworkId,
         translation: [f32; 3],
     },
     PlayerRemove {
-        entity_id: EntityId,
+        network_id: NetworkId,
     },
 
     /// Relays the animation state of a specific player.
     StateUpdate {
         /// The ID of the entity whose state this is.
-        entity_id: EntityId,
+        network_id: NetworkId,
         /// The new state of that entity.
         state: NetworkedActorState,
     },
     /// Tells the player what their server-assigned entity id is
     Welcome {
-        entity_id: EntityId,
+        network_id: NetworkId,
     },
 }
 #[derive(Debug, Serialize, Deserialize)]
@@ -62,7 +68,7 @@ pub struct NetworkedEntityData {
 }
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct NetworkedEntityDataSnapshot {
-    pub entity_data_map: HashMap<EntityId, NetworkedEntityData>,
+    pub entity_data_map: HashMap<NetworkId, NetworkedEntityData>,
 }
 impl From<ClientChannel> for u8 {
     fn from(channel_id: ClientChannel) -> Self {
@@ -161,7 +167,7 @@ pub fn connection_config() -> ConnectionConfig {
     }
 }
 
-/// A component containing only the state essential for animation replication.
+/// A component containing only the state needed for animation replication.
 /// This is what gets sent over the network.
 #[derive(Debug, Clone, Serialize, Deserialize, Component)]
 pub struct NetworkedActorState {
@@ -191,7 +197,6 @@ impl From<&CharacterController> for NetworkedActorState {
 /// An enum of all possible messages a Client can send to the Server.
 #[derive(Debug, Serialize, Deserialize, Component)]
 pub enum ClientMessage {
-    // add more later, like Jump or Attack events.
     ActorStateUpdate(NetworkedActorState),
 }
 
@@ -251,18 +256,18 @@ impl NetworkEventWithId {
 pub enum ServerAcknowledgment {
     ActionConfirmed {
         original_action_id: u64,
-        server_validation_passed: bool, // Did it pass basic server checks?
+        server_validation_passed: bool, // if the server said this action was valid
         reason_if_failed: Option<String>,
     },
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ServerRelayMessage {
     RelayClientAction {
-        performing_entity_id: u64,  // The entity performing this action
-        action: NetworkEventWithId, // The original action (or a version of it)
+        performing_network_id: u64, // The entity performing this action
+        action: NetworkEventWithId, // The original action
     },
 }
 #[derive(Debug, Default, Resource)]
-pub struct EntityIdToEntityMap {
-    pub players: HashMap<EntityId, Entity>,
+pub struct NetworkIdToEntityMap {
+    pub players: HashMap<NetworkId, Entity>,
 }

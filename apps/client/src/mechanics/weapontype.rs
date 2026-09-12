@@ -69,7 +69,7 @@ pub fn get_weapon_definition(weapon_type: WeaponType) -> &'static WeaponDefiniti
         WEAPON_REGISTRY_RAW
             .iter()
             .map(|raw| {
-                // Convert your RawData into the final WeaponDefinition
+                // Convert WeaponData into WeaponDefinition
                 WeaponDefinition::new(
                     raw.short_group.to_string(),
                     raw.long_group.to_string(),

@@ -1,9 +1,9 @@
 use crate::{
     EsmError, EsmReader, RefId,
     esm_record::EsmRecord,
-    name4,
     types::{
         effect_list::EffectList,
+        enums::RecInt,
         flags::{ObjectFlags, SpellFlags},
     },
 };
@@ -64,7 +64,7 @@ impl EsmRecord for Spell {
     fn id(&self) -> &RefId {
         &self.id
     }
-    const RECORD_ID: u32 = name4!("SPEL").to_u32();
+    const RECORD_ID: RecInt = RecInt::Spel;
 }
 #[derive(LoadSave, Default, Debug, Clone, PartialEq)]
 #[repr(i32)]

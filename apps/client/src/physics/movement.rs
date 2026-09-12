@@ -24,7 +24,7 @@ pub fn init_positions(
     )>,
 ) {
     for (actor, mut frame_data, mut position_interpolation, transform) in actor_q {
-        frame_data.position = transform.translation;
+        frame_data.position = position_interpolation.current_position;
         if frame_data.water_collision && frame_data.position.y < frame_data.water_level
         //&& actor->can_move_to_water_surface(..)
         {
@@ -65,7 +65,6 @@ pub fn interpolate_visual_positions(
     time: Res<Time>,
 ) {
     for (mut interpolation, mut transform) in interpolation_q {
-        dbg!(transform.translation);
         transform.translation = interpolation.get_and_update_interpolated_pos(time.delta_secs());
     }
 }

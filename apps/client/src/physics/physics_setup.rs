@@ -23,14 +23,12 @@ pub fn setup_nif_physics(
         let Some(nif_asset) = nif_assets.get(&nif_scene.0) else {
             continue;
         };
-        // Mark the top-level entity so we don't process it again.
+        // remove the marker so this isn't processed again
         commands
             .entity(top_level_entity)
             .remove::<NeedsNifPhysics>();
         let mut bounding_volumes = Vec::new();
-        dbg!(&needs_physics.0);
-        for (entity, key) in &needs_physics.0 {
-            dbg!("entity {}", entity);
+        for (_entity, key) in &needs_physics.0 {
             if let Some(ni_type) = nif_asset.objects.get(*key) {
                 match ni_type {
                     NiType::NiNode(ni_node) => {
@@ -38,9 +36,8 @@ pub fn setup_nif_physics(
                         let bounding_volume = ni_node.bounding_volume.as_ref().unwrap().clone();
                         bounding_volumes.push(bounding_volume);
                     }
-                    _ => {
-                        dbg!(ni_type);
-                    }
+
+                    _ => {}
                 }
             }
         }

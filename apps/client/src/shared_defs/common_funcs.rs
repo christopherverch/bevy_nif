@@ -1,6 +1,6 @@
 use crate::{
     defs::{MWCell, Stance, WorldSettings},
-    live_cell_ref::LiveCellRef,
+    live_cell_ref::{CellRefBase, LiveCellRef},
     mechanics::creature_stats::CreatureStats,
     physics::actor::ActorPhysics,
 };
@@ -105,7 +105,7 @@ pub fn is_flying(
     if is_paralyzed_not_godmode {
         return false;
     }
-    if let LiveCellRef::Creature(creature) = cell_ref {
+    if let CellRefBase::Creature(creature) = &cell_ref.base {
         if creature.flags.contains(CreatureFlags::FLIES) {
             return true;
         }

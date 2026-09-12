@@ -2,9 +2,9 @@ use crate::{
     EsmError, EsmReader, HasSpells, RefId,
     common_inventory_types::InventoryList,
     esm_record::EsmRecord,
-    name4,
     types::{
         aipackage::{AIData, AIPackageList},
+        enums::RecInt,
         flags::{NpcFlags, ObjectFlags},
         spell_list::SpellList,
         transport::Transport,
@@ -40,7 +40,7 @@ impl EsmRecord for Npc {
     fn id(&self) -> &RefId {
         &self.id
     }
-    const RECORD_ID: u32 = name4!("NPC_").to_u32();
+    const RECORD_ID: RecInt = RecInt::Npc_;
 }
 impl HasSpells for Npc {
     fn spells(&self) -> &SpellList {
@@ -112,7 +112,6 @@ impl Npc {
                     npc.transport.add(reader)?;
                 }
 
-                // Delegate AI packages to our specialized list handler
                 b"AI_W" | b"AI_T" | b"AI_F" | b"AI_E" | b"AI_A" | b"CNDT" => {
                     npc.ai_packages.add(reader)?;
                 }
@@ -129,8 +128,6 @@ impl Npc {
         if !has_name {
             return Err(reader.fail("Missing NAME subrecord"));
         }
-        // Note: isDeleted check usually happens at the record level,
-        // but mirroring the C++ safety check here:
         if !npc.record_flags.contains(ObjectFlags::DELETED) {
             if !has_npdt {
                 return Err(reader.fail("Missing NPDT subrecord"));

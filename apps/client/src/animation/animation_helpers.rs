@@ -4,7 +4,7 @@ use bevy_nif::nif_animation::NifAnimator;
 use crate::defs::IdToEntityMap;
 
 pub fn get_anim_components_for_creature<'a>(
-    creature_stats_entity_id: u64,
+    creature_stats_network_id: u64,
     creature_animator_link: Entity,
     id_to_entity_map: &'a IdToEntityMap,
     animator_q: &'a mut Query<(
@@ -18,7 +18,7 @@ pub fn get_anim_components_for_creature<'a>(
     Mut<'a, NifAnimator>,
     &'a AnimationGraphHandle,
 )> {
-    let skeleton_id = creature_stats_entity_id;
+    let skeleton_id = creature_stats_network_id;
     let entity_to_animate = id_to_entity_map.0.get(&skeleton_id)?;
     let nif_animator_link = creature_animator_link;
     let Ok((animation_player, nif_animator, graph_handle)) = animator_q.get_mut(nif_animator_link)

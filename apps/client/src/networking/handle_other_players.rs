@@ -4,7 +4,7 @@ use bevy_renet::RenetClient;
 use common::mechanics::CharacterController;
 use networking::{ServerChannel, ServerMessages};
 
-use super::{EntityIdToEntityMap, InterpolationSpeeds};
+use super::{InterpolationSpeeds, NetworkIdToEntityMap};
 pub fn interpolate_players(
     mut state_query: Query<
         (Entity, &mut NetworkedEntity, &mut Transform),
@@ -37,7 +37,7 @@ pub fn interpolate_players(
 }
 pub fn apply_received_animation_state(
     mut client: ResMut<RenetClient>,
-    lobby: Res<EntityIdToEntityMap>,
+    lobby: Res<NetworkIdToEntityMap>,
     // We query for the full CharacterController on entities that are NOT the LocalPlayer
     mut player_query: Query<&mut CharacterController, Without<LocalPlayer>>,
 ) {
@@ -46,8 +46,8 @@ pub fn apply_received_animation_state(
         if let Ok(server_message) = bincode::deserialize::<ServerMessages>(&message) {
             match server_message {
                 // The server is telling us about another player's animation state
-                ServerMessages::StateUpdate { entity_id, state } => {
-                    if let Some(client_server_entity) = lobby.players.get(&entity_id) {
+                ServerMessages::StateUpdate { network_id, state } => {
+                    if let Some(client_server_entity) = lobby.players.get(&network_id) {
                         let client_entity = client_server_entity;
 
                         // Get the CharacterController component for that entity from our query

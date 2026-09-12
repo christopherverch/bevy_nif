@@ -11,6 +11,7 @@ use crate::{
     format_version_defs::DEFAULT_FORMAT_VERSION,
     name4,
     types::{
+        enums::RecInt,
         flags::{MagicEffectFlags, ObjectFlags},
         skill::MagicSchool,
     },
@@ -44,7 +45,7 @@ impl EsmRecord for MagicEffect {
     fn id(&self) -> &RefId {
         &self.id
     }
-    const RECORD_ID: u32 = name4!("MGEF").to_u32();
+    const RECORD_ID: RecInt = RecInt::Mgef;
 }
 #[derive(Default, Debug)]
 pub struct MagicEffectData {
@@ -124,8 +125,6 @@ impl MagicEffect {
                 b"AVFX" => magic_effect.area_vfx = reader.read_refid()?,
                 b"DESC" => magic_effect.description = reader.read_header_decode_string()?,
                 _ => {
-                    // If your reader doesn't skip automatically, uncomment:
-                    // reader.skip_sub()?;
                     return Err(reader.fail(&format!(
                         "Unknown MagicEffect subrecord: {}",
                         sub_name.to_str()

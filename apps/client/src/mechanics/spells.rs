@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use esm_parser_lib::{RefId, types::spell::Spell};
 use esm_store::EsmStore;
 
-use crate::{live_cell_ref::EsmPtr, world::timestamp::TimeStamp};
+use crate::{esm_ptr::EsmPtr, world::timestamp::TimeStamp};
 
 #[derive(Debug, Clone, Default)]
 pub struct Spells {
@@ -45,14 +45,14 @@ impl Spells {
     }
 
     // Adding a spell
-    pub fn add_spell(&mut self, spell_id: RefId) {}
+    pub fn add_spell(&mut self, _spell_id: RefId) {}
 
     // Removing a spell
-    pub fn remove(&mut self, spell_id: RefId) {}
+    pub fn remove(&mut self, _spell_id: RefId) {}
 
     // The "Purge" logic: Use a closure to filter
     // This replaces the C++ "SpellFilter" function pointer approach
-    pub fn purge<F>(&mut self, mut filter: F)
+    pub fn purge<F>(&mut self, _filter: F)
     where
         F: FnMut(&RefId) -> bool,
     {

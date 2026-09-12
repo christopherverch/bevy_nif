@@ -15,7 +15,7 @@ pub enum AIPackage {
     #[default]
     Wander(AIWander),
     Travel(AITravel),
-    Follow(AITarget, Option<String>), // Some follow 0 have no cell
+    Follow(AITarget, Option<String>), // Some follow packages have no cell
     Escort(AITarget, Option<String>),
     Activate(AIActivate),
 }
@@ -52,7 +52,7 @@ pub struct AIData {
     pub fight: u8,
     pub flee: u8,
     pub alarm: u8,
-    // Note: The C++ 'decompose' shows 3 bytes of padding here to hit 12 bytes
+    // padding here to hit 12 bytes
     pub _padding: [u8; 3],
     pub services: ServiceFlags,
 }
@@ -74,8 +74,8 @@ impl AIPackageList {
                             *cell = Some(cell_name);
                         }
                         _ => {
-                            // Technically OpenMW allows this but it's logically weird.
-                            // You could choose to ignore it or error out.
+                            // doesn't make sense because cndt implies follow or escort,
+                            // but isn't an error if it isn't one of those
                         }
                     }
                 }

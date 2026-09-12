@@ -27,15 +27,15 @@ where
     K: std::hash::Hash + Eq,
 {
     pub fn new(bucket_count: usize) -> Self {
-        // 1. Calculate layout based on the actual type stored in the buckets
+        // Calculate layout based on the actual type stored in the buckets
         let layout =
             Layout::array::<Option<NonNull<HashNode<K, V>>>>(bucket_count).expect("Layout error");
 
         unsafe {
-            // 2. Allocate and zero out the memory
+            // Allocate and zero out the memory
             let raw_ptr = alloc_zeroed(layout) as *mut Option<NonNull<HashNode<K, V>>>;
 
-            // 3. Promote to NonNull
+            // Promote to NonNull
             let buckets = NonNull::new(raw_ptr).unwrap_or_else(|| {
                 handle_alloc_error(layout);
             });
@@ -50,8 +50,7 @@ where
         // Just check if get_unsafe returns Some
         self.get(key).is_some()
     }
-    /// Returns true if not a duplicate. Unsafe because this should never be used while in active gameplay, only during setup/loading
-    /// of saves
+    /// Returns true if not a duplicate.
     pub fn insert(&mut self, key: K, value: V) -> bool {
         let bkt = calculate_hash(&key, self.bucket_count);
 
@@ -167,7 +166,7 @@ fn calculate_hash<K: Hash>(key: &K, bucket_count: usize) -> usize {
     key.hash(&mut hasher);
     let hash = hasher.finish() as usize;
 
-    // We must use modulo to ensure the result is within our array bounds
+    // modulo to stay in array bounds
     hash % bucket_count
 }
 use std::alloc::{Layout, alloc, alloc_zeroed, handle_alloc_error};
@@ -184,7 +183,7 @@ unsafe fn allocate_node<K, V>(key: K, value: V) -> NonNull<HashNode<K, V>> {
             std::alloc::handle_alloc_error(layout);
         }
 
-        // We initialize the node with a null 'next' pointer
+        // initialize the node with a null 'next' pointer
         write(
             raw_ptr,
             HashNode {
@@ -208,12 +207,12 @@ unsafe fn deallocate_node<K, V>(node_ptr: *mut HashNode<K, V>) {
 impl<K, V> Drop for UnorderedMap<K, V> {
     fn drop(&mut self) {
         unsafe {
-            // 1. Iterate through every bucket
+            // Iterate through every bucket
             for i in 0..self.bucket_count {
-                // Get the head of the chain (the Option<NonNull<...>>)
+                // Get the head of the chain
                 let mut curr = *self.buckets.as_ptr().add(i);
 
-                // Use a while-let loop to traverse the list
+                // traverse the list
                 while let Some(node_ptr) = curr {
                     // Cache the next pointer before deallocating the current node
                     let next = node_ptr.as_ref().next;
@@ -226,7 +225,7 @@ impl<K, V> Drop for UnorderedMap<K, V> {
                 }
             }
 
-            // 2. Deallocate the bucket array itself
+            // Deallocate the bucket array itself
             // Must use the same Layout type used in 'new'
             let layout =
                 std::alloc::Layout::array::<Option<NonNull<HashNode<K, V>>>>(self.bucket_count)
@@ -241,8 +240,6 @@ where
     K: std::hash::Hash + Eq,
 {
     fn default() -> Self {
-        // GCC typically uses a small prime number or a power of two
-        // as the initial bucket count (e.g., 8 or 16).
         Self::new(8)
     }
 }
@@ -251,10 +248,22 @@ pub struct IterMut<'a, K, V> {
     bucket_idx: usize,
     map: &'a mut UnorderedMap<K, V>,
 }
+pub struct Iter<'a, K, V> {
+    curr: Option<NonNull<HashNode<K, V>>>,
+    bucket_idx: usize,
+    map: &'a UnorderedMap<K, V>,
+}
 
 impl<K, V> UnorderedMap<K, V> {
     pub fn values_mut(&mut self) -> IterMut<'_, K, V> {
         IterMut {
+            curr: None,
+            bucket_idx: 0,
+            map: self,
+        }
+    }
+    pub fn values(&self) -> Iter<'_, K, V> {
+        Iter {
             curr: None,
             bucket_idx: 0,
             map: self,
@@ -285,6 +294,31 @@ impl<'a, K, V> Iterator for IterMut<'a, K, V> {
         // 3. Return the value
         self.curr
             .map(|mut node_ptr| unsafe { &mut node_ptr.as_mut().value })
+    }
+}
+impl<'a, K, V> Iterator for Iter<'a, K, V> {
+    type Item = &'a V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // 1. Advance if we have a current node
+        if let Some(node_ptr) = self.curr {
+            self.curr = unsafe { node_ptr.as_ref().next };
+        }
+
+        // 2. Search for the next available bucket
+        while self.curr.is_none() && self.bucket_idx < self.map.bucket_count {
+            unsafe {
+                let head = *self.map.buckets.as_ptr().add(self.bucket_idx);
+                self.bucket_idx += 1;
+                if head.is_some() {
+                    self.curr = head;
+                }
+            }
+        }
+
+        // 3. Return the value
+        self.curr
+            .map(|node_ptr| unsafe { &node_ptr.as_ref().value })
     }
 }
 #[cfg(test)]

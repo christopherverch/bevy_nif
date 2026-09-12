@@ -49,7 +49,7 @@ impl CellId {
 
             RefId::SizedString(s) | RefId::UnsizedString(s) => Self {
                 paged: false,
-                world_space: s.0.to_string(), // Your interned &'static str
+                world_space: s.0.to_string(),
                 index: CellIndex { x: 0, y: 0 },
             },
 
@@ -62,7 +62,6 @@ impl CellId {
                 world_space: String::new(),
             },
 
-            // template <typename T> ... throw std::runtime_error
             _ => panic!("cannot extract CellId from this Id type: {:?}", id),
         }
     }

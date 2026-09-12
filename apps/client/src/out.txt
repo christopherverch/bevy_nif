@@ -1,0 +1,1777 @@
+warning: /home/cv/tes3mp_rust/apps/client/Cargo.toml: unused manifest key: target.x86_64-unknown-linux-gnu.linker
+warning: /home/cv/tes3mp_rust/apps/client/Cargo.toml: unused manifest key: target.x86_64-unknown-linux-gnu.rustflags
+warning: function `unpack` is never used
+  --> crates/esm_parser_lib/src/types/cell.rs:88:10
+   |
+88 | const fn unpack(packed_indices: u32) -> (u32, u32) {
+   |          ^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `esm_parser_lib` (lib) generated 1 warning
+warning: unused import: `NIF_TO_BEVY_ROTATION`
+ --> /home/cv/bevy_nif/bevy_nif/src/attach_parts.rs:2:5
+  |
+2 |     NIF_TO_BEVY_ROTATION,
+  |     ^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `CompressedImageFormats`, `ImageSampler`, and `ImageType`
+ --> /home/cv/bevy_nif/bevy_nif/src/loader.rs:3:18
+  |
+3 | use bevy_image::{CompressedImageFormats, Image, ImageSampler, ImageType};
+  |                  ^^^^^^^^^^^^^^^^^^^^^^         ^^^^^^^^^^^^  ^^^^^^^^^
+
+warning: unused imports: `ImageAddressMode`, `ImageLoaderSettings`, `ImageSamplerDescriptor`, and `ImageSampler`
+ --> /home/cv/bevy_nif/bevy_nif/src/spawning_ni_helpers.rs:4:12
+  |
+4 |     Image, ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor,
+  |            ^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `PostUpdate`
+  --> /home/cv/bevy_nif/bevy_nif/src/lib.rs:13:29
+   |
+13 | use bevy_app::{App, Plugin, PostUpdate, PreUpdate};
+   |                             ^^^^^^^^^^
+
+warning: unused variable: `ev`
+  --> /home/cv/bevy_nif/bevy_nif/src/spawner.rs:60:5
+   |
+60 |     ev: On<Add, NifScene>,
+   |     ^^ help: if this is intentional, prefix it with an underscore: `_ev`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `id`
+  --> crates/esm_store/src/lib.rs:59:13
+   |
+59 |         let id = store.generate_id();
+   |             ^^ help: if this is intentional, prefix it with an underscore: `_id`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `bevy_nif` (lib) generated 5 warnings (run `cargo fix --lib -p bevy_nif` to apply 5 suggestions)
+warning: `esm_store` (lib) generated 1 warning (run `cargo fix --lib -p esm_store` to apply 1 suggestion)
+   Compiling client v0.1.0 (/home/cv/tes3mp_rust/apps/client)
+warning: unused import: `gizmos::aabb::AabbGizmoPlugin`
+ --> apps/client/src/main.rs:6:5
+  |
+6 |     gizmos::aabb::AabbGizmoPlugin,
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `bevy_egui::EguiPlugin`
+  --> apps/client/src/main.rs:12:5
+   |
+12 | use bevy_egui::EguiPlugin;
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `bevy_inspector_egui::quick::WorldInspectorPlugin`
+  --> apps/client/src/main.rs:13:5
+   |
+13 | use bevy_inspector_egui::quick::WorldInspectorPlugin;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::f32::consts::PI`
+ --> apps/client/src/gui/race_select.rs:1:5
+  |
+1 | use std::f32::consts::PI;
+  |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `avian3d::math::FRAC_PI_2`
+ --> apps/client/src/gui/race_select.rs:3:5
+  |
+3 | use avian3d::math::FRAC_PI_2;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `setup_scene::spawn_nif_unattached`
+ --> apps/client/src/landscape/landscape_spawning_despawning.rs:7:5
+  |
+7 |     setup_scene::spawn_nif_unattached,
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `FRAC_PI_2` and `PI`
+ --> apps/client/src/setup/setup_npc.rs:1:24
+  |
+1 | use std::f32::consts::{FRAC_PI_2, PI};
+  |                        ^^^^^^^^^  ^^
+
+warning: unused variable: `neck`
+   --> apps/client/src/gui/race_select.rs:345:9
+    |
+345 |     let neck = get_body_parts(
+    |         ^^^^ help: if this is intentional, prefix it with an underscore: `_neck`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `chest`
+   --> apps/client/src/gui/race_select.rs:351:9
+    |
+351 |     let chest = get_body_parts(
+    |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_chest`
+
+warning: unused variable: `clav`
+   --> apps/client/src/gui/race_select.rs:357:9
+    |
+357 |     let clav = get_body_parts(
+    |         ^^^^ help: if this is intentional, prefix it with an underscore: `_clav`
+
+warning: variable does not need to be mutable
+   --> apps/client/src/landscape/landscape_spawning_despawning.rs:121:9
+    |
+121 |     let mut spawned_entities = Vec::new();
+    |         ----^^^^^^^^^^^^^^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `commands`
+   --> apps/client/src/landscape/landscape_spawning_despawning.rs:116:5
+    |
+116 |     commands: &mut Commands,
+    |     ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_commands`
+
+warning: unused variable: `asset_server`
+   --> apps/client/src/landscape/landscape_spawning_despawning.rs:118:5
+    |
+118 |     asset_server: &AssetServer,
+    |     ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_asset_server`
+
+warning: unused variable: `path`
+   --> apps/client/src/landscape/landscape_spawning_despawning.rs:140:17
+    |
+140 |             let path = if check_exists(&path) {
+    |                 ^^^^ help: if this is intentional, prefix it with an underscore: `_path`
+
+warning: unused variable: `rot`
+   --> apps/client/src/landscape/landscape_spawning_despawning.rs:155:17
+    |
+155 |             let rot = Quat::from_euler(EulerRot::XYZ, -rot.x, rot.y, -rot.z);
+    |                 ^^^ help: if this is intentional, prefix it with an underscore: `_rot`
+
+warning: value assigned to `up_distance` is never read
+  --> apps/client/src/physics/stepper.rs:50:31
+   |
+50 |         let mut up_distance = 0.0;
+   |                               ^^^
+   |
+   = help: maybe it is overwritten before being read?
+   = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `AnimationConfig` is never constructed
+  --> apps/client/src/animation/defs.rs:12:12
+   |
+12 | pub struct AnimationConfig {
+   |            ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: enum `RepeatAnim` is never used
+  --> apps/client/src/animation/defs.rs:19:10
+   |
+19 | pub enum RepeatAnim {
+   |          ^^^^^^^^^^
+
+warning: function `generate_weapon_anim_candidates` is never used
+  --> apps/client/src/animation/name_resolver.rs:11:4
+   |
+11 | fn generate_weapon_anim_candidates(base_group: &str, weapon_type: WeaponType) -> Vec<String> {
+   |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `find_first_valid_animation` is never used
+  --> apps/client/src/animation/name_resolver.rs:21:4
+   |
+21 | fn find_first_valid_animation(candidates: &[String], animator: &NifAnimator) -> Option<String> {
+   |    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `resolve_idle_anim_name` is never used
+  --> apps/client/src/animation/name_resolver.rs:29:8
+   |
+29 | pub fn resolve_idle_anim_name(
+   |        ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `resolve_jump_intro_name` is never used
+  --> apps/client/src/animation/name_resolver.rs:48:8
+   |
+48 | pub fn resolve_jump_intro_name(weapon_type: WeaponType, animator: &NifAnimator) -> Option<String> {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `resolve_jump_landing_name` is never used
+  --> apps/client/src/animation/name_resolver.rs:53:8
+   |
+53 | pub fn resolve_jump_landing_name(
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `resolve_movement_anim_name` is never used
+  --> apps/client/src/animation/name_resolver.rs:74:8
+   |
+74 | pub fn resolve_movement_anim_name(
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `get_follow_suffix` is never used
+   --> apps/client/src/animation/name_resolver.rs:155:8
+    |
+155 | pub fn get_follow_suffix(attack_strength: f32) -> &'static str {
+    |        ^^^^^^^^^^^^^^^^^
+
+warning: function `get_weapon_long_group` is never used
+   --> apps/client/src/animation/name_resolver.rs:166:8
+    |
+166 | pub fn get_weapon_long_group(weapon_type: WeaponType) -> &'static str {
+    |        ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `get_weapon_suffixes` is never used
+   --> apps/client/src/animation/name_resolver.rs:171:4
+    |
+171 | fn get_weapon_suffixes<'a>(weapon_type: WeaponType) -> &'a str {
+    |    ^^^^^^^^^^^^^^^^^^^
+
+warning: function `resolve_anim_name` is never used
+   --> apps/client/src/animation/name_resolver.rs:177:4
+    |
+177 | fn resolve_anim_name(
+    |    ^^^^^^^^^^^^^^^^^
+
+warning: function `refresh_movement_anims` is never used
+  --> apps/client/src/animation/refresh_character_anims.rs:10:4
+   |
+10 | fn refresh_movement_anims(
+   |    ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `is_turning` is never used
+   --> apps/client/src/animation/refresh_character_anims.rs:108:4
+    |
+108 | fn is_turning(character_controller: &CharacterController) -> bool {
+    |    ^^^^^^^^^^
+
+warning: variants `Weapon` and `Spell` are never constructed
+  --> apps/client/src/defs.rs:40:5
+   |
+38 | pub enum DrawState {
+   |          --------- variants in this enum
+39 |     Nothing,
+40 |     Weapon,
+   |     ^^^^^^
+41 |     Spell,
+   |     ^^^^^
+   |
+   = note: `DrawState` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: field `network_id` is never read
+   --> apps/client/src/defs.rs:106:9
+    |
+105 | pub struct NetworkedEntity {
+    |            --------------- field in this struct
+106 |     pub network_id: NetworkId,
+    |         ^^^^^^^^^^
+
+warning: fields `action_payload`, `time_sent`, and `retries` are never read
+   --> apps/client/src/defs.rs:115:9
+    |
+114 | pub struct SentActionInfo {
+    |            -------------- fields in this struct
+115 |     pub action_payload: NetworkEvent, // Store for potential retry
+    |         ^^^^^^^^^^^^^^
+116 |     pub time_sent: Duration,
+    |         ^^^^^^^^^
+117 |     pub retries: u8,
+    |         ^^^^^^^
+    |
+    = note: `SentActionInfo` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: field `player_transform` is never read
+   --> apps/client/src/defs.rs:132:9
+    |
+130 | pub struct NeedsSetup {
+    |            ---------- field in this struct
+131 |     pub network_id: NetworkId,
+132 |     pub player_transform: Transform,
+    |         ^^^^^^^^^^^^^^^^
+
+warning: field `network_id` is never read
+   --> apps/client/src/defs.rs:138:9
+    |
+137 | pub struct LocalPlayer {
+    |            ----------- field in this struct
+138 |     pub network_id: NetworkId,
+    |         ^^^^^^^^^^
+
+warning: fields `run` and `sneak` are never read
+   --> apps/client/src/defs.rs:151:9
+    |
+147 | pub struct PlayerInput {
+    |            ----------- fields in this struct
+...
+151 |     pub run: bool,
+    |         ^^^
+152 |     pub sneak: bool,
+    |         ^^^^^
+    |
+    = note: `PlayerInput` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: enum `Direction` is never used
+   --> apps/client/src/defs.rs:155:10
+    |
+155 | pub enum Direction {
+    |          ^^^^^^^^^
+
+warning: field `cell_to_entity` is never read
+   --> apps/client/src/defs.rs:182:9
+    |
+180 | pub struct LoadedLandscapeEntities {
+    |            ----------------------- field in this struct
+181 |     // Maps cell (x, y) coordinates to the Bevy Entity ID that represents that landscape cell's entity
+182 |     pub cell_to_entity: HashMap<(i32, i32), Entity>,
+    |         ^^^^^^^^^^^^^^
+    |
+    = note: `LoadedLandscapeEntities` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: method `as_mut` is never used
+  --> apps/client/src/esm_ptr.rs:23:12
+   |
+20 | impl<T> EsmPtr<T> {
+   | ----------------- method in this implementation
+...
+23 |     pub fn as_mut<'a>(&self, _esm_store: &'a mut EsmStore) -> &'a mut T {
+   |            ^^^^^^
+
+warning: struct `RequestAnimation` is never constructed
+ --> apps/client/src/events.rs:7:12
+  |
+7 | pub struct RequestAnimation {
+  |            ^^^^^^^^^^^^^^^^
+
+warning: method `as_f32` is never used
+  --> apps/client/src/gui/mod.rs:58:12
+   |
+57 | impl RenderPosition {
+   | ------------------- method in this implementation
+58 |     pub fn as_f32(self) -> f32 {
+   |            ^^^^^^
+
+warning: field `0` is never read
+ --> apps/client/src/gui/debug_menu.rs:6:32
+  |
+6 | pub struct PlayerDebugStatText(pub RefId);
+  |            ------------------- ^^^^^^^^^
+  |            |
+  |            field in this struct
+  |
+  = help: consider removing this field
+  = note: `PlayerDebugStatText` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: field `race_select_handles` is never read
+  --> apps/client/src/gui/race_select.rs:53:5
+   |
+43 | pub struct RaceSelectUI {
+   |            ------------ field in this struct
+...
+53 |     race_select_handles: Vec<Handle<Nif>>,
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: function `format_effect_string` is never used
+   --> apps/client/src/gui/spell_description.rs:215:4
+    |
+215 | fn format_effect_string(data: &ENAMStruct, effect: &MagicEffect, esm_store: &EsmStore) {
+    |    ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `cancel_entity_landscape_load` is never used
+   --> apps/client/src/landscape/landscape_loader.rs:654:4
+    |
+654 | fn cancel_entity_landscape_load(commands: &mut Commands, entity: Entity, err: &str) {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: variant `Creature` is never constructed
+  --> apps/client/src/live_cell_ref.rs:12:5
+   |
+10 | pub enum CellRefBase {
+   |          ----------- variant in this enum
+11 |     Npc(EsmPtr<Npc>),
+12 |     Creature(EsmPtr<Creature>),
+   |     ^^^^^^^^
+   |
+   = note: `CellRefBase` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: fields `level`, `spells`, `knocked_down_over_one_frame`, and `death_animation_finished` are never read
+  --> apps/client/src/mechanics/creature_stats.rs:26:9
+   |
+23 | pub struct CreatureStats {
+   |            ------------- fields in this struct
+...
+26 |     pub level: i16,
+   |         ^^^^^
+27 |     pub spells: Spells,
+   |         ^^^^^^
+...
+37 |     pub knocked_down_over_one_frame: bool,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+38 |     pub death_animation_finished: bool,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `CreatureStats` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: methods `health`, `set_health`, `recalculate_magicka`, `set_knocked_down`, `set_knocked_down_over_one_frame`, and `knocked_down_over_one_frame` are never used
+   --> apps/client/src/mechanics/creature_stats.rs:67:8
+    |
+ 44 | impl CreatureStats {
+    | ------------------ methods in this implementation
+...
+ 67 |     fn health(&self) -> &DynamicStat<f32> {
+    |        ^^^^^^
+...
+ 70 |     fn set_health(&mut self, value: f32) {
+    |        ^^^^^^^^^^
+...
+ 73 |     pub fn recalculate_magicka(&mut self, is_player: bool, game_settings: &Store<GameSetting>) {
+    |            ^^^^^^^^^^^^^^^^^^^
+...
+127 |     pub fn set_knocked_down(&mut self, value: bool) {
+    |            ^^^^^^^^^^^^^^^^
+...
+137 |     pub fn set_knocked_down_over_one_frame(&mut self, value: bool) {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+141 |     pub fn knocked_down_over_one_frame(&self) -> bool {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: fields `health` and `magicka` are never read
+   --> apps/client/src/mechanics/creature_stats.rs:195:5
+    |
+193 | pub struct DynamicStats {
+    |            ------------ fields in this struct
+194 |     // Health is private since setting it can cause outside changes, like the creature dying
+195 |     health: DynamicStat<f32>,
+    |     ^^^^^^
+196 |     pub magicka: DynamicStat<f32>,
+    |         ^^^^^^^
+    |
+    = note: `DynamicStats` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: function `set_player_race` is never used
+  --> apps/client/src/mechanics/general.rs:10:8
+   |
+10 | pub fn set_player_race(
+   |        ^^^^^^^^^^^^^^^
+
+warning: function `build_player` is never used
+  --> apps/client/src/mechanics/general.rs:28:4
+   |
+28 | fn build_player(
+   |    ^^^^^^^^^^^^
+
+warning: fields `pitch_change`, `yaw_change`, and `attack_intent` are never read
+  --> apps/client/src/mechanics/input.rs:15:9
+   |
+12 | pub struct ActorIntent {
+   |            ----------- fields in this struct
+...
+15 |     pub pitch_change: f32,
+   |         ^^^^^^^^^^^^
+16 |     pub yaw_change: f32,
+   |         ^^^^^^^^^^
+...
+21 |     pub attack_intent: AttackIntentKind,
+   |         ^^^^^^^^^^^^^
+   |
+   = note: `ActorIntent` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: variants `Any`, `Slash`, `Chop`, and `Thrust` are never constructed
+  --> apps/client/src/mechanics/input.rs:28:5
+   |
+25 | pub enum AttackIntentKind {
+   |          ---------------- variants in this enum
+...
+28 |     Any,
+   |     ^^^
+29 |     Slash,
+   |     ^^^^^
+30 |     Chop,
+   |     ^^^^
+31 |     Thrust,
+   |     ^^^^^^
+   |
+   = note: `AttackIntentKind` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: multiple fields are never read
+  --> apps/client/src/mechanics/npc_stats.rs:10:9
+   |
+ 8 | pub struct NpcStats {
+   |            -------- fields in this struct
+ 9 |     // Basic shared stats
+10 |     pub disposition: i32,
+   |         ^^^^^^^^^^^
+11 |     pub crime_disposition_modifier: i32,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+12 |     pub skills: HashMap<RefId, SkillValue>,
+13 |     pub reputation: i32,
+   |         ^^^^^^^^^^
+14 |     pub crime_id: i32,
+   |         ^^^^^^^^
+...
+17 |     pub faction_rank: HashMap<RefId, i32>,
+   |         ^^^^^^^^^^^^
+18 |     pub expelled: HashSet<RefId>,
+   |         ^^^^^^^^
+19 |     pub faction_reputation: HashMap<RefId, i32>,
+   |         ^^^^^^^^^^^^^^^^^^
+...
+22 |     pub level_progress: i32,
+   |         ^^^^^^^^^^^^^^
+23 |     pub skill_increases: HashMap<RefId, i32>,
+   |         ^^^^^^^^^^^^^^^
+24 |     pub spec_increases: Vec<i32>,
+   |         ^^^^^^^^^^^^^^
+25 |     pub used_ids: HashSet<RefId>,
+   |         ^^^^^^^^
+...
+28 |     pub time_to_start_drowning: f32,
+   |         ^^^^^^^^^^^^^^^^^^^^^^
+...
+32 |     pub bounty: i32,
+   |         ^^^^^^
+33 |     werewolf_kills: i32,
+   |     ^^^^^^^^^^^^^^
+   |
+   = note: `NpcStats` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: method `set_werewolf` is never used
+  --> apps/client/src/mechanics/npc_stats.rs:36:12
+   |
+35 | impl NpcStats {
+   | ------------- method in this implementation
+36 |     pub fn set_werewolf(&mut self, set: bool) {
+   |            ^^^^^^^^^^^^
+
+warning: struct `SpellList` is never constructed
+  --> apps/client/src/mechanics/spell_list.rs:20:12
+   |
+20 | pub struct SpellList {
+   |            ^^^^^^^^^
+
+warning: method `with_base_record` is never used
+  --> apps/client/src/mechanics/spell_list.rs:26:12
+   |
+25 | impl SpellList {
+   | -------------- method in this implementation
+26 |     pub fn with_base_record(&self, esm_store: &mut EsmStore, f: fn(&Vec<RefId>) -> bool) -> bool {
+   |            ^^^^^^^^^^^^^^^^
+
+warning: function `with_base_record` is never used
+  --> apps/client/src/mechanics/spell_list.rs:37:4
+   |
+37 | fn with_base_record<T>(id: &RefId, esm_store: &mut EsmStore, f: fn(&Vec<RefId>) -> bool) -> bool
+   |    ^^^^^^^^^^^^^^^^
+
+warning: fields `spell_list_ref`, `selected_spell`, `spells`, and `used_powers` are never read
+  --> apps/client/src/mechanics/spells.rs:12:9
+   |
+ 9 | pub struct Spells {
+   |            ------ fields in this struct
+...
+12 |     pub spell_list_ref: RefId,
+   |         ^^^^^^^^^^^^^^
+13 |     /// Note: this is the spell that's about to be cast, *not* the spell selected in the GUI (which may be different)
+14 |     pub selected_spell: Option<RefId>,
+   |         ^^^^^^^^^^^^^^
+15 |     /// pointers to the actual esm data for the spells this instance has
+16 |     pub spells: Vec<EsmPtr<Spell>>,
+   |         ^^^^^^
+...
+19 |     pub used_powers: HashMap<RefId, TimeStamp>,
+   |         ^^^^^^^^^^^
+   |
+   = note: `Spells` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: multiple associated items are never used
+  --> apps/client/src/mechanics/spells.rs:22:12
+   |
+21 | impl Spells {
+   | ----------- associated items in this implementation
+22 |     pub fn new() -> Self {
+   |            ^^^
+...
+31 |     pub fn has_spell_id(&self, spell_id: &RefId, esm_store: &EsmStore) -> bool {
+   |            ^^^^^^^^^^^^
+...
+38 |     pub fn has_spell(&self, spell: &Spell) -> bool {
+   |            ^^^^^^^^^
+...
+48 |     pub fn add_spell(&mut self, _spell_id: RefId) {}
+   |            ^^^^^^^^^
+...
+51 |     pub fn remove(&mut self, _spell_id: RefId) {}
+   |            ^^^^^^
+...
+55 |     pub fn purge<F>(&mut self, _filter: F)
+   |            ^^^^^
+...
+60 |     pub fn clear(&mut self) {}
+   |            ^^^^^
+
+warning: multiple fields are never read
+  --> apps/client/src/mechanics/weapontype.rs:28:9
+   |
+26 | pub struct WeaponDefinition {
+   |            ---------------- fields in this struct
+27 |     pub short_group: String,
+28 |     pub long_group: String,
+   |         ^^^^^^^^^^
+29 |     pub sound_id_down: RefId,
+   |         ^^^^^^^^^^^^^
+30 |     pub sound_id_up: RefId,
+   |         ^^^^^^^^^^^
+31 |     pub attach_bone: String,
+   |         ^^^^^^^^^^^
+32 |     pub sheathing_bone: String,
+   |         ^^^^^^^^^^^^^^
+33 |     pub skill: RefId,
+   |         ^^^^^
+34 |     pub category: WeaponCategory,
+35 |     pub ammo_type: i32,
+   |         ^^^^^^^^^
+
+warning: method `find_ground` is never used
+  --> apps/client/src/physics/trace.rs:36:12
+   |
+35 | impl ActorTracer {
+   | ---------------- method in this implementation
+36 |     pub fn find_ground(
+   |            ^^^^^^^^^^^
+
+warning: function `trace_down` is never used
+   --> apps/client/src/physics/trace.rs:106:8
+    |
+106 | pub fn trace_down(
+    |        ^^^^^^^^^^
+
+warning: multiple fields are never read
+  --> apps/client/src/physics/actor.rs:25:9
+   |
+10 | pub struct ActorPhysics {
+   |            ------------ fields in this struct
+...
+25 |     pub collision_shape_type: CollisionShapeType,
+   |         ^^^^^^^^^^^^^^^^^^^^
+26 |     pub rotationally_invariant: bool,
+   |         ^^^^^^^^^^^^^^^^^^^^^^
+27 |     pub mesh_translation: Vec3,
+   |         ^^^^^^^^^^^^^^^^
+28 |     pub original_half_extents: Vec3,
+   |         ^^^^^^^^^^^^^^^^^^^^^
+...
+31 |     pub scale: Vec3,
+   |         ^^^^^
+...
+37 |     pub skip_simulation: bool,
+   |         ^^^^^^^^^^^^^^^
+38 |     pub active: bool,
+   |         ^^^^^^
+
+warning: methods `get_collision_object_position`, `update_scale_unsafe`, and `get_scaled_mesh_translation` are never used
+   --> apps/client/src/physics/actor.rs:98:12
+    |
+ 40 | impl ActorPhysics {
+    | ----------------- methods in this implementation
+...
+ 98 |     pub fn get_collision_object_position(&self, current_translation: Vec3) -> Vec3 {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+102 |     pub fn update_scale_unsafe(&mut self, physics_scale: Vec3, rendering_scale: Vec3) {
+    |            ^^^^^^^^^^^^^^^^^^^
+...
+121 |     pub fn get_scaled_mesh_translation(&self) -> Vec3 {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: field `is_player` is never read
+   --> apps/client/src/physics/actor.rs:183:9
+    |
+154 | pub struct ActorFrameData {
+    |            -------------- field in this struct
+...
+183 |     pub is_player: bool,
+    |         ^^^^^^^^^
+
+warning: variants `Aabb` and `Cylinder` are never constructed
+ --> apps/client/src/physics/collision.rs:4:5
+  |
+3 | pub enum CollisionShapeType {
+  |          ------------------ variants in this enum
+4 |     Aabb,
+  |     ^^^^
+5 |     RotatingBox,
+6 |     Cylinder,
+  |     ^^^^^^^^
+
+warning: multiple fields are never read
+  --> apps/client/src/physics/components.rs:7:9
+   |
+ 4 | pub struct CreaturePhysicsState {
+   |            -------------------- fields in this struct
+...
+ 7 |     pub velocity_for_frame: Vec3,
+   |         ^^^^^^^^^^^^^^^^^^
+...
+10 |     pub inertia: Vec3,
+   |         ^^^^^^^
+...
+13 |     pub on_ground: bool,
+   |         ^^^^^^^^^
+14 |     pub on_slope: bool,
+   |         ^^^^^^^^
+...
+19 |     pub last_slide_normal: Vec3,
+   |         ^^^^^^^^^^^^^^^^^
+...
+22 |     pub last_slide_normal_fallback: Vec3,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+25 |     pub times_slid: u32,
+   |         ^^^^^^^^^^
+...
+29 |     pub collider: Collider,
+   |         ^^^^^^^^
+30 |     /// Counts consecutive frames where significant geometry penetration is detected.
+31 |     pub stuck_frames: u32,
+   |         ^^^^^^^^^^^^
+32 |     pub last_stuck_position: Vec3,
+   |         ^^^^^^^^^^^^^^^^^^^
+...
+35 |     pub vertical_offset: f32,
+   |         ^^^^^^^^^^^^^^^
+   |
+   = note: `CreaturePhysicsState` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: constant `SOLVER_GROUND_OFFSET` is never used
+ --> apps/client/src/physics/constants.rs:3:11
+  |
+3 | pub const SOLVER_GROUND_OFFSET: f32 = 1.0 / MW_UNITS_PER_METER;
+  |           ^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `SOLVER_LARGE_DISTANCE` is never used
+ --> apps/client/src/physics/constants.rs:4:11
+  |
+4 | pub const SOLVER_LARGE_DISTANCE: f32 = 35.0 / MW_UNITS_PER_METER * 35.0 / MW_UNITS_PER_METER;
+  |           ^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `FAILSAFE_UNSTUCK_UPWARD_DISTANCE` is never used
+  --> apps/client/src/physics/constants.rs:39:11
+   |
+39 | pub const FAILSAFE_UNSTUCK_UPWARD_DISTANCE: f32 = 10.0 / MW_UNITS_PER_METER;
+   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `add_margin_to_delta` is never used
+  --> apps/client/src/physics/helpers.rs:17:8
+   |
+17 | pub fn add_margin_to_delta(delta: Vec3) -> Vec3 {
+   |        ^^^^^^^^^^^^^^^^^^^
+
+warning: struct `RawTraceResult` is never constructed
+ --> apps/client/src/physics/types.rs:3:12
+  |
+3 | pub struct RawTraceResult {
+  |            ^^^^^^^^^^^^^^
+
+warning: method `has_hit` is never used
+  --> apps/client/src/physics/types.rs:11:12
+   |
+10 | impl RawTraceResult {
+   | ------------------- method in this implementation
+11 |     pub fn has_hit(&self) -> bool {
+   |            ^^^^^^^
+
+warning: struct `RayHit` is never constructed
+  --> apps/client/src/physics/types.rs:15:12
+   |
+15 | pub struct RayHit {
+   |            ^^^^^^
+
+warning: variant `None` is never constructed
+   --> apps/client/src/setup/setup_npc.rs:295:5
+    |
+293 | pub enum AttachmentTypeBuilder {
+    |          --------------------- variant in this enum
+294 |     Rigid { target_bone: String },
+295 |     None,
+    |     ^^^^
+
+warning: function `test_build_seyda_neen` is never used
+   --> apps/client/src/setup_scene.rs:273:4
+    |
+273 | fn test_build_seyda_neen(
+    |    ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `get_skill` is never used
+ --> apps/client/src/shared_defs/creature.rs:9:8
+  |
+9 | pub fn get_skill(esm_store: &EsmStore, skill: RefId, creature_ptr: EsmPtr<Creature>) -> f32 {
+  |        ^^^^^^^^^
+
+warning: multiple fields are never read
+  --> apps/client/src/shared_defs/npc.rs:39:9
+   |
+28 | pub struct NpcGmst {
+   |            ------- fields in this struct
+...
+39 |     pub fJumpEncumbranceBase: EsmPtr<GameSetting>,
+   |         ^^^^^^^^^^^^^^^^^^^^
+40 |     pub fJumpEncumbranceMultiplier: EsmPtr<GameSetting>,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+41 |     pub fJumpAcrobaticsBase: EsmPtr<GameSetting>,
+   |         ^^^^^^^^^^^^^^^^^^^
+42 |     pub fJumpAcroMultiplier: EsmPtr<GameSetting>,
+   |         ^^^^^^^^^^^^^^^^^^^
+43 |     pub fJumpRunMultiplier: EsmPtr<GameSetting>,
+   |         ^^^^^^^^^^^^^^^^^^
+44 |     pub fWereWolfRunMult: EsmPtr<GameSetting>,
+45 |     pub fKnockDownMult: EsmPtr<GameSetting>,
+   |         ^^^^^^^^^^^^^^
+46 |     pub iKnockDownOddsMult: EsmPtr<GameSetting>,
+   |         ^^^^^^^^^^^^^^^^^^
+47 |     pub iKnockDownOddsBase: EsmPtr<GameSetting>,
+   |         ^^^^^^^^^^^^^^^^^^
+48 |     pub fCombatArmorMinMult: EsmPtr<GameSetting>,
+   |         ^^^^^^^^^^^^^^^^^^^
+
+warning: associated items `new`, `hour`, and `day` are never used
+  --> apps/client/src/world/timestamp.rs:10:12
+   |
+ 9 | impl TimeStamp {
+   | -------------- associated items in this implementation
+10 |     pub fn new(hour: f32, day: i32) -> Result<Self, String> {
+   |            ^^^
+...
+17 |     pub fn hour(&self) -> f32 {
+   |            ^^^^
+...
+20 |     pub fn day(&self) -> i32 {
+   |            ^^^
+
+warning: `client` (bin "client") generated 80 warnings (run `cargo fix --bin "client" -p client` to apply 15 suggestions)
+    Finished `release` profile [optimized] target(s) in 13.68s
+     Running `/home/cv/tes3mp_rust/target/release/client`
+[apps/client/src/main.rs:85:9] config.data_dirs = [
+    "./data",
+    "/home/user/games/morrowind/data",
+]
+[apps/client/src/main.rs:86:9] config.content = [
+    "Morrowind.esm",
+    "Tribunal.esm",
+    "Bloodmoon.esm",
+    "MyMod.esp",
+]
+[2m2026-09-12T01:45:19.364456Z[0m [32m INFO[0m [2mbevy_render::renderer[0m[2m:[0m AdapterInfo { name: "AMD Radeon RX 6800 XT (RADV NAVI21)", vendor: 4098, device: 29631, device_type: DiscreteGpu, device_pci_bus_id: "0000:03:00.0", driver: "radv", driver_info: "Mesa 26.2.1-arch3.1", backend: Vulkan, subgroup_min_size: 32, subgroup_max_size: 64, transient_saves_memory: false }
+[2m2026-09-12T01:45:19.448374Z[0m [32m INFO[0m [2mbevy_pbr::cluster[0m[2m:[0m GPU clustering is supported on this device.
+[2m2026-09-12T01:45:19.448447Z[0m [32m INFO[0m [2mbevy_render::batching::gpu_preprocessing[0m[2m:[0m GPU preprocessing is fully supported on this device.
+[2m2026-09-12T01:45:19.448939Z[0m [32m INFO[0m [2mbevy_winit::system[0m[2m:[0m Creating new window client (168v0)
+[2m2026-09-12T01:45:19.449085Z[0m [32m INFO[0m [2mwinit::platform_impl::linux::x11::window[0m[2m:[0m Guessed window scale factor: 1
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.600993Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 0 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/A_Glass_Helmet.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.601049Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 0 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/A_Glass_Helmet.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.601059Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 1 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/f/Terrain_rock_BC_15.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.601072Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 0 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/A_Glass_Helmet.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.601078Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 1 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/f/Terrain_rock_BC_15.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.601084Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 2 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/f/Terrain_rock_BC_14.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.601122Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 0 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/A_Glass_Helmet.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.601129Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 1 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/f/Terrain_rock_BC_15.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.601134Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 2 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/f/Terrain_rock_BC_14.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.601141Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 3 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/f/Terrain_rock_BC_18.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.601154Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 0 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/A_Glass_Helmet.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.601159Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 1 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/f/Terrain_rock_BC_15.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.601165Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 2 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/f/Terrain_rock_BC_14.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.601171Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 3 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/f/Terrain_rock_BC_18.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.601176Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 4 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/f/Terrain_rock_BC_12.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.601205Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 0 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/A_Glass_Helmet.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.601219Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 1 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/f/Terrain_rock_BC_15.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.601235Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 2 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/f/Terrain_rock_BC_14.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.601245Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 3 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/f/Terrain_rock_BC_18.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.601256Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 4 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/f/Terrain_rock_BC_12.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.601265Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 5 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_High Elf_M_Head_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.601284Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 0 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/A_Glass_Helmet.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.601291Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 1 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/f/Terrain_rock_BC_15.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.601298Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 2 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/f/Terrain_rock_BC_14.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.601304Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 3 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/f/Terrain_rock_BC_18.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.601312Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 4 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/f/Terrain_rock_BC_12.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.601322Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 5 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_High Elf_M_Head_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:19.601332Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 6 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_High Elf_M_Hair_04.nif) }
+[2m2026-09-12T01:45:19.601452Z[0m [31mERROR[0m [2mbevy_asset::server[0m[2m:[0m Failed to load asset 'environment_maps/pisa_diffuse_rgb9e5_zstd.ktx2' with asset loader 'bevy_image::image_loader::ImageLoader': Could not load texture file: Error reading image file environment_maps/pisa_diffuse_rgb9e5_zstd.ktx2: invalid data: Failed to parse ktx2 file: UnexpectedEnd.
+
+[2m2026-09-12T01:45:19.609376Z[0m [31mERROR[0m [2mbevy_asset::server[0m[2m:[0m Failed to load asset 'environment_maps/pisa_specular_rgb9e5_zstd.ktx2' with asset loader 'bevy_image::image_loader::ImageLoader': Could not load texture file: Error reading image file environment_maps/pisa_specular_rgb9e5_zstd.ktx2: invalid data: Failed to parse ktx2 file: UnexpectedEnd.
+
+Failed to parse server address: invalid socket address syntax
+[2m2026-09-12T01:45:21.158393Z[0m [32m INFO[0m [2mclient::setup_funcs[0m[2m:[0m spawning player offline
+[2m2026-09-12T01:45:21.158450Z[0m [32m INFO[0m [2mclient::setup_funcs[0m[2m:[0m setting up player with client id: 0 0
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.158932Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 7 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/base_anim.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160021Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 8 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Skins.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160034Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 7 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/base_anim.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160107Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 9 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160114Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 7 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/base_anim.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160121Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 8 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Skins.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160136Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 10 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160152Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 7 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/base_anim.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160158Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 8 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Skins.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160165Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 9 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160178Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 11 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Neck.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160185Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 7 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/base_anim.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160192Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 8 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Skins.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160198Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 9 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160204Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 10 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160217Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 12 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Groin.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160223Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 7 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/base_anim.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160229Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 8 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Skins.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160238Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 9 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160244Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 10 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160251Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 11 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Neck.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160264Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160270Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 7 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/base_anim.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160276Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 8 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Skins.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160282Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 9 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160289Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 10 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160295Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 11 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Neck.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160302Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 12 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Groin.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160313Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160322Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 7 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/base_anim.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160328Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 8 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Skins.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160334Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 9 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160340Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 10 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160347Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 11 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Neck.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160354Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 12 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Groin.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160360Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160371Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 14 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Arm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160377Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 7 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/base_anim.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160383Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 8 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Skins.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160389Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 9 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160399Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 10 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160405Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 11 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Neck.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160412Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 12 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Groin.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160418Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160424Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160436Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 14 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Arm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160441Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 7 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/base_anim.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160447Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 8 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Skins.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160453Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 9 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160459Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 10 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160466Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 11 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Neck.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160475Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 12 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Groin.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160481Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160487Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160493Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 14 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Arm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160508Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 15 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Wrist.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160514Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 7 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/base_anim.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160520Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 8 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Skins.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160526Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 9 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160532Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 10 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160538Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 11 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Neck.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160544Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 12 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Groin.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160552Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160558Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160564Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 14 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Arm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160570Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 14 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Arm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160582Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 15 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Wrist.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160589Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 7 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/base_anim.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160595Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 8 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Skins.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160601Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 9 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160607Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 10 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160613Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 11 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Neck.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160619Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 12 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Groin.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160628Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160634Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160640Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 14 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Arm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160646Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 14 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Arm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160653Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 15 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Wrist.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160665Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 16 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Leg.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160671Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 7 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/base_anim.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160677Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 8 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Skins.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160683Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 9 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160690Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 10 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160695Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 11 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Neck.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160704Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 12 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Groin.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160710Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160717Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160722Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 14 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Arm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160729Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 14 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Arm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160735Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 15 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Wrist.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160741Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 15 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Wrist.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160753Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 16 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Leg.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160759Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 7 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/base_anim.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160765Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 8 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Skins.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160771Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 9 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160781Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 10 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160788Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 11 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Neck.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160794Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 12 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Groin.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160800Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160806Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160812Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 14 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Arm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160819Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 14 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Arm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160825Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 15 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Wrist.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160831Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 15 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Wrist.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160837Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 16 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Leg.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160849Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 17 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Knee.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160858Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 7 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/base_anim.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160864Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 8 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Skins.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160870Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 9 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160876Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 10 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160882Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 11 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Neck.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160889Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 12 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Groin.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160901Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160907Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160914Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 14 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Arm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160920Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 14 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Arm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160926Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 15 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Wrist.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160933Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 15 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Wrist.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160941Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 16 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Leg.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160947Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 16 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Leg.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160964Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 17 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Knee.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160971Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 7 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/base_anim.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160980Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 8 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Skins.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160986Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 9 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160993Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 10 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.160999Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 11 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Neck.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161005Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 12 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Groin.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161012Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161018Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161027Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 14 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Arm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161033Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 14 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Arm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161040Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 15 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Wrist.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161046Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 15 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Wrist.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161052Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 16 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Leg.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161058Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 16 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Leg.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161064Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 17 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Knee.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161079Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 18 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Ankle.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161086Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 7 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/base_anim.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161092Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 8 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Skins.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161099Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 9 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161108Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 10 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161114Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 11 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Neck.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161120Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 12 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Groin.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161127Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161133Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161140Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 14 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Arm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161146Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 14 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Arm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161152Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 15 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Wrist.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161158Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 15 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Wrist.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161165Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 16 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Leg.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161171Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 16 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Leg.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161179Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 17 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Knee.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161186Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 17 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Knee.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161200Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 18 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Ankle.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161208Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 7 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/base_anim.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161214Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 8 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Skins.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161220Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 9 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161227Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 10 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161233Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 11 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Neck.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161239Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 12 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Groin.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161246Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161252Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161261Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 14 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Arm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161268Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 14 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Arm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161274Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 15 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Wrist.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161280Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 15 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Wrist.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161286Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 16 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Leg.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161293Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 16 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Leg.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161300Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 17 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Knee.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161306Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 17 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Knee.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161312Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 18 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Ankle.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161329Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 19 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Foot.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161335Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 7 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/base_anim.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161345Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 8 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Skins.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161351Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 9 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161359Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 10 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161365Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 11 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Neck.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161371Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 12 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Groin.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161377Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161383Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161390Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 14 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Arm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161396Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 14 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Arm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161402Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 15 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Wrist.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161409Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 15 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Wrist.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161415Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 16 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Leg.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161425Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 16 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Leg.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161431Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 17 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Knee.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161438Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 17 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Knee.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161444Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 18 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Ankle.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161451Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 18 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Ankle.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161465Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 19 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Foot.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161472Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for asset StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 7 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/base_anim.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161478Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 8 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Skins.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161484Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 9 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161491Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 10 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161497Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 11 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Neck.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161506Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 12 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Groin.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161512Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161518Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161525Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 14 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Arm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161531Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 14 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Arm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161537Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 15 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Wrist.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161543Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 15 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Wrist.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161549Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 16 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Leg.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161556Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 16 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Leg.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161562Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 17 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Knee.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161569Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 17 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Knee.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161577Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 18 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Ankle.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161584Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 18 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Ankle.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.161590Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 19 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Foot.nif) }
+[apps/client/src/gui/race_select.rs:275:5] &race_select_handles = [
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 10 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_01.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 20 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_02.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 21 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_03.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 22 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_04.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 23 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_05.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 24 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_06.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 25 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_10.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 26 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_11.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 27 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_12.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 28 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_13.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 29 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_14.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 30 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_15.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 31 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_16.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 32 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_17.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 33 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_18.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 34 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_19.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 35 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_21.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 36 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_22.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 37 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_23.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 38 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_24.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 39 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_25.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 40 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_26.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 9 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_01.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 41 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_02.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 42 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_03.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 43 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_04.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 44 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_05.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 45 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_06.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 46 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_07.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 47 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_08.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 48 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_09.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 49 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_10.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 50 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_11.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 51 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_12.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 52 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_16.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 53 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_15.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 54 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_14.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 55 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_13.nif) },
+    StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 56 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_17.nif) },
+]
+[apps/client/src/gui/race_select.rs:643:5] angle = 3.9540205
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.169055Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 8 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Skins.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.169071Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 9 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Head_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.169078Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 10 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Dark Elf_M_Hair_01.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.169085Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 11 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Neck.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.169092Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 12 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Groin.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.169099Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.169106Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 13 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Forearm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.169112Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 14 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Arm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.169120Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 14 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Arm.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.169138Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 15 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Wrist.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.169144Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 15 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Wrist.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.169151Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 16 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Leg.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.169159Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 16 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Upper Leg.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.169166Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 17 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Knee.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.169174Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 17 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Knee.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.169180Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 18 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Ankle.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.169187Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 18 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Ankle.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.169194Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 19 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Foot.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.169200Z[0m [32m INFO[0m [2mbevy_nif::spawner[0m[2m:[0m Waiting for skeleton for StrongHandle<Nif>{ index: AssetIndex { generation: 0, index: 19 }, type_id: TypeId(0x8e40154fc00bdf2ac67d3d148fb3b46b), path: Some(data/Data Files/Meshes/b/B_N_Orc_M_Foot.nif) }
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:21.170764Z[0m [32m INFO[0m [2mbevy_nif::nif_animation::animation_setup_system[0m[2m:[0m --- Extracting All Bone Keyframes for Some(data/base_anim.nif) (Entity 638v0) ---
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "deathknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimdeathknockout"
+[2m2026-09-12T01:45:21.265050Z[0m [32m INFO[0m [2mbevy_nif::nif_animation::animation_setup_system[0m[2m:[0m --- Extracting All Bone Keyframes for Some(data/base_anim.nif) (Entity 457v1) ---
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimdeathknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "deathknockout"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[apps/client/src/mechanics/character.rs:1316:5] &character_controller.movement.current_group = ""
+[apps/client/src/mechanics/character.rs:1330:5] "called clear from clear_state" = "called clear from clear_state"
+[apps/client/src/animation/playback.rs:339:17] &actual_key = "idle1h"
+[apps/client/src/animation/playback.rs:339:17] &actual_key = "idle1h"
+[apps/client/src/animation/playback.rs:339:17] &actual_key = "idle1h"
+[apps/client/src/animation/playback.rs:339:17] &actual_key = "idle1h"
+[apps/client/src/animation/playback.rs:339:17] &actual_key = "jump1h"
+[apps/client/src/animation/playback.rs:339:17] &actual_key = "jump1h"
+[apps/client/src/animation/playback.rs:339:17] &actual_key = "jump1h"
+[apps/client/src/animation/playback.rs:339:17] &actual_key = "jump1h"
+[apps/client/src/animation/transitions.rs:83:13] "called clear from transition to loop/outro" = "called clear from transition to loop/outro"
+[apps/client/src/animation/playback.rs:246:13] "Stopping animation group: '{}'" = "Stopping animation group: '{}'"
+[apps/client/src/animation/playback.rs:246:13] group_name = "jump1h"
+[apps/client/src/animation/playback.rs:339:17] &actual_key = "idle1h"
+[apps/client/src/animation/playback.rs:339:17] &actual_key = "idle1h"
+[apps/client/src/animation/playback.rs:339:17] &actual_key = "idle1h"
+[apps/client/src/animation/playback.rs:339:17] &actual_key = "idle1h"
+[apps/client/src/animation/playback.rs:339:17] &actual_key = "jump1h_loop"
+[apps/client/src/animation/playback.rs:339:17] &actual_key = "jump1h_loop"
+[apps/client/src/animation/playback.rs:339:17] &actual_key = "jump1h_loop"
+[apps/client/src/animation/playback.rs:339:17] &actual_key = "jump1h_loop"
+[apps/client/src/gui/race_select.rs:617:9] "despawning" = "despawning"
+[apps/client/src/gui/race_select.rs:643:5] angle = 3.9540205
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:23.072864Z[0m [32m INFO[0m [2mbevy_nif::nif_animation::animation_setup_system[0m[2m:[0m --- Extracting All Bone Keyframes for Some(data/base_anim.nif) (Entity 942v0) ---
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimdeathknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "deathknockout"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[apps/client/src/gui/race_select.rs:617:9] "despawning" = "despawning"
+[apps/client/src/gui/race_select.rs:643:5] angle = 3.9540205
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:23.527817Z[0m [32m INFO[0m [2mbevy_nif::nif_animation::animation_setup_system[0m[2m:[0m --- Extracting All Bone Keyframes for Some(data/base_anim.nif) (Entity 1043v0) ---
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "deathknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimdeathknockout"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[apps/client/src/gui/race_select.rs:617:9] "despawning" = "despawning"
+[apps/client/src/gui/race_select.rs:643:5] angle = 3.9540205
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:23.853649Z[0m [32m INFO[0m [2mbevy_nif::nif_animation::animation_setup_system[0m[2m:[0m --- Extracting All Bone Keyframes for Some(data/base_anim.nif) (Entity 655v1) ---
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "deathknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimdeathknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[apps/client/src/animation/transitions.rs:78:13] "called clear from transition" = "called clear from transition"
+[apps/client/src/animation/playback.rs:246:13] "Stopping animation group: '{}'" = "Stopping animation group: '{}'"
+[apps/client/src/animation/playback.rs:246:13] group_name = "idle1h"
+[apps/client/src/animation/playback.rs:339:17] &actual_key = "jump1h_loop"
+[apps/client/src/animation/playback.rs:339:17] &actual_key = "jump1h_loop"
+[apps/client/src/animation/playback.rs:339:17] &actual_key = "jump1h_loop"
+[apps/client/src/animation/playback.rs:339:17] &actual_key = "jump1h_loop"
+[apps/client/src/mechanics/character.rs:1330:5] "called clear from clear_state" = "called clear from clear_state"
+[apps/client/src/animation/playback.rs:339:17] &actual_key = "jump1h_loop"
+[apps/client/src/animation/playback.rs:339:17] &actual_key = "jump1h_loop"
+[apps/client/src/animation/playback.rs:339:17] &actual_key = "jump1h_loop"
+[apps/client/src/animation/playback.rs:339:17] &actual_key = "jump1h_loop"
+[apps/client/src/gui/race_select.rs:617:9] "despawning" = "despawning"
+[apps/client/src/gui/race_select.rs:643:5] angle = 3.9540205
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:24.082913Z[0m [32m INFO[0m [2mbevy_nif::nif_animation::animation_setup_system[0m[2m:[0m --- Extracting All Bone Keyframes for Some(data/base_anim.nif) (Entity 1005v1) ---
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "deathknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimdeathknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[apps/client/src/gui/race_select.rs:617:9] "despawning" = "despawning"
+[apps/client/src/gui/race_select.rs:643:5] angle = 3.9540205
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:24.305971Z[0m [32m INFO[0m [2mbevy_nif::nif_animation::animation_setup_system[0m[2m:[0m --- Extracting All Bone Keyframes for Some(data/base_anim.nif) (Entity 976v2) ---
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "deathknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimdeathknockout"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[apps/client/src/gui/race_select.rs:617:9] "despawning" = "despawning"
+[apps/client/src/gui/race_select.rs:643:5] angle = 3.9540205
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:24.492774Z[0m [32m INFO[0m [2mbevy_nif::nif_animation::animation_setup_system[0m[2m:[0m --- Extracting All Bone Keyframes for Some(data/base_anim.nif) (Entity 1063v0) ---
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimdeathknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "deathknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[apps/client/src/gui/race_select.rs:617:9] "despawning" = "despawning"
+[apps/client/src/gui/race_select.rs:643:5] angle = 3.9540205
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:24.682075Z[0m [32m INFO[0m [2mbevy_nif::nif_animation::animation_setup_system[0m[2m:[0m --- Extracting All Bone Keyframes for Some(data/base_anim.nif) (Entity 1036v3) ---
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "deathknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimdeathknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[apps/client/src/gui/race_select.rs:617:9] "despawning" = "despawning"
+[apps/client/src/gui/race_select.rs:643:5] angle = 3.9540205
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:24.848915Z[0m [32m INFO[0m [2mbevy_nif::nif_animation::animation_setup_system[0m[2m:[0m --- Extracting All Bone Keyframes for Some(data/base_anim.nif) (Entity 986v2) ---
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimdeathknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "deathknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[apps/client/src/gui/race_select.rs:617:9] "despawning" = "despawning"
+[apps/client/src/gui/race_select.rs:643:5] angle = 3.9540205
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:25.029468Z[0m [32m INFO[0m [2mbevy_nif::nif_animation::animation_setup_system[0m[2m:[0m --- Extracting All Bone Keyframes for Some(data/base_anim.nif) (Entity 958v5) ---
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "deathknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimdeathknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[apps/client/src/gui/race_select.rs:617:9] "despawning" = "despawning"
+[apps/client/src/gui/race_select.rs:643:5] angle = 3.9540205
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:25.202740Z[0m [32m INFO[0m [2mbevy_nif::nif_animation::animation_setup_system[0m[2m:[0m --- Extracting All Bone Keyframes for Some(data/base_anim.nif) (Entity 674v3) ---
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimdeathknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "deathknockout"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[apps/client/src/gui/race_select.rs:617:9] "despawning" = "despawning"
+[apps/client/src/gui/race_select.rs:643:5] angle = 3.9540205
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:25.374029Z[0m [32m INFO[0m [2mbevy_nif::nif_animation::animation_setup_system[0m[2m:[0m --- Extracting All Bone Keyframes for Some(data/base_anim.nif) (Entity 1014v2) ---
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimdeathknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "deathknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[apps/client/src/gui/race_select.rs:617:9] "despawning" = "despawning"
+[apps/client/src/gui/race_select.rs:643:5] angle = 3.9540205
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:25.498209Z[0m [32m INFO[0m [2mbevy_nif::nif_animation::animation_setup_system[0m[2m:[0m --- Extracting All Bone Keyframes for Some(data/base_anim.nif) (Entity 638v7) ---
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "knockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "knockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout_loop"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:520:21] &potential_outro_name = "swimknockout_outro"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimdeathknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "deathknockout"
+[/home/cv/bevy_nif/bevy_nif/src/nif_animation/animation_setup_system.rs:506:17] name = "swimknockout"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:73:5] "spawning" = "spawning"
+[/home/cv/bevy_nif/bevy_nif/src/spawner.rs:75:9] "spawning" = "spawning"
+[2m2026-09-12T01:45:25.744037Z[0m [32m INFO[0m [2mbevy_window::system[0m[2m:[0m No windows are open, exiting
+[2m2026-09-12T01:45:25.744081Z[0m [32m INFO[0m [2mbevy_winit::system[0m[2m:[0m Closing window 168v0

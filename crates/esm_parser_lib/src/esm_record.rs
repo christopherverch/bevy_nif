@@ -1,7 +1,7 @@
-use crate::RefId;
+use crate::{RefId, types::enums::RecInt};
 
 pub trait EsmRecord {
     fn id(&self) -> &RefId;
     // The 4 bytes of the record id, i.e. WEAP
-    const RECORD_ID: u32;
+    const RECORD_ID: RecInt;
 }

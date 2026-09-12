@@ -1,4 +1,8 @@
-use crate::{EsmError, EsmReader, RefId, esm_record::EsmRecord, name4, types::flags::ObjectFlags};
+use crate::{
+    EsmError, EsmReader, RefId,
+    esm_record::EsmRecord,
+    types::{enums::RecInt, flags::ObjectFlags},
+};
 
 #[derive(Debug, Default, Clone)]
 pub struct Static {
@@ -12,7 +16,7 @@ impl EsmRecord for Static {
         &self.id
     }
 
-    const RECORD_ID: u32 = name4!("STAT").to_u32();
+    const RECORD_ID: RecInt = RecInt::Stat;
 }
 
 impl Static {

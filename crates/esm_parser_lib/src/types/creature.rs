@@ -2,10 +2,9 @@ use crate::{
     EsmError, EsmReader, HasSpells, RefId,
     common_inventory_types::InventoryList,
     esm_record::EsmRecord,
-    name4,
     types::{
         aipackage::{AIData, AIPackageList},
-        enums::CreatureType,
+        enums::{CreatureType, RecInt},
         flags::{CreatureFlags, ObjectFlags},
         spell_list::SpellList,
         transport::Transport,
@@ -79,7 +78,7 @@ impl EsmRecord for Creature {
     fn id(&self) -> &RefId {
         &self.id
     }
-    const RECORD_ID: u32 = name4!("CREA").to_u32();
+    const RECORD_ID: RecInt = RecInt::Crea;
 }
 
 impl HasSpells for Creature {

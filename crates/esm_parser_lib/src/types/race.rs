@@ -3,8 +3,8 @@ use esm_parser_macros::LoadSave;
 use crate::{
     EsmError, EsmReader, RefId,
     esm_record::EsmRecord,
-    name4,
     types::{
+        enums::RecInt,
         flags::{ObjectFlags, RaceFlags},
         skill::SkillIndex,
         spell_list::SpellList,
@@ -23,7 +23,7 @@ impl EsmRecord for Race {
     fn id(&self) -> &RefId {
         &self.id
     }
-    const RECORD_ID: u32 = name4!("RACE").to_u32();
+    const RECORD_ID: RecInt = RecInt::Race;
 }
 #[repr(C)]
 #[derive(Debug, Clone, Default, PartialEq, LoadSave)]

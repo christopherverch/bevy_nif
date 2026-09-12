@@ -379,7 +379,7 @@ impl EsmReader {
 
         let abs_offset_as_u64 = offset.abs() as u64;
 
-        // --- 1. Pre-checks based on direction and consumption_type ---
+        // Pre-checks based on direction and consumption_type
         if offset > 0 {
             // Forward skip
             // Check against remaining_file_data
@@ -427,7 +427,7 @@ impl EsmReader {
             }
         }
 
-        // --- 2. Seek ---
+        // ---  Seek ---
         let original_tracked_pos = self.file_pos;
         let new_stream_pos = self.file.seek(SeekFrom::Current(offset)).map_err(|e| {
             self.fail(&format!(
@@ -436,7 +436,7 @@ impl EsmReader {
             ))
         })?;
 
-        // --- 3. Validate Seek (ensure it moved as expected) ---
+        // --- Validate Seek (ensure it moved as expected) ---
         let expected_new_pos = if offset > 0 {
             original_tracked_pos.checked_add(abs_offset_as_u64)
         } else {
@@ -456,7 +456,7 @@ impl EsmReader {
                 )));
             }
         }
-        // --- 4. Update All Counters ---
+        // --- Update All Counters ---
         self.file_pos = new_stream_pos;
 
         if offset > 0 {
@@ -478,9 +478,8 @@ impl EsmReader {
                     // Add back
                 }
                 ConsumptionType::SubrecordPayload => {
-                    self.context.remaining_rec_data += abs_offset_as_u64 as u32; // Add back
+                    self.context.remaining_rec_data += abs_offset_as_u64 as u32;
                     self.context.remaining_subrec_data += abs_offset_as_u64 as u32;
-                    // Add back
                 }
                 // Already updated with self.file_pos = new_stream_pos
                 ConsumptionType::FileOnly => {}
@@ -650,22 +649,6 @@ impl EsmReader {
         if count > 0 {
             self.skip_raw_bytes(count as i64, ConsumptionType::SubrecordPayload)?;
         }
-        Ok(())
-    }
-
-    /// Reads exact buffer from subrecord payload. Consumes from remaining_subrec_data & remaining_rec_data.
-    /// Assumes read_sub_header() was called and context.remaining_subrec_data is set.
-    fn read_sub_data_exact(&mut self, buf: &mut [u8]) -> Result<(), EsmError> {
-        let size = buf.len() as u32;
-        if size > self.context.remaining_subrec_data {
-            return Err(self.fail(&format!(
-                "read_sub_data_exact: read {} from sub '{}' with {} left",
-                size,
-                self.context.sub_name.to_string_lossy(),
-                self.context.remaining_subrec_data
-            )));
-        }
-        self.read_exact(buf, ConsumptionType::SubrecordPayload)?;
         Ok(())
     }
 

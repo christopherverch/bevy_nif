@@ -10,13 +10,12 @@ use bevy_renet::{
     RenetServer, RenetServerEvent, RenetServerPlugin,
     renet::{ClientId, ServerEvent},
 };
-use common::EntityId;
 use networking::{
-    ClientChannel, NetworkedEntityDataSnapshot, PROTOCOL_ID, ServerChannel, ServerMessages,
-    ServerRelayMessage, Velocity, connection_config,
+    ClientChannel, NetworkId, NetworkedEntityDataSnapshot, PROTOCOL_ID, ServerChannel,
+    ServerMessages, ServerRelayMessage, Velocity, connection_config,
 };
 use networking::{
-    ClientMessage, EntityIdToEntityMap, NetworkEventWithId, NetworkedEntityData,
+    ClientMessage, NetworkEventWithId, NetworkIdToEntityMap, NetworkedEntityData,
     ServerAcknowledgment,
 };
 use serializer::SerializableTransform;
@@ -37,10 +36,12 @@ pub struct ProcessedActionCache(
 );
 
 #[derive(Resource)]
-struct PlayerTransforms(HashMap<EntityId, Transform>);
+struct PlayerTransforms(HashMap<NetworkId, Transform>);
 
+/// Hashmap from clientid -> the network id of that client's local player, so we can
+/// despawn the player when they disconnect for all other players
 #[derive(Resource)]
-struct ClientIdToEntityId(HashMap<ClientId, EntityId>);
+struct ClientIdToPlayerNetworkId(HashMap<ClientId, NetworkId>);
 
 fn add_netcode_network(app: &mut App) {
     app.add_plugins(NetcodeServerPlugin);
@@ -76,9 +77,9 @@ fn main() {
         LogDiagnosticsPlugin::default(),
     ));
     app.insert_resource(ProcessedActionCache::default());
-    app.insert_resource(EntityIdToEntityMap::default());
+    app.insert_resource(NetworkIdToEntityMap::default());
     app.insert_resource(PlayerTransforms(HashMap::new()));
-    app.insert_resource(ClientIdToEntityId(HashMap::new()));
+    app.insert_resource(ClientIdToPlayerNetworkId(HashMap::new()));
 
     add_netcode_network(&mut app);
     app.add_systems(Startup, (setup_level, setup_simple_camera));
@@ -128,32 +129,33 @@ fn on_server_event(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut lobby: ResMut<EntityIdToEntityMap>,
+    mut lobby: ResMut<NetworkIdToEntityMap>,
     mut server: ResMut<RenetServer>,
     mut player_transforms: ResMut<PlayerTransforms>,
-    mut client_id_to_entity_id: ResMut<ClientIdToEntityId>,
+    mut client_id_to_network_id: ResMut<ClientIdToPlayerNetworkId>,
 ) {
     let event = &server_event.0;
     match event {
         ServerEvent::ClientConnected { client_id } => {
-            let new_player_entity_id = generate_id();
+            let new_player_network_id = generate_id();
 
-            // Tell the client its new id
-            // Note this is just the one we use internally, renet is still using client_id
+            // Tell the client the network id it should use for the local player the client will spawn
             let message = bincode::serialize(&ServerMessages::Welcome {
-                entity_id: new_player_entity_id,
+                network_id: new_player_network_id,
             })
             .unwrap();
-            client_id_to_entity_id
+            // add it to a hashmap so when this client disconnects we can
+            // despawn the player for everyone else
+            client_id_to_network_id
                 .0
-                .insert(*client_id, new_player_entity_id);
+                .insert(*client_id, new_player_network_id);
             server.send_message(*client_id, ServerChannel::ServerMessages, message);
 
             // Spawn other players for this new client
-            for (entity_id, transform) in player_transforms.0.iter() {
+            for (network_id, transform) in player_transforms.0.iter() {
                 let translation: [f32; 3] = transform.translation.into();
                 let message = bincode::serialize(&ServerMessages::PlayerCreate {
-                    entity_id: *entity_id,
+                    network_id: *network_id,
                     translation,
                 })
                 .unwrap();
@@ -177,29 +179,29 @@ fn on_server_event(
                 .id();
 
             // Add the player to the entity id -> entity map
-            lobby.players.insert(new_player_entity_id, player_entity);
+            lobby.players.insert(new_player_network_id, player_entity);
 
             // Tell everyone this player joined
             let translation: [f32; 3] = transform.translation.into();
             let message = bincode::serialize(&ServerMessages::PlayerCreate {
-                entity_id: new_player_entity_id,
+                network_id: new_player_network_id,
                 translation,
             })
             .unwrap();
             server.broadcast_message(ServerChannel::ServerMessages, message);
         }
         ServerEvent::ClientDisconnected { client_id, reason } => {
-            if let Some(entity_id) = client_id_to_entity_id.0.get(&client_id) {
-                println!("Player {} disconnected: {}", entity_id, reason);
-                if let Some(player_entity) = lobby.players.remove(entity_id) {
+            if let Some(network_id) = client_id_to_network_id.0.get(&client_id) {
+                println!("Player {} disconnected: {}", network_id, reason);
+                if let Some(player_entity) = lobby.players.remove(network_id) {
                     commands.entity(player_entity).despawn();
                 }
 
                 let message = bincode::serialize(&ServerMessages::PlayerRemove {
-                    entity_id: *entity_id,
+                    network_id: *network_id,
                 })
                 .unwrap();
-                player_transforms.0.remove(entity_id);
+                player_transforms.0.remove(network_id);
                 server.broadcast_message(ServerChannel::ServerMessages, message);
             }
         }
@@ -207,10 +209,10 @@ fn on_server_event(
 }
 fn server_update_system(
     mut commands: Commands,
-    lobby: Res<EntityIdToEntityMap>,
+    lobby: Res<NetworkIdToEntityMap>,
     mut server: ResMut<RenetServer>,
     mut player_transforms: ResMut<PlayerTransforms>,
-    client_id_to_entity_id: ResMut<ClientIdToEntityId>,
+    client_id_to_network_id: ResMut<ClientIdToPlayerNetworkId>,
 ) {
     for client_id in server.clients_id() {
         while let Some(message) = server.receive_message(client_id, ClientChannel::EntityTransforms)
@@ -221,9 +223,10 @@ fn server_update_system(
                 rotation: input.rotation,
                 scale: input.scale,
             };
-            if let Some(entity_id) = client_id_to_entity_id.0.get(&client_id) {
-                if let Some(player_entity) = lobby.players.get(&entity_id) {
-                    player_transforms.0.insert(*entity_id, new_transform);
+            if let Some(network_id) = client_id_to_network_id.0.get(&client_id) {
+                if let Some(player_entity) = lobby.players.get(&network_id) {
+                    player_transforms.0.insert(*network_id, new_transform);
+                    // Update the server's visualization
                     commands.entity(*player_entity).insert(new_transform);
                 }
             }
@@ -234,22 +237,22 @@ fn server_update_system(
                     match client_message {
                         ClientMessage::ActorStateUpdate(state) => {
                             // The client has told us its new state.
-                            if let Some(entity_id) = client_id_to_entity_id.0.get(&client_id) {
+                            if let Some(network_id) = client_id_to_network_id.0.get(&client_id) {
                                 // Update the server's representation of the player.
-                                if let Some(player_entity) = lobby.players.get(&entity_id) {
+                                if let Some(player_entity) = lobby.players.get(&network_id) {
                                     commands.entity(*player_entity).insert(state.clone());
                                 }
 
                                 // Create the relay message to send to other clients.
                                 let relay_message = ServerMessages::StateUpdate {
-                                    entity_id: *entity_id,
+                                    network_id: *network_id,
                                     state,
                                 };
                                 let serialized_relay_message =
                                     bincode::serialize(&relay_message).unwrap();
                                 // Broadcast the message to all clients except the one who sent it.
                                 server.broadcast_message_except(
-                                    *entity_id,
+                                    *network_id,
                                     ServerChannel::StateUpdates,
                                     serialized_relay_message,
                                 );
@@ -273,9 +276,9 @@ fn server_broadcast_entity_data(
     player_transforms: Res<PlayerTransforms>,
 ) {
     let mut networked_entities = NetworkedEntityDataSnapshot::default();
-    for (entity_id, player_transform) in player_transforms.0.iter() {
+    for (network_id, player_transform) in player_transforms.0.iter() {
         networked_entities.entity_data_map.insert(
-            *entity_id,
+            *network_id,
             NetworkedEntityData {
                 transform: (&player_transform.clone()).into(),
             },
@@ -293,10 +296,11 @@ pub fn setup_simple_camera(mut commands: Commands) {
     ));
 }
 
+/// For events that are unacceptable to drop, i.e. attacking an enemy, picking up an item
 fn server_handle_client_critical_actions_system(
     mut server: ResMut<RenetServer>,
     mut cache: ResMut<ProcessedActionCache>,
-    client_id_to_entity_id: Res<ClientIdToEntityId>,
+    client_id_to_network_id: Res<ClientIdToPlayerNetworkId>,
 ) {
     for client_id_u64 in server.clients_id() {
         while let Some(message_bytes) =
@@ -310,37 +314,37 @@ fn server_handle_client_critical_actions_system(
                     // Get or create the map for this specific client
                     let client_specific_cache = cache.0.entry(client_id_u64).or_default();
 
-                    // --- 0. Check if this action_id from this client was already processed ---
+                    // Check if this action_id from this client was already processed
                     if let Some(_processed_timestamp) = client_specific_cache.get(&action_id) {
                         info!(
                             "Duplicate action (ID: {}) from client {} detected. Resending ACK.",
                             action_id, client_id_u64
                         );
 
-                        // Action was already processed. Do NOT re-apply game effects.
-                        // DO resend the acknowledgment because the client likely missed the first one.
+                        // Action was already processed.
+                        // Resend ack because the client likely missed the first one.
                         let ack_message = ServerAcknowledgment::ActionConfirmed {
                             original_action_id: action_id,
-                            server_validation_passed: true, // Assuming it passed previously
-                            reason_if_failed: None,         // Or retrieve original reason if stored
+                            // TODO:: probably should store this in the cache, just returning true
+                            // for now
+                            server_validation_passed: true,
+                            reason_if_failed: None,
                         };
                         if let Ok(payload) = bincode::serialize(&ack_message) {
                             server.send_message(
                                 client_id_u64,
-                                ServerChannel::CriticalAcknowledgments, // Your ACK channel
+                                ServerChannel::CriticalAcknowledgments,
                                 payload,
                             );
                         }
                         continue; // Stop further processing for this duplicate action
                     }
 
-                    // --- 1. Basic Server-Side Validation (Example) ---
+                    // TODO:: Server-Side Validation
                     let server_validation_passed = true;
                     let reason_if_failed: Option<String> = None;
-                    // Example: if action_is_implausible() { server_validation_passed = false; reason_if_failed = Some("Implausible action".to_string()); }
-                    // ----------------------------------------------
 
-                    // --- 2. Send Acknowledgment back to Originating Client ---
+                    // Send Acknowledgment back to Originating Client
                     let ack_message = ServerAcknowledgment::ActionConfirmed {
                         original_action_id: event.action_id,
                         server_validation_passed,
@@ -355,19 +359,19 @@ fn server_handle_client_critical_actions_system(
                         Err(e) => error!("Failed to serialize ServerAcknowledgment: {}", e),
                     }
 
-                    // --- 3. If Validated, Relay to Other Clients ---
+                    // If valid, relay to other clients
                     if server_validation_passed {
-                        let Some(entity_id) = client_id_to_entity_id.0.get(&client_id_u64) else {
+                        let Some(network_id) = client_id_to_network_id.0.get(&client_id_u64) else {
                             continue;
                         };
 
                         let relay_message = ServerRelayMessage::RelayClientAction {
-                            performing_entity_id: *entity_id,
+                            performing_network_id: *network_id,
                             action: event.clone(), // Send the validated action
                         };
                         match bincode::serialize(&relay_message) {
                             Ok(payload) => {
-                                // Send to all *other* clients
+                                // Send the relay to everyone besides the client that did the action
 
                                 for other_client_id_u64 in server.clients_id() {
                                     if other_client_id_u64 != client_id_u64 {
@@ -397,33 +401,17 @@ fn server_handle_client_critical_actions_system(
 }
 pub fn server_prune_action_cache_system(mut cache: ResMut<ProcessedActionCache>) {
     let current_time = Instant::now();
-    let mut empty_client_caches = Vec::new();
 
-    for (client_id, client_actions) in cache.0.iter_mut() {
+    for (_client_id, client_actions) in cache.0.iter_mut() {
         // Remove entries from this client's HashMap that are older than PROCESSED_ACTION_TTL
         client_actions.retain(|_action_id, processed_at_timestamp| {
             current_time.duration_since(*processed_at_timestamp) < PROCESSED_ACTION_TTL
         });
-
-        // If, after pruning, this client has no cached actions, mark the client's entry for removal
-        if client_actions.is_empty() {
-            empty_client_caches.push(*client_id);
-        }
-    }
-
-    // Remove entire client entries if their action caches became empty
-    for client_id_to_remove in empty_client_caches {
-        cache.0.remove(&client_id_to_remove);
-        debug!(
-            "Removed empty action cache for client {}",
-            client_id_to_remove
-        );
     }
 }
 use std::sync::atomic::{AtomicU64, Ordering};
-
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 
-fn generate_id() -> EntityId {
+fn generate_id() -> NetworkId {
     NEXT_ID.fetch_add(1, Ordering::Relaxed)
 }

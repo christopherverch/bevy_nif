@@ -6,6 +6,7 @@ use std::rc::{Rc, Weak};
 use to_utf8::Utf8Encoder;
 
 use crate::{EsmError, EsmReader};
+// readers cache not currently used
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 enum ReaderState {

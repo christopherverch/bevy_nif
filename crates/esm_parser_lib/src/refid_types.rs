@@ -147,7 +147,7 @@ impl TryFrom<&str> for RefId {
 
         // Fallback to StringRefId
         if let Some(string_ref_id) = StringRefId::deserialize_existing(s) {
-            // The C++ code returns an empty ID if the string doesn't exist
+            // empty RefId if the string doesn't exist
             Ok(RefId::SizedString(string_ref_id))
         } else {
             Ok(RefId::Empty(EmptyRefId))
@@ -157,7 +157,7 @@ impl TryFrom<&str> for RefId {
 impl PartialEq for RefId {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            // This handles Sized == Sized, Unsized == Unsized, AND Sized == Unsized
+            // This handles Sized == Sized, Unsized == Unsized, and Sized == Unsized
             (RefId::SizedString(s1), RefId::SizedString(s2))
             | (RefId::UnsizedString(s1), RefId::UnsizedString(s2))
             | (RefId::SizedString(s1), RefId::UnsizedString(s2))
@@ -173,7 +173,6 @@ impl PartialEq for RefId {
     }
 }
 
-// Implementing PartialEq<str> for RefId for convenience
 impl PartialEq<str> for RefId {
     fn eq(&self, other: &str) -> bool {
         match self {
@@ -189,7 +188,6 @@ impl PartialEq<str> for RefId {
     }
 }
 
-// Implement PartialEq<&str> via the existing PartialEq<str> implementation
 impl PartialEq<&str> for RefId {
     fn eq(&self, other: &&str) -> bool {
         self == *other
@@ -201,8 +199,6 @@ impl RefId {
         self.hash(&mut hasher);
         hasher.finish()
     }
-    // Other methods like `to_debug_string` go here...
-
     /// Checks if the RefId is an empty variant.
     pub fn is_empty(&self) -> bool {
         matches!(self, RefId::Empty(_))
@@ -231,7 +227,7 @@ impl RefId {
     /// Returns an empty string for EmptyRefId, as required for the region name logic.
     pub fn resolve_string(&self) -> String {
         match self {
-            // RefId::Empty is the C++ ESM::RefId() default, which is treated as an empty region name.
+            // RefId::Empty is the default, which is treated as an empty region name.
             RefId::Empty(_) => "".to_string(),
             RefId::SizedString(v) | RefId::UnsizedString(v) => v.0.to_string(),
             // For other variants (FormId, Index, etc.), which shouldn't happen for a region name,

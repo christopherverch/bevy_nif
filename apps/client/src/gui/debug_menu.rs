@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use esm_parser_lib::{RefId, types::attribute::Attribute};
+use esm_parser_lib::RefId;
 
 use crate::{defs::LocalPlayer, mechanics::creature_stats::CreatureStats};
 #[derive(Component, Default, Clone)]

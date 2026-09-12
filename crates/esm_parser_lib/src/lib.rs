@@ -1,6 +1,4 @@
-// src/lib.rs
-
-// --- Core modules ---
+// Core modules
 extern crate bitflags;
 mod common_consts;
 pub mod common_inventory_types;

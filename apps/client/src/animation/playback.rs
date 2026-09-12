@@ -10,6 +10,30 @@ pub struct AnimationContext<'w> {
     pub anim_graphs: &'w mut Assets<AnimationGraph>,
     pub graph_handle: &'w AnimationGraphHandle,
 }
+
+pub struct AnimPlaySettings<'a> {
+    pub extra_suffix: &'a str,
+    pub blend_mask: BlendMask,
+    pub auto_disable: bool,
+    pub anim_type: AnimType,
+    pub speed_mult: f32,
+    pub start_time: f32,
+    /// u32::MAX means if this is an intro, after the intro finishes run the _loop portion forever
+    pub loop_count: u32,
+}
+impl<'a> Default for AnimPlaySettings<'a> {
+    fn default() -> Self {
+        Self {
+            extra_suffix: "",
+            blend_mask: BlendMask::all(),
+            auto_disable: false,
+            anim_type: AnimType::Intro,
+            speed_mult: 1.0,
+            start_time: 0.0,
+            loop_count: 0,
+        }
+    }
+}
 impl<'w> AnimationContext<'w> {
     pub fn has_animation(&self, key: &str) -> bool {
         self.nif_animator.animation_definitions.contains_key(key)
@@ -19,16 +43,11 @@ impl<'w> AnimationContext<'w> {
         &mut self,
         animations: &Res<Assets<AnimationClip>>,
         group_name: impl Into<Cow<'a, str>>,
-        extra_suffix: &str,
+        play_settings: AnimPlaySettings,
         priorities: [Priority; 4],
-        blend_mask: BlendMask,
-        auto_disable: bool,
-        start_at: AnimType,
-        speed_mult: f32,
-        start_time: f32,
-        loop_count: u32,
+
         commands: &mut Commands,
-        //TODO:: add loop_fallback, which determines whether we loop the full intro->loop->outro sequence,
+        //TODO:: add use_loop_fallback, which determines whether we loop the full intro->loop->outro sequence,
         //or just loop the _loop clip
     ) {
         // Early return for invalid input
@@ -36,8 +55,8 @@ impl<'w> AnimationContext<'w> {
         if group_name.is_empty() {
             return;
         }
-        let full_name = if !extra_suffix.is_empty() {
-            Cow::Owned(format!("{}{}", group_name, extra_suffix))
+        let full_name = if !play_settings.extra_suffix.is_empty() {
+            Cow::Owned(format!("{}{}", group_name, play_settings.extra_suffix))
         } else {
             group_name
         };
@@ -70,7 +89,7 @@ impl<'w> AnimationContext<'w> {
             }
             return;
         }
-        let full_name_with_intro_outro = match start_at {
+        let full_name_with_intro_outro = match play_settings.anim_type {
             AnimType::Intro => full_name.clone(),
             AnimType::Loop => Cow::Owned(format!("{}{}", full_name, "_loop")),
             AnimType::Outro => Cow::Owned(format!("{}{}", full_name, "_outro")),
@@ -88,18 +107,18 @@ impl<'w> AnimationContext<'w> {
             clip_handle: animation_definition.clip_handle.clone(),
             node_index: animation_definition.node_index,
             anim_type: animation_definition.anim_type,
-            blend_mask,
+            blend_mask: play_settings.blend_mask,
             next_clip_name: animation_definition.next_clip_name.clone(),
             priorities,
-            auto_remove: auto_disable,
-            speed_mult,
+            auto_remove: play_settings.auto_disable,
+            speed_mult: play_settings.speed_mult,
             next_should_loop: false,
         };
         let Some(animation_clip) = animations.get(&animation_definition.clip_handle) else {
             return;
         };
         // Only play it if the clip is shorter than where we wanted to play it from
-        let should_play = start_time < animation_clip.duration();
+        let should_play = play_settings.start_time < animation_clip.duration();
         if !should_play {
             return;
         }
@@ -108,7 +127,7 @@ impl<'w> AnimationContext<'w> {
             .animation_events
             .iter()
             .filter_map(|(time, event)| {
-                if *time < start_time {
+                if *time < play_settings.start_time {
                     Some(event)
                 } else {
                     None
@@ -125,29 +144,29 @@ impl<'w> AnimationContext<'w> {
         let speed_multiplier = new_animation.speed_mult;
 
         // Start playback
-        let anim_state = self
+        let newly_played_anim = self
             .animation_player
             .play(node_index)
             .set_speed(speed_multiplier);
-        anim_state.seek_to(start_time);
+        newly_played_anim.seek_to(play_settings.start_time);
 
-        if loop_count == u32::MAX {
+        if play_settings.loop_count == u32::MAX {
             // Assume the caller actually means they want to repeat the "loop" animation, rather
             // than the intro
             if animation_definition.anim_type == AnimType::Loop {
-                anim_state.repeat();
+                newly_played_anim.repeat();
             } else {
                 // Mark the next animation (the loop) as looping instead
                 new_animation.next_should_loop = true;
             }
         } else {
-            anim_state.set_repeat(bevy::animation::RepeatAnimation::Never);
+            newly_played_anim.set_repeat(bevy::animation::RepeatAnimation::Never);
         }
         println!(
             "Playing anim '{}' with speed {:.2} (Looping: {:?})",
             full_name,
             speed_multiplier,
-            anim_state.repeat_mode()
+            newly_played_anim.repeat_mode()
         );
         self.nif_animator
             .active_animations
@@ -181,18 +200,18 @@ impl<'w> AnimationContext<'w> {
         // Recalculate and apply masks for _all_ active animations
 
         // Start playback
-        let anim_state = self
+        let newly_played_anim = self
             .animation_player
             .play(node_index)
             .set_speed(speed_multiplier);
         if let Some(time) = start_time {
-            anim_state.seek_to(time);
+            newly_played_anim.seek_to(time);
         }
 
         if loop_count == u32::MAX {
-            anim_state.repeat();
+            newly_played_anim.repeat();
         } else {
-            anim_state.set_repeat(bevy::animation::RepeatAnimation::Never);
+            newly_played_anim.set_repeat(bevy::animation::RepeatAnimation::Never);
         }
         println!(
             "Playing anim '{}' with speed {:.2} (Looping: {})",

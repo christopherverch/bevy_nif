@@ -56,7 +56,7 @@ impl<const N: usize> FixedString<N> {
         // Determine the number of bytes to copy (up to N)
         let len_to_copy = if s_len < N { s_len } else { N };
 
-        // Manually copy bytes using a const-compatible while loop
+        // Manually copy bytes
         let mut i = 0;
         while i < len_to_copy {
             data[i] = bytes[i];
@@ -159,14 +159,15 @@ pub type Name64 = FixedString<64>;
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EsmContext {
     pub filename: PathBuf,
-    // Maybe remaining rec data should be i64 so we can go past and then backtrack?
+    // Maybe remaining rec data should be i64 so we can go past a record and then backtrack?
     pub remaining_rec_data: u32,
     pub remaining_subrec_data: u32,
     pub rec_name: Name4,
     pub sub_name: Name4,
     // When working with multiple esX files, we will generate lists of all files that
     // actually contribute to a specific cell. Therefore, we need to store the index
-    // of the file belonging to this contest. See CellStore::(list/load)refs for details.
+    // of the file belonging to this contest. Further details will be in esm_store crate in
+    // Store<Cell>, but not currently implemented
     pub index: i16,
     pub parent_file_indices: Vec<usize>,
     /// True if subName has been read but not used.

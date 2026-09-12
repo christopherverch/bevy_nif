@@ -9,7 +9,7 @@ use crate::common_types::EsmContext;
 use crate::esm_reader::{ConsumptionType, EsmError, EsmReader};
 use crate::{Load, Name4};
 
-use super::flags::ObjectFlags; // Assuming EsmContext is your context struct
+use super::flags::ObjectFlags;
 
 // --- Constants for LAND record structure ---
 pub const LAND_SIDE_VERTICES: usize = 65;
@@ -114,9 +114,7 @@ pub struct Landscape {
     /// Kept in an Option to allow for lazy loading.
     pub detailed_data: Option<Box<LandPayloadData>>,
 
-    // WNAM is small enough that OpenMW loads it directly in the first pass.
-    // We can choose to do the same or make it part of LandPayloadData.
-    // For consistency with OpenMW's Land::mWnam, let's keep it separate for now.
+    // WNAM is small enough that we load it directly in the first pass.
     pub wnam_data_direct: Option<Box<[i8; WNAM_PAYLOAD_SIZE]>>,
     pub texture_indices: Option<Box<[u16; LAND_NUM_TEXTURES]>>,
 }
@@ -134,12 +132,8 @@ impl Load for Landscape {
         // Store the context for deferred loading
         land.record_context = Some(reader.get_cloned_context()?);
 
-        // --- Pass 1: Read INTV and DATA, identify presence of other subrecords ---
-        // This loop mimics OpenMW's first pass in Land::load
+        // Pass 1: Read INTV and DATA, identify presence of other subrecords
         while reader.has_more_subs() {
-            // Get the name of the next subrecord. This reads 4 bytes (name) and updates
-            // file_pos, rem_file_data, rem_rec_data by 4.
-            // context.sub_name is set. context.sub_cached is now false.
             let current_sub_name = reader.get_or_read_sub_name()?;
 
             // Get the size of the payload
@@ -316,7 +310,7 @@ impl Landscape {
         if self.detailed_data.is_none() {
             self.detailed_data = Some(Box::new(LandPayloadData::default()));
         }
-        // This unwrap is safe because we just ensured it's Some.
+        // This unwrap is safe because we just checked that it's Some.
         let payload_data = self.detailed_data.as_mut().unwrap();
 
         // Restore the reader's state to where the subrecords for this LAND begin.
@@ -330,7 +324,7 @@ impl Landscape {
             match current_sub_name.as_bytes() {
                 b"INTV" | b"DATA" | b"DELE" => {
                     // These were handled in the initial load or are not part of the detailed_data payload.
-                    // Their payload must be skipped to correctly process subsequent subrecords.
+                    // Their payload is skipped to get to the subsequent subrecords.
                     let payload_to_skip = reader.context.remaining_subrec_data;
                     if payload_to_skip > 0 {
                         reader.skip_raw_bytes(
@@ -445,8 +439,8 @@ impl Landscape {
                     }
                 }
                 b"WNAM" => {
-                    // WNAM is special: Landscape::load already attempts to load it into self.wnam_data_direct.
-                    // We can choose to populate payload_data.wnam_global_map_data as well.
+                    // First pass already attempts to load WNAM into self.wnam_data_direct
+                    // We populate payload_data.wnam_global_map_data in this pass
                     if self.present_data_types.contains(LandDataTypes::WNAM) {
                         if reader.get_sub_size() as usize == WNAM_PAYLOAD_SIZE {
                             // If wnam_data_direct was successfully loaded, we could copy from there.
@@ -461,13 +455,6 @@ impl Landscape {
                             reader
                                 .read_exact(u8_slice_for_read, ConsumptionType::SubrecordPayload)?;
                             payload_data.wnam_global_map_data = Some(wnam_array);
-
-                            // Verify against already loaded wnam_data_direct (optional debug check)
-                            // if let Some(existing_wnam_box) = &self.wnam_data_direct {
-                            //     if &wnam_array[..] != &existing_wnam_box[..] {
-                            //         eprintln!("WARN: WNAM data re-read differs from initially loaded for LAND ({},{})", self.grid_x, self.grid_y);
-                            //     }
-                            // }
                         } else if reader.get_sub_size() > 0 {
                             eprintln!(
                                 "WARN: WNAM size mismatch for LAND ({},{}). Expected {}, got {}. Skipping.",
@@ -541,7 +528,7 @@ impl Landscape {
                 }
                 _ => {
                     // Unknown subrecord or one not handled for detailed loading.
-                    // Its payload must be skipped to advance the reader correctly.
+                    // Its payload has to be skipped to advance the reader correctly.
                     let payload_to_skip = reader.context.remaining_subrec_data;
                     if payload_to_skip > 0 {
                         eprintln!(
@@ -578,16 +565,7 @@ fn transpose_vtex_indices(input_chunked: &[u16; LAND_NUM_TEXTURES]) -> [u16; LAN
                     // Minor column within block
                     let global_y = y1 * VTEX_CHUNK_SIDE + y2;
                     let global_x = x1 * VTEX_CHUNK_SIDE + x2;
-
-                    // Ensure we don't write out of bounds if logic were ever faulty,
-                    // though with correct constants, this should always be true.
-                    if global_y < VTEX_GRID_SIDE
-                        && global_x < VTEX_GRID_SIDE
-                        && read_pos < LAND_NUM_TEXTURES
-                    {
-                        output_linear[global_y * VTEX_GRID_SIDE + global_x] =
-                            input_chunked[read_pos];
-                    }
+                    output_linear[global_y * VTEX_GRID_SIDE + global_x] = input_chunked[read_pos];
                     read_pos += 1;
                 }
             }
@@ -595,7 +573,7 @@ fn transpose_vtex_indices(input_chunked: &[u16; LAND_NUM_TEXTURES]) -> [u16; LAN
     }
     // A check to ensure the logic processed all expected elements.
     // If this assertion fails, there's an issue with the loop bounds or constants.
-    assert_eq!(
+    debug_assert_eq!(
         read_pos, LAND_NUM_TEXTURES,
         "Transpose logic did not process all texture indices"
     );

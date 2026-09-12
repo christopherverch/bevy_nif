@@ -1,4 +1,3 @@
-pub type EntityId = u64;
 pub mod consts;
 pub mod events;
 pub mod helpers;

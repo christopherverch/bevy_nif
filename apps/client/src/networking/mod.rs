@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use common::state::GameState;
 use handle_other_players::{apply_received_animation_state, interpolate_players};
-use networking::EntityIdToEntityMap;
+use networking::NetworkIdToEntityMap;
 use send_data::{
     add_critical_network_event, client_handle_relayed_actions_system,
     client_handle_server_acks_system, client_send_transform, client_sync_players,
@@ -9,7 +9,7 @@ use send_data::{
 };
 
 use super::Connected;
-use crate::defs::{ClientEntityId, LocalPlayer, NetworkEventWithIdCounter, PendingServerAcks};
+use crate::defs::{ClientNetworkId, LocalPlayer, NetworkEventWithIdCounter, PendingServerAcks};
 use bevy_renet::client_connected;
 use bevy_renet::netcode::NetcodeClientPlugin;
 use std::collections::HashMap;
@@ -29,12 +29,12 @@ pub struct InterpolationSpeeds(HashMap<Entity, f32>);
 impl Plugin for NetworkingPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(NetcodeClientPlugin)
-            .insert_resource(EntityIdToEntityMap::default())
+            .insert_resource(NetworkIdToEntityMap::default())
             .insert_resource(InterpolationSpeeds::default())
             .insert_resource(ServerIP(("127.0.0.1").to_string())) // Default IP Address
             .insert_resource(NetworkEventWithIdCounter(0))
             .insert_resource(PendingServerAcks(HashMap::new()))
-            .insert_resource(ClientEntityId(0))
+            .insert_resource(ClientNetworkId(0))
             .configure_sets(Update, Connected.run_if(client_connected))
             .configure_sets(FixedUpdate, Connected.run_if(client_connected))
             .add_systems(OnEnter(GameState::Connecting), connect_to_server);

@@ -39,7 +39,7 @@ pub struct MWPhysicsPlugin;
 impl Plugin for MWPhysicsPlugin {
     fn build(&self, app: &mut bevy::app::App) {
         app.add_systems(Update, setup_nif_physics).add_systems(
-            FixedUpdate,
+            FixedPostUpdate,
             (
                 update_movement_component_from_intent,
                 update_character_components,

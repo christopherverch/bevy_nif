@@ -1,11 +1,13 @@
 use bevy::prelude::*;
 use common::consts::MW_UNITS_PER_METER;
 use common::mechanics::CharacterController;
+use esm_parser_lib::types::attribute::Attribute;
 use esm_parser_lib::types::magic_effect::MagicEffect;
 use esm_parser_lib::types::skill::SkillIndex;
 
 use crate::defs::{DrawState, MWCell};
-use crate::live_cell_ref::{EsmPtr, LiveCellRef};
+use crate::esm_ptr::EsmPtr;
+use crate::live_cell_ref::LiveCellRef;
 use crate::magic_effects::MagicEffects;
 use crate::mechanics::npc_stats::NpcStats;
 use crate::physics::actor::ActorPhysics;
@@ -13,7 +15,6 @@ use esm_parser_lib::types::gmst::GameSetting;
 use std::sync::OnceLock;
 
 use esm_parser_lib::RefId;
-use esm_parser_lib::types::attribute::Attribute;
 use esm_store::EsmStore;
 
 use crate::shared_defs::actor::Actor;

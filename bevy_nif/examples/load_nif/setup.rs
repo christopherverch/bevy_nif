@@ -4,6 +4,7 @@ use bevy::light::{CascadeShadowConfigBuilder, NotShadowCaster, NotShadowReceiver
 use bevy::prelude::*;
 use bevy_camera::Hdr;
 use bevy_material::OpaqueRendererMethod;
+use bevy_nif::NIF_TO_BEVY_ROTATION;
 use bevy_nif::attach_parts::AttachmentType;
 use bevy_nif::spawner::NifScene;
 use bevy_pbr::{MeshMaterial3d, StandardMaterial};
@@ -14,8 +15,8 @@ pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let player_entity = commands
         .spawn(Transform {
             translation: Vec3::new(-2.0, 0.0, -1.0),
-            rotation: Quat::IDENTITY,
-            scale: Vec3::splat(1.0),
+            scale: Vec3::splat(0.03),
+            ..default()
         })
         .id();
     spawn_nif_attached(
@@ -23,10 +24,10 @@ pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         commands.reborrow(),
         &asset_server,
         0,
-        Transform::from_scale(Vec3::splat(1.0)),
+        Transform::default(),
     );
 }
-use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, PI};
+use std::f32::consts::{FRAC_PI_4, PI};
 
 fn spawn_nifs(
     paths_with_target_bone: Vec<(&str, AttachmentType)>,
@@ -63,17 +64,12 @@ fn spawn_nifs(
         let child = commands
             .spawn((
                 NifScene(asset_handle),
-                attachment_type.clone(),
                 transform,
                 InheritedVisibility::VISIBLE,
             ))
             .id();
-        if matches!(attachment_type, AttachmentType::Skinned { skeleton_id: _ }) {
-            // Needs to rotate skinned attachments since these aren't attached to the pre-rotated
-            // skeleton, they're just a child of the mesh
-            commands.entity(child).insert(Transform::from_rotation(
-                Quat::from_rotation_x(-FRAC_PI_2) * Quat::from_rotation_z(PI),
-            ));
+        if !matches!(attachment_type, AttachmentType::Skinned { skeleton_id: _ }) {
+            commands.entity(child).insert(attachment_type.clone());
         }
 
         commands.entity(entity).add_child(child);
@@ -231,7 +227,7 @@ fn spawn_nif_attached(
             NifScene(asset_handle),
             Name::new("skeleton"),
             AttachmentType::MainSkeleton { skeleton_id },
-            transform.with_scale(Vec3::splat(0.03)),
+            transform,
             InheritedVisibility::VISIBLE,
         ))
         .id();

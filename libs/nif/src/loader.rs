@@ -1,30 +1,25 @@
+// Based on https://github.com/Greatness7/tes3/
 // rust std imports
 use std::io::{Read, Seek};
 use std::path::Path;
 
 // external imports
-use bevy_asset::{Asset, Handle, LoadContext, RenderAssetUsages};
-use bevy_log::{error, info, warn};
-use bevy_mesh::{Indices, Mesh, PrimitiveTopology};
+use bevy_asset::{Asset, LoadContext};
+use bevy_log::warn;
 use bevy_reflect::TypePath;
 use slotmap::{DenseSlotMap, Key};
 
 // internal imports
 use crate::prelude::*;
 
-// A single type to represent any generated Bevy asset handle
-#[derive(Clone, Debug)]
-pub enum ConsumedNiType {
-    NiTriShapeData(Handle<Mesh>),
-}
 #[derive(Asset, TypePath, Clone, Debug, Default)]
 pub struct Nif {
     pub objects: DenseSlotMap<NiKey, NiType>,
     pub roots: Vec<NiLink<NiObject>>,
-    pub block_assets: HashMap<NiKey, ConsumedNiType>,
     pub all_keyframe_data: HashMap<NiKey, NiKeyframeData>,
     pub all_controller_links: Vec<(NiKey, NiKeyframeController)>,
     pub text_keys: Vec<NiTextKey>,
+    /// For the animation setup system to easily find the bone it's looking for
     pub node_names: HashMap<NiKey, String>,
 }
 
@@ -61,14 +56,7 @@ pub fn from_bytes(bytes: &[u8], load_context: &mut LoadContext<'_>) -> io::Resul
     load_nif_bytes(bytes, load_context)
 }
 
-/// The intended design of this function is:
-/// Read the nif file, setting up Bevy assets for any NiType that can be made into a bevy asset
-/// and store it in the denseslotmap as NiType::Empty. All other structural NiTypes are stored
-/// as-is. Any time the bevy system that actually uses the Nif asset (spawning system) comes across NiType::Empty,
-/// it should check the block_data hashmap with the corresponding key, and check which type was consumed
-/// and get the bevy asset handles through that. This results in less data duplication from the
-/// asset being loaded AND that data being in components
-pub fn load_nif_bytes(bytes: &[u8], load_context: &mut LoadContext<'_>) -> io::Result<Nif> {
+pub fn load_nif_bytes(bytes: &[u8], _load_context: &mut LoadContext<'_>) -> io::Result<Nif> {
     let mut stream = Reader::new(bytes);
     // validate header
     let header: [u8; 40] = stream.load()?;
@@ -86,15 +74,17 @@ pub fn load_nif_bytes(bytes: &[u8], load_context: &mut LoadContext<'_>) -> io::R
     let mut objects = DenseSlotMap::default();
     let num_objects = stream.load_as::<u32, usize>()?;
     objects.reserve(num_objects);
-    let mut block_assets = HashMap::new();
     let mut all_controller_links = Vec::new();
     let mut all_keyframe_data = HashMap::new();
     let mut all_tked = HashMap::new();
     let mut all_sed = HashMap::new();
     let mut node_names = HashMap::new();
+
     // populate objects
-    //
-    for i in 0..num_objects {
+    // Ordering when creating NiLinks is identical to how the denseslotmap orders created keys
+    // NiTypes that the data is used and not stored have an Empty NiType inserted
+    // to keep the ordering expected by a NiLink to be preserved.
+    for _ in 0..num_objects {
         let ni_type: NiType = stream.load()?;
         match ni_type {
             NiType::NiNode(node) => {
@@ -106,15 +96,6 @@ pub fn load_nif_bytes(bytes: &[u8], load_context: &mut LoadContext<'_>) -> io::R
                 let name = trishape.name.clone();
                 let key = objects.insert(NiType::NiTriShape(trishape));
                 node_names.insert(key, name);
-            }
-            NiType::NiTriShapeData(data) => {
-                if let Some(mesh) = convert_nif_mesh(data) {
-                    let handle = load_context.add_labeled_asset(format!("mesh_{}", i), mesh);
-                    // Inserting into objects first because we don't have NiKey until we insert it
-                    // into the slotmap, which would mean it's moved so we can't match on it.
-                    let key: NiKey = objects.insert(NiType::Empty);
-                    block_assets.insert(key, ConsumedNiType::NiTriShapeData(handle));
-                }
             }
             NiType::NiKeyframeData(kfd) => {
                 let key: NiKey = objects.insert(NiType::Empty);
@@ -135,8 +116,7 @@ pub fn load_nif_bytes(bytes: &[u8], load_context: &mut LoadContext<'_>) -> io::R
             }
 
             _ =>
-            // All NiTypes that can't just create assets and then be discarded, store them
-            // in full
+            // All other types, store in full with no preprocessing
             {
                 objects.insert(ni_type);
             }
@@ -212,7 +192,6 @@ pub fn load_nif_bytes(bytes: &[u8], load_context: &mut LoadContext<'_>) -> io::R
     Ok(Nif {
         objects,
         roots,
-        block_assets,
         all_keyframe_data,
         all_controller_links,
         text_keys: final_text_keys,
@@ -221,209 +200,11 @@ pub fn load_nif_bytes(bytes: &[u8], load_context: &mut LoadContext<'_>) -> io::R
 }
 
 pub fn resolve_nif_path(nif_path: &str) -> String {
-    // Basic cleanup - Needs proper implementation!
+    // Basic cleanup - Needs proper implementation
     let cleaned = nif_path.trim().replace('\\', "/");
     if !cleaned.starts_with("textures/") && !cleaned.is_empty() {
         format!("textures/{}", cleaned)
     } else {
         cleaned
     }
-}
-
-pub fn convert_nif_mesh(data: NiTriShapeData) -> Option<Mesh> {
-    // TODO:: not sure what to do with shared normals
-    let NiTriShapeData {
-        base,
-        triangles,
-        shared_normals: _shared_normals,
-    } = data;
-    let NiTriBasedGeomData { base } = base;
-    let vertices = base.vertices;
-    let normals = base.normals;
-    let uvs = base.uv_sets;
-    let indices = triangles;
-    let final_mesh_opt: Option<Mesh>;
-    let flat_indices: Vec<u16> = indices.into_iter().flatten().collect();
-    if !normals.is_empty() {
-        let mut mesh = Mesh::new(
-            PrimitiveTopology::TriangleList,
-            RenderAssetUsages::default(),
-        )
-        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, vertices);
-
-        // Create the Bevy Mesh
-        mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals); // MOVE
-
-        // Insert UVs if they exist
-        if !uvs.is_empty() {
-            mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs); // MOVE
-        }
-        // Insert the final flat indices
-        mesh.insert_indices(Indices::U16(flat_indices));
-
-        final_mesh_opt = Some(mesh);
-    } else {
-        // Fallback: Need to call the helper function, which needs to be updated
-        // to accept the Bevy array types (Vec<[f32; 3]>).
-
-        // We pass references to the moved data's components before they are consumed below.
-        final_mesh_opt = create_mesh_with_flat_normals(
-            // Pass the data that contains the vertex position info
-            vertices,
-            flat_indices,
-            if uvs.is_empty() { None } else { Some(&uvs) },
-        );
-    }
-
-    // TODO: Add vertex colors (Mesh::ATTRIBUTE_COLOR) if data.has_vertex_colors is true
-
-    if let Some(mesh) = final_mesh_opt {
-        Some(mesh)
-    } else {
-        None
-    }
-}
-fn create_mesh_with_flat_normals(
-    original_vertices_nif: Vec<Vec3>,
-    original_indices: Vec<u16>,
-    original_uvs: Option<&Vec<Vec2>>,
-) -> Option<Mesh> {
-    let vertex_count = original_vertices_nif.len();
-    if vertex_count == 0 {
-        warn!("Cannot compute flat normals: No vertices provided.");
-        return None;
-    }
-    if original_indices.is_empty() {
-        warn!("Cannot compute flat normals: No indices provided.");
-        return None;
-    }
-    if original_indices.len() % 3 != 0 {
-        warn!(
-            "Cannot compute flat normals: Index count ({}) is not a multiple of 3.",
-            original_indices.len()
-        );
-        return None;
-    }
-
-    let num_triangles = original_indices.len() / 3;
-    let new_vertex_count = num_triangles * 3;
-
-    // Initialize buffers for the new mesh data
-    let mut final_vertices: Vec<[f32; 3]> = Vec::with_capacity(new_vertex_count);
-    let mut final_normals: Vec<[f32; 3]> = Vec::with_capacity(new_vertex_count);
-    let mut final_indices: Vec<u16> = Vec::with_capacity(new_vertex_count);
-    // Only create UV buffer if original UVs were present
-    let mut final_uvs: Option<Vec<[f32; 2]>> =
-        original_uvs.map(|_| Vec::with_capacity(new_vertex_count));
-
-    for i in 0..num_triangles {
-        // Get original vertex indices for this triangle
-        let mut idx0 = original_indices[i * 3] as usize;
-        let mut idx1 = original_indices[i * 3 + 1] as usize;
-        let mut idx2 = original_indices[i * 3 + 2] as usize;
-
-        // --- Bounds Checking ---
-        if idx0 >= vertex_count || idx1 >= vertex_count || idx2 >= vertex_count {
-            warn!(
-                "Skipping triangle {} due to out-of-bounds index (Indices: {}, {}, {}; Vertex Count: {}).",
-                i, idx0, idx1, idx2, vertex_count
-            );
-            // Just push junk indices so the rest of the data isn't corrupted.
-            idx0 = 0;
-            idx1 = 0;
-            idx2 = 0;
-        }
-
-        // Get vertex positions
-        let v0 = original_vertices_nif[idx0];
-        let v1 = original_vertices_nif[idx1];
-        let v2 = original_vertices_nif[idx2];
-
-        // Calculate face normal
-        let edge1 = v1 - v0;
-        let edge2 = v2 - v0;
-        let face_normal = edge1.cross(edge2);
-
-        // Normalize, handling degenerate triangles (use Y-up as default)
-        let normalized_normal_array = face_normal.try_normalize().unwrap_or(Vec3::Y).to_array();
-
-        // Add duplicated vertex positions
-        final_vertices.push(v0.to_array());
-        final_vertices.push(v1.to_array());
-        final_vertices.push(v2.to_array());
-
-        // Add the same face normal for all 3 vertices of this triangle
-        final_normals.push(normalized_normal_array);
-        final_normals.push(normalized_normal_array);
-        final_normals.push(normalized_normal_array);
-
-        // Add sequential indices for the new vertices
-        let base_index = (i * 3) as u16; // Assuming fewer than 65536 triangles per original mesh part
-        final_indices.push(base_index);
-        final_indices.push(base_index + 1);
-        final_indices.push(base_index + 2);
-
-        // Duplicate UVs if they exist
-        if let Some(ref mut uvs_out) = final_uvs {
-            if let Some(uvs_in) = original_uvs {
-                // Check bounds for original UVs as well
-                if idx0 < uvs_in.len() && idx1 < uvs_in.len() && idx2 < uvs_in.len() {
-                    uvs_out.push([uvs_in[idx0].x, uvs_in[idx0].y]);
-                    uvs_out.push([uvs_in[idx1].x, uvs_in[idx1].y]);
-                    uvs_out.push([uvs_in[idx2].x, uvs_in[idx2].y]);
-                } else {
-                    warn!(
-                        "Missing UV data for original indices in triangle {}, using default [0,0].",
-                        i
-                    );
-                    uvs_out.push([0.0, 0.0]);
-                    uvs_out.push([0.0, 0.0]);
-                    uvs_out.push([0.0, 0.0]);
-                }
-            }
-        }
-    }
-
-    // sanity check
-    if final_vertices.len() != final_normals.len() {
-        error!(
-            "Manual flat normal calculation resulted in mismatch! Verts: {}, Norms: {}",
-            final_vertices.len(),
-            final_normals.len()
-        );
-        // This shouldn't happen with this logic
-        return None;
-    }
-    if let Some(ref uvs) = final_uvs {
-        if final_vertices.len() != uvs.len() {
-            error!(
-                "Manual flat normal calculation resulted in UV mismatch! Verts: {}, UVs: {}",
-                final_vertices.len(),
-                uvs.len()
-            );
-            // TODO:: push default uvs until we have enough?
-        }
-    }
-
-    // Create the Bevy Mesh using the generated data
-    let mut mesh = Mesh::new(
-        PrimitiveTopology::TriangleList,
-        RenderAssetUsages::default(),
-    )
-    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, final_vertices) // Use new vertices
-    .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, final_normals); // Use new normals
-
-    if let Some(final_uvs_vec) = final_uvs {
-        mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, final_uvs_vec);
-    }
-
-    mesh.insert_indices(Indices::U16(final_indices)); // Use new sequential indices
-
-    #[cfg(debug_assertions)]
-    info!(
-        "Successfully computed flat normals. Final vertex count: {}",
-        mesh.count_vertices()
-    );
-
-    Some(mesh)
 }

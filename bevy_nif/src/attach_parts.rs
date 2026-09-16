@@ -1,4 +1,5 @@
 use crate::{
+    NIF_TO_BEVY_ROTATION,
     nif_animation::SkeletonMap,
     spawner::{NifInstantiated, NifNodeIndex},
 };
@@ -11,6 +12,7 @@ use bevy_ecs::{
     observer::On,
     system::{Commands, Query, Res, ResMut},
 };
+use bevy_gizmos::aabb::ShowAabbGizmo;
 use bevy_log::error;
 use bevy_mesh::{Mesh, Mesh3d, VertexAttributeValues};
 use bevy_pbr::{MeshMaterial3d, StandardMaterial};
@@ -19,6 +21,7 @@ use bevy_transform::components::Transform;
 
 #[derive(Component, PartialEq, Clone, Debug)]
 pub enum AttachmentType {
+    /// Marks this nif asset as a skeleton, for other nifs to be attached to
     MainSkeleton {
         skeleton_id: u64,
     },
@@ -30,7 +33,7 @@ pub enum AttachmentType {
         target_bone: String,
     },
     /// THIS ISN'T USED IN THE ATTACHMENT LOGIC. This is only a marker for users,
-    /// and should be changed to Rigid with "Left " being prepended to the target_bone
+    /// and should be changed to Rigid with "Left " or "Right " being prepended to the target_bone
     DoubleSidedRigid {
         skeleton_id: u64,
         target_bone: String,
@@ -90,11 +93,8 @@ pub fn attach_parts(
                 error!("nif tried to attach to nonexistant bone!");
                 return;
             };
-            // Flip rotations and translations for attachments to Left bones
+            // Flip rotations and translations of trimeshes for attachments to Left bones
             if target_bone.contains("Left") {
-                //find the child of the ninode(should be trimesh), so we can get the mesh and material of
-                //the trimesh
-
                 for trishape in &nif_index.tri_shapes {
                     if let Ok(mut transform) = transforms.get_mut(*trishape) {
                         transform.translation.x = -transform.translation.x;
@@ -145,7 +145,7 @@ pub fn attach_parts(
                     {
                         commands
                             .entity(nifscene_root)
-                            .insert(ChildOf(*skeleton_root));
+                            .insert((ChildOf(*skeleton_root), ShowAabbGizmo::default()));
                         commands.entity(nifscene_root).remove::<AttachmentType>();
                     }
                 }

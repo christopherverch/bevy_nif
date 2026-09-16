@@ -51,13 +51,12 @@ impl AssetLoader for BMPLoader {
         _load_context: &mut LoadContext<'_>,
     ) -> Result<Self::Asset, Self::Error> {
         let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).await?; // Propagate IO errors
+        reader.read_to_end(&mut bytes).await?;
 
-        // Use the bmp crate to parse
-        let bmp_img = bmp::from_reader(&mut std::io::Cursor::new(&bytes)) // Pass slice reference
-            .map_err(|e| {
-                std::io::Error::new(ErrorKind::Other, format!("BMP parsing error: {:?}", e))
-            })?;
+        // parse with bmp crate
+        let bmp_img = bmp::from_reader(&mut std::io::Cursor::new(&bytes)).map_err(|e| {
+            std::io::Error::new(ErrorKind::Other, format!("BMP parsing error: {:?}", e))
+        })?;
 
         let width = bmp_img.get_width();
         let height = bmp_img.get_height();
@@ -93,7 +92,7 @@ impl AssetLoader for BMPLoader {
     }
 
     fn extensions(&self) -> &[&str] {
-        &["BMP", "bmp"] // Register for uppercase .BMP also
+        &["BMP", "bmp"]
     }
 }
 #[derive(Default, TypePath)]
@@ -113,12 +112,12 @@ impl AssetLoader for DDSLoader {
         let mut bytes = Vec::new();
         reader.read_to_end(&mut bytes).await?;
 
-        //  Parse container via ddsfile
+        // Parse container via ddsfile
         let dds = Dds::read(&mut Cursor::new(&bytes)).map_err(|e| {
             std::io::Error::new(ErrorKind::Other, format!("DDS parse error: {:?}", e))
         })?;
 
-        //  Decode mip 0 into an RgbaImage
+        // Decode mip 0 into an RgbaImage
         let rgba_image = image_dds::image_from_dds(&dds, 0).map_err(|e| {
             std::io::Error::new(ErrorKind::Other, format!("DDS decode error: {:?}", e))
         })?;

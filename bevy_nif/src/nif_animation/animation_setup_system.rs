@@ -96,7 +96,6 @@ pub fn setup_animations(
         let Some(nif_asset) = nif_assets.get(nif_handle) else {
             continue;
         };
-        dbg!(&nif_asset.node_names);
         let Some(skeleton) = skeleton_map_res
             .skeletons
             .get(&needs_animator_data.skeleton_id)

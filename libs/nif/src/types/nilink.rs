@@ -55,6 +55,7 @@ where
         let idx: i32 = stream.load()?;
         let key = match idx {
             i if (i < 0) => NiKey::null(),
+            // We do i + 1 because slotmap is 1-indexed, i.e. first insertion is key 1 version 1
             i => KeyData::from_ffi((1 << 32) | (i as u64 + 1)).into(),
         };
         Ok(Self::new(key))

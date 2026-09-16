@@ -30,7 +30,9 @@ bevy_app.workspace = true
 bevy_reflect.workspace = true
 bevy_render = "0.19"
 image_dds = "0.7.2"
+avian3d = "0.7.0"
+bevy_gizmos = "0.19"
 
 
 [dev-dependencies]
-bevy = { version = "0.19", default-features = false, features = ["x11", "tonemapping_luts","dynamic_linking", "reflect_auto_register", "free_camera", "bevy_gizmos", "bevy_gizmos_render", "bevy_animation", "zstd_rust", "bevy_light", "bevy_core_pipeline", "debug", "bevy_material", "bevy_pbr"] }
+bevy = { version = "0.19", default-features = false, features = ["x11", "tonemapping_luts","dynamic_linking", "reflect_auto_register", "free_camera", "bevy_gizmos", "bevy_gizmos_render", "bevy_animation", "zstd_rust", "bevy_light", "bevy_core_pipeline", "debug", "bevy_material", "bevy_pbr", "tga"] }

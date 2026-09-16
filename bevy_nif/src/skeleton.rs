@@ -53,7 +53,8 @@ impl Skeleton {
             if let Some(parent_node) = self.bones.get_mut(p_id.0) {
                 parent_node.children.push(new_id);
             } else {
-                // This case should ideally not happen if parent_name resolved to an ID
+                // This case should ideally not happen if parent_id is Some, otherwise where did we
+                // get the id from?
                 eprintln!(
                     "Warning: Parent ID {:?} not found for bone {}",
                     p_id, self.bones[new_id.0].name
@@ -109,22 +110,21 @@ impl Skeleton {
     pub fn get_all_children(&self, start_bone_name: &str) -> Vec<&BoneData> {
         let mut children = Vec::new();
         if let Some(start_bone_data) = self.get_bone_by_name(start_bone_name) {
-            // stack will store tuples of (BoneId, indent_level)
-            let mut stack: Vec<(BoneId, usize)> = Vec::new();
+            let mut stack: Vec<BoneId> = Vec::new();
 
-            // Push the starting bone with indent level 0
-            stack.push((start_bone_data.id, 0));
+            // Put the starting bone at the top of the stack
+            stack.push(start_bone_data.id);
             children.push(start_bone_data);
-            while let Some((current_bone_id, indent_level)) = stack.pop() {
+            while let Some(current_bone_id) = stack.pop() {
                 // The loop continues as long as there are items on the stack
 
                 if let Some(bone_data) = self.get_bone_by_id(current_bone_id) {
                     // Add children to the stack for later processing.
-                    // To process children in their natural order (first child first),
+                    // To end up with a vec of children in their natural order (first child first),
                     // we push them onto the stack in reverse order.
-                    // The last child pushed will be the first one popped and processed.
+                    // The last child pushed will be the first one popped.
                     for &child_id in bone_data.children.iter().rev() {
-                        stack.push((child_id, indent_level + 1));
+                        stack.push(child_id);
                         children.push(self.get_bone_by_id(child_id).unwrap());
                     }
                 } else {
@@ -162,11 +162,11 @@ impl Skeleton {
                 }
                 current_bone_id_opt = Some(parent_id); // Move to the parent for next iteration
             } else {
-                // No parent, we've reached a root without finding the ancestor
+                // No parent, we've reached a root without finding the bone we're searching for
                 return false;
             }
         }
-        // If bone_name was not found in name_to_id initially
+        // bone_name was not found in this skeleton's heirarchy
         false
     }
 }

@@ -19,9 +19,6 @@ fn main() {
         .add_plugins(FreeCameraPlugin)
         .add_systems(Startup, setup::setup_scene)
         .add_systems(Startup, setup::setup)
-        .add_systems(Update, test_animations)
-        .add_systems(Update, wireframe)
-        .add_systems(Update, test_loop_anims)
         .run();
 }
 fn test_loop_anims(

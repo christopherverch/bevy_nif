@@ -14,7 +14,7 @@ use bevy_app::{App, Plugin, PreUpdate, Update};
 use bevy_asset::AssetApp;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
-use bevy_math::{Quat, Vec3};
+use bevy_math::Vec3;
 pub use helper_funcs::*;
 use loader::{BMPLoader, Nif, NifAssetLoader};
 pub use nif::types::*;
@@ -24,7 +24,6 @@ use spawner::spawn_nif_scenes;
 
 pub const MW_UNITS_PER_METER: f32 = 69.991251091;
 pub const MW_SCALE_TO_BEVY: Vec3 = Vec3::splat(1.0 / MW_UNITS_PER_METER);
-pub const NIF_TO_BEVY_ROTATION: Quat = Quat::from_xyzw(0.0, 0.70710677, 0.70710677, 0.0);
 
 #[derive(Component)]
 pub struct NeedsNifPhysics(pub Vec<(Entity, NiKey)>);

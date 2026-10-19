@@ -5,15 +5,17 @@ use crate::{NeedsNifPhysics, hash_str, skeleton::*};
 use avian3d::prelude::{Collider, RigidBody};
 use bevy_asset::{AssetServer, Assets, Handle, RenderAssetUsages};
 use bevy_camera::visibility::Visibility;
+use bevy_color::Color;
+use bevy_ecs::name::Name;
 use bevy_ecs::{
     component::Component,
     entity::Entity,
     event::EntityEvent,
     hierarchy::ChildOf,
-    name::Name,
     query::Without,
     system::{Commands, Query, Res, ResMut},
 };
+use bevy_gizmos::aabb::ShowAabbGizmo;
 use bevy_log::{error, info, warn};
 use bevy_material::AlphaMode;
 use bevy_math::{Mat4, Quat, Vec2, Vec3};
@@ -67,6 +69,7 @@ pub fn spawn_nif_scenes(
     mut skeleton_map_res: ResMut<SkeletonMap>,
 ) {
     for (original_entity, nif_scene_component, attachment_type_opt) in &mut new_scenes {
+        dbg!(nif_scene_component.0.path());
         let is_skeleton = attachment_type_opt
             .as_ref()
             .map(|att| matches!(**att, AttachmentType::MainSkeleton { skeleton_id: _ }))
@@ -99,15 +102,10 @@ pub fn spawn_nif_scenes(
         };
 
         // Spawn root nodes, parenting to work_root
-        for (index, current_node) in nif.roots.iter().enumerate() {
+        for current_node in nif.roots.iter() {
             let root_node_entity = commands
                 .spawn((
                     Transform::default(),
-                    Name::new(format!(
-                        "NifScene {:?}_{}",
-                        nif_scene_component.0.id(),
-                        index
-                    )),
                     Visibility::Inherited,
                     ChildOf(original_entity),
                 ))
@@ -201,13 +199,13 @@ fn spawn_nif_node_recursive<'a>(
         NiType::NiNode(ni_node) => {
             let bevy_transform = Transform {
                 translation: ni_node.translation,
-                rotation: Quat::from_mat3(&ni_node.rotation.transpose()),
+                rotation: Quat::from_mat3(&ni_node.rotation),
                 scale: Vec3::splat(ni_node.scale),
             };
             let new_ninode_entity = commands
                 .spawn((
-                    bevy_transform,
                     Name::new(ni_node.name.clone()),
+                    bevy_transform,
                     ChildOf(parent_entity),
                     Visibility::Inherited,
                 ))
@@ -228,11 +226,6 @@ fn spawn_nif_node_recursive<'a>(
                 .insert(current_key, new_ninode_entity);
             let mut current_bone_name_opt = None;
             if spawn_context.is_skeleton {
-                let formatted_name = format!("skeleton {}", ni_node.name);
-                commands
-                    .entity(new_ninode_entity)
-                    .insert(Name::new(formatted_name));
-
                 skeleton.add_bone(
                     new_ninode_entity,
                     ni_node.name.to_string(), // Use the raw NIF name
@@ -261,7 +254,7 @@ fn spawn_nif_node_recursive<'a>(
             let nif_transform = ni_trishape;
             let bevy_transform = Transform {
                 translation: ni_trishape.translation,
-                rotation: Quat::from_mat3(&nif_transform.rotation.transpose()),
+                rotation: Quat::from_mat3(&nif_transform.rotation),
                 scale: Vec3::splat(ni_trishape.scale),
             };
             // Create the entity and set up the name
@@ -297,7 +290,6 @@ fn spawn_nif_node_recursive<'a>(
                 return;
             }
             let name_ref: &str = &ni_trishape.name;
-            let formatted_name = format!("NiTriShape: {:?}", name_ref);
             // Make shadow invisible (or if it's the main skeleton, the bones)
             if name_ref == "Tri Shadow"
                 || name_ref == "Tri QuadPatch01"
@@ -305,11 +297,7 @@ fn spawn_nif_node_recursive<'a>(
             {
                 commands
                     .entity(new_nitrishape_entity)
-                    .insert((Visibility::Hidden, Name::new("hidden")));
-            } else {
-                commands
-                    .entity(new_nitrishape_entity)
-                    .insert(Name::new(formatted_name));
+                    .insert(Visibility::Hidden);
             }
 
             let mesh_handle = {
@@ -320,6 +308,11 @@ fn spawn_nif_node_recursive<'a>(
                 commands
                     .entity(new_nitrishape_entity)
                     .insert(Mesh3d(mesh_handle.clone()));
+                commands
+                    .entity(new_nitrishape_entity)
+                    .insert(ShowAabbGizmo {
+                        color: Some(Color::WHITE),
+                    });
                 mesh_handle
             };
             // Loop through properties such as material and textures
@@ -379,13 +372,12 @@ fn spawn_nif_node_recursive<'a>(
         NiType::RootCollisionNode(node) => {
             let bevy_transform = Transform {
                 translation: node.translation,
-                rotation: Quat::from_mat3(&node.rotation.transpose()),
+                rotation: Quat::from_mat3(&node.rotation),
                 scale: Vec3::splat(node.scale),
             };
             let new_collision_node_entity = commands
                 .spawn((
                     bevy_transform,
-                    Name::new(node.name.clone()),
                     ChildOf(parent_entity),
                     Visibility::Inherited,
                 ))
@@ -508,7 +500,7 @@ fn apply_skin_instance(
     for bone_data in &skin_data.bone_data {
         let bone_mat = Mat4::from_scale_rotation_translation(
             Vec3::splat(bone_data.scale),
-            Quat::from_mat3(&bone_data.rotation).inverse(),
+            Quat::from_mat3(&bone_data.rotation),
             bone_data.translation,
         );
 
@@ -678,6 +670,7 @@ fn create_mesh_with_flat_normals(
         let mut idx2 = original_indices[i * 3 + 2] as usize;
 
         // --- Bounds Checking ---
+        #[cfg(debug_assertions)]
         if idx0 >= vertex_count || idx1 >= vertex_count || idx2 >= vertex_count {
             warn!(
                 "Skipping triangle {} due to out-of-bounds index (Indices: {}, {}, {}; Vertex Count: {}).",

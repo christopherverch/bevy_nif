@@ -11,10 +11,14 @@ pub struct NiBoxBV {
 
 impl Load for NiBoxBV {
     fn load(stream: &mut Reader<'_>) -> io::Result<Self> {
-        let center = stream.load()?;
+        let center = nif_to_bevy_vec3(stream.load()?);
         let axis = stream.load()?;
-        let extents = stream.load()?;
-        Ok(Self { center, axis, extents })
+        let extents = nif_to_bevy_vec3(stream.load()?);
+        Ok(Self {
+            center,
+            axis,
+            extents,
+        })
     }
 }
 

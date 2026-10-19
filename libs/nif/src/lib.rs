@@ -1,5 +1,6 @@
 pub mod loader;
 pub mod types;
+use bevy_math::{Mat3, Quat, Vec3};
 pub use types::*;
 
 pub(crate) mod macros;
@@ -33,4 +34,37 @@ pub(crate) mod prelude {
         pub type ColorA = Vec4;
     }
     pub use math::*;
+}
+const NIF_SCALE_FACTOR: f32 = 69.991251091;
+fn nif_to_bevy_vec3(v: Vec3) -> Vec3 {
+    Vec3::new(
+        -v.x, // Flip X for handedness conversion
+        v.z,  // NIF Z (up) becomes Bevy Y (up)
+        v.y,  // NIF Y (forward) becomes Bevy Z (depth)
+    ) / NIF_SCALE_FACTOR
+}
+fn bevy_to_nif_vec3(v: Vec3) -> Vec3 {
+    Vec3::new(-v.x, v.z, v.y) * NIF_SCALE_FACTOR
+}
+fn nif_to_bevy_normal(v: Vec3) -> Vec3 {
+    Vec3::new(-v.x, v.z, v.y).normalize() // Keep them normalized unit vectors
+}
+fn nif_to_bevy_mat3(mat: Mat3) -> Mat3 {
+    let m = Mat3::from_cols(
+        Vec3::new(-1.0, 0.0, 0.0), // NIF X -> Bevy -X
+        Vec3::new(0.0, 0.0, 1.0),  // NIF Y -> Bevy Z
+        Vec3::new(0.0, 1.0, 0.0),  // NIF Z -> Bevy Y
+    );
+    (m * mat * m).inverse()
+}
+fn nif_to_bevy_quat(q: Quat) -> Quat {
+    let m = Mat3::from_cols(
+        Vec3::new(-1.0, 0.0, 0.0), // NIF X -> Bevy -X
+        Vec3::new(0.0, 0.0, 1.0),  // NIF Y -> Bevy Z
+        Vec3::new(0.0, 1.0, 0.0),  // NIF Z -> Bevy Y
+    );
+    let r_nif = Mat3::from_quat(q);
+    let r_bevy = m * r_nif * m;
+
+    Quat::from_mat3(&r_bevy.inverse())
 }

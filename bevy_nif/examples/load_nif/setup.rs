@@ -4,7 +4,6 @@ use bevy::light::{CascadeShadowConfigBuilder, NotShadowCaster, NotShadowReceiver
 use bevy::prelude::*;
 use bevy_camera::Hdr;
 use bevy_material::OpaqueRendererMethod;
-use bevy_nif::NIF_TO_BEVY_ROTATION;
 use bevy_nif::attach_parts::AttachmentType;
 use bevy_nif::spawner::NifScene;
 use bevy_pbr::{MeshMaterial3d, StandardMaterial};
@@ -15,7 +14,6 @@ pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let player_entity = commands
         .spawn(Transform {
             translation: Vec3::new(-2.0, 0.0, -1.0),
-            scale: Vec3::splat(0.03),
             ..default()
         })
         .id();
@@ -68,9 +66,7 @@ fn spawn_nifs(
                 InheritedVisibility::VISIBLE,
             ))
             .id();
-        if !matches!(attachment_type, AttachmentType::Skinned { skeleton_id: _ }) {
-            commands.entity(child).insert(attachment_type.clone());
-        }
+        commands.entity(child).insert(attachment_type.clone());
 
         commands.entity(entity).add_child(child);
     }
@@ -80,7 +76,31 @@ pub fn setup_scene(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
+    asset_server: Res<AssetServer>,
 ) {
+    let house = asset_server.load("data/b_n_dark elf_m_skins.nif");
+    let head = asset_server.load("data/B_N_Dark Elf_M_Head_01.nif");
+    let hair = asset_server.load("data/B_N_Dark Elf_M_Hair_01.nif");
+    commands.spawn((
+        Name::new("head"),
+        NifScene(head),
+        Visibility::Visible,
+        Transform::default(),
+    ));
+    commands.spawn((
+        Name::new("house"),
+        NifScene(house),
+        Visibility::Visible,
+        Transform::from_xyz(0.0, 10.0, 0.0),
+    ));
+
+    commands.spawn((
+        Name::new("hair"),
+        Visibility::Visible,
+        NifScene(hair),
+        Transform::default(),
+    ));
+
     commands.spawn((
         Camera3d::default(),
         Camera::default(),
@@ -167,8 +187,7 @@ fn spawn_nif_unattached(mut commands: Commands, asset_server: &Res<AssetServer>)
         InheritedVisibility::VISIBLE,
         Transform {
             translation: Vec3::new(-0.0, 0.5, -1.0),
-            rotation: Quat::IDENTITY,
-            scale: Vec3::splat(0.03),
+            ..default()
         },
     ));
 }

@@ -14,7 +14,7 @@ pub struct NiPerParticleData {
 
 impl Load for NiPerParticleData {
     fn load(stream: &mut Reader<'_>) -> io::Result<Self> {
-        let velocity = stream.load()?;
+        let velocity = nif_to_bevy_vec3(stream.load()?);
         let rotation_axis = stream.load()?;
         let age = stream.load()?;
         let lifespan = stream.load()?;
@@ -35,7 +35,7 @@ impl Load for NiPerParticleData {
 
 impl Save for NiPerParticleData {
     fn save(&self, stream: &mut Writer) -> io::Result<()> {
-        stream.save(&self.velocity)?;
+        stream.save(&bevy_to_nif_vec3(self.velocity))?;
         stream.save(&self.rotation_axis)?;
         stream.save(&self.age)?;
         stream.save(&self.lifespan)?;

@@ -1,6 +1,9 @@
 // internal imports
 use crate::prelude::*;
 
+// For all rotations inside an animation, we have to inverse the rotation (again) because it's
+// relative to the base pose, which has already been inversed
+
 #[derive(Meta, Clone, Debug, From, PartialEq, SmartDefault)]
 pub enum NiRotKey {
     #[default]
@@ -10,21 +13,21 @@ pub enum NiRotKey {
     EulerKey(NiEulerRotKeys),
 }
 
-#[derive(Meta, LoadSave, Clone, Copy, Debug, PartialEq, SmartDefault, Zeroable)]
+#[derive(Meta, Clone, Copy, Debug, PartialEq, SmartDefault, Zeroable)]
 pub struct NiLinRotKey {
     pub time: f32,
     #[default(Quat::IDENTITY)]
     pub value: Quat,
 }
 
-#[derive(Meta, LoadSave, Clone, Copy, Debug, PartialEq, SmartDefault, Zeroable)]
+#[derive(Meta, Clone, Copy, Debug, PartialEq, SmartDefault, Zeroable)]
 pub struct NiBezRotKey {
     pub time: f32,
     #[default(Quat::IDENTITY)]
     pub value: Quat,
 }
 
-#[derive(Meta, LoadSave, Clone, Copy, Debug, PartialEq, SmartDefault, Zeroable)]
+#[derive(Meta, Clone, Copy, Debug, PartialEq, SmartDefault, Zeroable)]
 pub struct NiTCBRotKey {
     pub time: f32,
     #[default(Quat::IDENTITY)]
@@ -33,7 +36,74 @@ pub struct NiTCBRotKey {
     pub continuity: f32,
     pub bias: f32,
 }
+impl Load for NiLinRotKey {
+    fn load(stream: &mut Reader<'_>) -> io::Result<Self> {
+        let time = stream.load()?;
+        let raw_quat: Quat = stream.load()?;
+        Ok(Self {
+            time,
+            value: nif_to_bevy_quat(raw_quat).inverse(),
+        })
+    }
+}
 
+impl Load for NiBezRotKey {
+    fn load(stream: &mut Reader<'_>) -> io::Result<Self> {
+        let time = stream.load()?;
+        let raw_quat: Quat = stream.load()?;
+        Ok(Self {
+            time,
+            value: nif_to_bevy_quat(raw_quat).inverse(),
+        })
+    }
+}
+
+impl Load for NiTCBRotKey {
+    fn load(stream: &mut Reader<'_>) -> io::Result<Self> {
+        let time = stream.load()?;
+        let raw_quat: Quat = stream.load()?;
+        let tension = stream.load()?;
+        let continuity = stream.load()?;
+        let bias = stream.load()?;
+        Ok(Self {
+            time,
+            value: nif_to_bevy_quat(raw_quat).inverse(),
+            tension,
+            continuity,
+            bias,
+        })
+    }
+}
+impl Save for NiLinRotKey {
+    fn save(&self, stream: &mut Writer) -> io::Result<()> {
+        stream.save(&self.time)?;
+        // Convert back to NIF space using the same symmetric transformation
+        let nif_quat = nif_to_bevy_quat(self.value);
+        stream.save(&nif_quat)?;
+        Ok(())
+    }
+}
+
+impl Save for NiBezRotKey {
+    fn save(&self, stream: &mut Writer) -> io::Result<()> {
+        stream.save(&self.time)?;
+        let nif_quat = nif_to_bevy_quat(self.value);
+        stream.save(&nif_quat)?;
+        Ok(())
+    }
+}
+
+impl Save for NiTCBRotKey {
+    fn save(&self, stream: &mut Writer) -> io::Result<()> {
+        stream.save(&self.time)?;
+        let nif_quat = nif_to_bevy_quat(self.value);
+        stream.save(&nif_quat)?;
+        stream.save(&self.tension)?;
+        stream.save(&self.continuity)?;
+        stream.save(&self.bias)?;
+        Ok(())
+    }
+}
 #[derive(Meta, Clone, Debug, Default, PartialEq)]
 pub struct NiEulerRotKeys {
     pub axis_order: AxisOrder,
@@ -43,7 +113,11 @@ pub struct NiEulerRotKeys {
 impl Load for NiRotKey {
     fn load(stream: &mut Reader<'_>) -> io::Result<Self> {
         let num_keys: u32 = stream.load()?;
-        let key_type = if num_keys == 0 { KeyType::LinKey } else { stream.load()? };
+        let key_type = if num_keys == 0 {
+            KeyType::LinKey
+        } else {
+            stream.load()?
+        };
         Ok(match key_type {
             KeyType::LinKey => NiRotKey::LinKey(stream.load_seq(num_keys)?),
             KeyType::BezKey => NiRotKey::BezKey(stream.load_seq(num_keys)?),
@@ -58,7 +132,12 @@ impl Save for NiRotKey {
     fn save(&self, stream: &mut Writer) -> io::Result<()> {
         /// Helper function to reduce code duplication in the match statement below.
         #[inline]
-        fn save<'a, I, S>(stream: &mut Writer, len: usize, key_type: KeyType, keys: I) -> io::Result<()>
+        fn save<'a, I, S>(
+            stream: &mut Writer,
+            len: usize,
+            key_type: KeyType,
+            keys: I,
+        ) -> io::Result<()>
         where
             I: IntoIterator<Item = &'a S>,
             S: Save + 'a,

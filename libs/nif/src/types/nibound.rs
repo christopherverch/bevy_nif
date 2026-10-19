@@ -9,8 +9,9 @@ pub struct NiBound {
 
 impl Load for NiBound {
     fn load(stream: &mut Reader<'_>) -> io::Result<Self> {
-        let center = stream.load()?;
-        let radius = stream.load()?;
+        let center = nif_to_bevy_vec3(stream.load()?);
+        let mut radius = stream.load()?;
+        radius /= NIF_SCALE_FACTOR;
         Ok(Self { center, radius })
     }
 }
@@ -88,7 +89,9 @@ impl NiBound {
     /// Computes the axis-aligned bounding box of the given geometries.
     ///
     #[allow(private_bounds)]
-    pub fn aabb_from_geometries(geometries: impl IntoIterator<Item: GeometryTransform>) -> Option<(Vec3, Vec3)> {
+    pub fn aabb_from_geometries(
+        geometries: impl IntoIterator<Item: GeometryTransform>,
+    ) -> Option<(Vec3, Vec3)> {
         let mut min = Vec3::splat(f32::INFINITY);
         let mut max = Vec3::splat(f32::NEG_INFINITY);
 

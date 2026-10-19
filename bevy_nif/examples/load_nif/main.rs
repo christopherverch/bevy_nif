@@ -2,6 +2,7 @@ use bevy::camera_controller::free_camera::FreeCameraPlugin;
 // This example runs animations and is meant to be run with base_anim.nif and the B_N dark elf nif
 // files inside of assets/data, but any can be loaded by replacing the names in setup.rs
 use bevy::prelude::*;
+use bevy_image::{ImageAddressMode, ImageSamplerDescriptor};
 use bevy_nif::nif_animation::bevy_types::{ActiveAnimation, AnimType, Priority};
 use bevy_nif::nif_animation::{BlendMask, NifAnimator, SkeletonMap};
 use bevy_nif::*;
@@ -9,7 +10,15 @@ mod setup;
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.set(ImagePlugin {
+            // Sets the default fallback sampler for all standard asset loads
+            default_sampler: ImageSamplerDescriptor {
+                address_mode_u: ImageAddressMode::Repeat,
+                address_mode_v: ImageAddressMode::Repeat,
+                address_mode_w: ImageAddressMode::Repeat,
+                ..default()
+            },
+        }))
         .add_plugins(BevyNifPlugin)
         .insert_resource(GlobalAmbientLight {
             color: Color::srgb(1.0, 0.8, 0.6),
@@ -19,7 +28,15 @@ fn main() {
         .add_plugins(FreeCameraPlugin)
         .add_systems(Startup, setup::setup_scene)
         .add_systems(Startup, setup::setup)
+        .add_systems(Update, wireframe)
+        .add_systems(Update, test_animations)
+        .add_systems(Update, test_loop_anims)
         .run();
+}
+fn debug_rotations(transforms: Query<&Transform, Changed<Transform>>) {
+    for transform in transforms {
+        dbg!(transform.rotation);
+    }
 }
 fn test_loop_anims(
     mut animator_q: Query<(

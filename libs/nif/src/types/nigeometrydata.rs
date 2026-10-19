@@ -17,10 +17,16 @@ impl Load for NiGeometryData {
         let num_vertices = stream.load_as::<u16, usize>()?;
         let has_vertices = stream.load::<u32>()? != 0;
         let num_vertices = if has_vertices { num_vertices } else { 0 };
-        let vertices = stream.load_vec(num_vertices)?;
+        let mut vertices = stream.load_vec(num_vertices)?;
+        for vertex in &mut vertices {
+            *vertex = nif_to_bevy_vec3(*vertex);
+        }
         let has_normals = stream.load::<u32>()? != 0;
         let num_normals = if has_normals { num_vertices } else { 0 };
-        let normals = stream.load_vec(num_normals)?;
+        let mut normals = stream.load_vec(num_normals)?;
+        for normal in &mut normals {
+            *normal = nif_to_bevy_normal(*normal);
+        }
         let bound = stream.load()?;
         let has_vertex_colors = stream.load::<u32>()? != 0;
         let num_vertex_colors = if has_vertex_colors { num_vertices } else { 0 };
@@ -45,8 +51,15 @@ impl Save for NiGeometryData {
         stream.save(&self.base)?;
         stream.save_as::<u16>(self.vertices.len())?;
         stream.save_as::<u32>(!self.vertices.is_empty())?;
-        stream.save_vec(&self.vertices)?;
+        let mut bevy_vertices = self.vertices.clone();
+        for vertex in &mut bevy_vertices {
+            *vertex = bevy_to_nif_vec3(*vertex);
+        }
+        stream.save_vec(&bevy_vertices)?;
         stream.save_as::<u32>(!self.normals.is_empty())?;
+        // TODO::
+        // let mut bevy_normals = ...;
+
         stream.save_vec(&self.normals)?;
         stream.save(&self.bound)?;
         stream.save_as::<u32>(!self.vertex_colors.is_empty())?;

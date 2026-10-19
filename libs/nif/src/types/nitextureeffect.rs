@@ -25,7 +25,8 @@ impl Load for NiTextureEffect {
     fn load(stream: &mut Reader<'_>) -> io::Result<Self> {
         let base = stream.load()?;
         let projection_matrix = stream.load()?;
-        let projection_translation = stream.load()?;
+        let mut projection_translation = stream.load()?;
+        projection_translation /= NIF_SCALE_FACTOR;
         let texture_filter = stream.load()?;
         let texture_clamp = stream.load()?;
         let texture_type = stream.load()?;

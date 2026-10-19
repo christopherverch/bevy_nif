@@ -1,6 +1,6 @@
 use bevy_asset::RenderAssetUsages;
 use bevy_asset::{AssetLoader, LoadContext, io::Reader};
-use bevy_image::{CompressedImageFormats, Image, ImageSampler, ImageType};
+use bevy_image::Image;
 use bevy_log::error;
 use bevy_reflect::TypePath;
 use bevy_render::render_resource::{Extent3d, TextureDimension, TextureFormat};

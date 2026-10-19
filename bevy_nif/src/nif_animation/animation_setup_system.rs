@@ -5,7 +5,7 @@ use crate::{
         REGION_ROOT_LOWER_BODY,
         bevy_types::{AnimType, ManualNifEvent, Priority},
         parser_helpers::{
-            determine_bone_primary_region_index, filter_and_retime_keyframes, flatten_keys_xy,
+            determine_bone_primary_region_index, filter_and_retime_keyframes, flatten_keys_xz,
             is_inherently_looping, make_bevy_curve, sample_vec3_curve,
         },
     },
@@ -331,7 +331,7 @@ pub fn setup_animations(
 
                     if bone.is_bip01 {
                         // Perform flattening on the raw keys first
-                        let flattened_raw = flatten_keys_xy(raw_trans_keys.clone());
+                        let flattened_raw = flatten_keys_xz(raw_trans_keys.clone());
 
                         // Now Retime BOTH sets
                         let retimed_raw = filter_and_retime_keyframes(

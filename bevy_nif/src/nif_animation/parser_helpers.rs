@@ -56,14 +56,14 @@ pub fn make_bevy_curve<T: Animatable + Copy>(
         }
     }
 }
-pub fn flatten_keys_xy(mut curve: Vec<(f32, Vec3)>) -> Vec<(f32, Vec3)> {
+pub fn flatten_keys_xz(mut curve: Vec<(f32, Vec3)>) -> Vec<(f32, Vec3)> {
     let mut first = None;
     for (_t, pos) in &mut curve {
         if first.is_none() {
             first = Some(pos.clone());
         }
         pos.x = first.unwrap().x;
-        pos.y = first.unwrap().y;
+        pos.z = first.unwrap().z;
     }
     curve
 }

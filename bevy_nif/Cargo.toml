@@ -17,22 +17,25 @@ slotmap = "1.0.7"
 bevy_mesh.workspace = true
 bevy_asset.workspace = true
 bevy_ecs.workspace = true
-bevy_pbr = "0.19"
-bevy_camera = "0.19"
+bevy_pbr = "0.20"
+bevy_camera = "0.20"
 bevy_math.workspace = true
-bevy_transform = "0.19"
-bevy_material = "0.19"
-bevy_animation = "0.19"
+bevy_transform = "0.20"
+bevy_material = "0.20"
+bevy_animation = "0.20"
 bevy_log.workspace = true
-bevy_image = "0.19"
-bevy_color = "0.19"
+bevy_image = "0.20"
+bevy_color = "0.20"
 bevy_app.workspace = true
 bevy_reflect.workspace = true
-bevy_render = "0.19"
+bevy_render = "0.20"
 image_dds = "0.7.2"
-avian3d = "0.7.0"
-bevy_gizmos = "0.19"
+bevy_gizmos = "0.20"
+avian3d = {git = "https://github.com/avianphysics/avian"}
 
 
 [dev-dependencies]
-bevy = { version = "0.19", default-features = false, features = ["x11", "tonemapping_luts","dynamic_linking", "reflect_auto_register", "free_camera", "bevy_gizmos", "bevy_gizmos_render", "bevy_animation", "zstd_rust", "bevy_light", "bevy_core_pipeline", "debug", "bevy_material", "bevy_pbr", "tga"] }
+bevy = { version = "0.20", default-features = false, features = ["bevy_asset", "bevy_render", "bevy_winit", "bevy_core_pipeline", "bevy_pbr", "bevy_scene", "bevy_text", "bevy_ui", "ui_picking", "bevy_animation", "bevy_ui_render", "x11", "png", "hdr", "default_font", "std", "tonemapping_luts", "bevy_state", "multi_threaded", "bevy_animation", "dynamic_linking", "tga", "reflect_auto_register","bevy_gizmos", "bevy_gizmos_render", "zstd_rust", "free_camera"] }
+
+#bevy-inspector-egui = "0.38.0"
+#bevy_egui = "0.43.1"

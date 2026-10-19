@@ -34,10 +34,10 @@ impl Load for NiAVObject {
     fn load(stream: &mut Reader<'_>) -> io::Result<Self> {
         let base = stream.load()?;
         let flags = stream.load()?;
-        let translation = stream.load()?;
-        let rotation = stream.load()?;
+        let translation = nif_to_bevy_vec3(stream.load()?);
+        let rotation = nif_to_bevy_mat3(stream.load()?);
         let scale = stream.load()?;
-        let velocity = stream.load()?;
+        let velocity = nif_to_bevy_vec3(stream.load()?);
         let properties = stream.load()?;
         let has_bounding_volume: u32 = stream.load()?;
         let bounding_volume = match has_bounding_volume {
@@ -61,10 +61,10 @@ impl Save for NiAVObject {
     fn save(&self, stream: &mut Writer) -> io::Result<()> {
         stream.save(&self.base)?;
         stream.save(&self.flags)?;
-        stream.save(&self.translation)?;
+        stream.save(&bevy_to_nif_vec3(self.translation))?;
         stream.save(&self.rotation)?;
         stream.save(&self.scale)?;
-        stream.save(&self.velocity)?;
+        stream.save(&bevy_to_nif_vec3(self.velocity))?;
         stream.save(&self.properties)?;
         stream.save_as::<u32>(self.bounding_volume.is_some())?;
         if let Some(bounding_volume) = &self.bounding_volume {

@@ -483,6 +483,7 @@ mod tests {
 
         for shape in stream.objects_with_name_mut::<NiTriShape>("unitSphere") {
             shape.translation = center;
+            shape.translation /= NIF_SCALE_FACTOR;
             shape.scale = radius;
         }
 

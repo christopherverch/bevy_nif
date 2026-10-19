@@ -16,8 +16,8 @@ pub struct NiSkinData {
 impl Load for NiSkinData {
     fn load(stream: &mut Reader<'_>) -> io::Result<Self> {
         let base = stream.load()?;
-        let rotation = stream.load()?;
-        let translation = stream.load()?;
+        let rotation = nif_to_bevy_mat3(stream.load()?).inverse();
+        let translation = nif_to_bevy_vec3(stream.load()?);
         let scale = stream.load()?;
         let num_bone_data: u32 = stream.load()?;
         let skin_partition = stream.load()?;
@@ -36,8 +36,8 @@ impl Load for NiSkinData {
 impl Save for NiSkinData {
     fn save(&self, stream: &mut Writer) -> io::Result<()> {
         stream.save(&self.base)?;
-        stream.save(&self.rotation)?;
-        stream.save(&self.translation)?;
+        stream.save(&nif_to_bevy_mat3(self.rotation))?;
+        stream.save(&bevy_to_nif_vec3(self.translation))?;
         stream.save(&self.scale)?;
         stream.save_as::<u32>(self.bone_data.len())?;
         stream.save(&self.skin_partition)?;
@@ -59,8 +59,8 @@ pub struct BoneData {
 
 impl Load for BoneData {
     fn load(stream: &mut Reader<'_>) -> io::Result<Self> {
-        let rotation = stream.load()?;
-        let translation = stream.load()?;
+        let rotation = nif_to_bevy_mat3(stream.load()?).inverse();
+        let translation = nif_to_bevy_vec3(stream.load()?);
         let scale = stream.load()?;
         let bound = stream.load()?;
         let num_vertex_weights: u16 = stream.load()?;
@@ -77,8 +77,8 @@ impl Load for BoneData {
 
 impl Save for BoneData {
     fn save(&self, stream: &mut Writer) -> io::Result<()> {
-        stream.save(&self.rotation)?;
-        stream.save(&self.translation)?;
+        stream.save(&nif_to_bevy_mat3(self.rotation))?;
+        stream.save(&bevy_to_nif_vec3(self.translation))?;
         stream.save(&self.scale)?;
         stream.save(&self.bound)?;
         stream.save_as::<u16>(self.vertex_weights.len())?;

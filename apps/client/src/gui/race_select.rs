@@ -1,14 +1,11 @@
-use std::f32::consts::PI;
-
-use avian3d::math::FRAC_PI_2;
 use bevy::{
     app::Propagate,
     camera::{RenderTarget, visibility::RenderLayers},
     prelude::*,
     render::render_resource::TextureFormat,
 };
-use bevy_nif::{NIF_TO_BEVY_ROTATION, loader::Nif};
-use common::consts::{MW_UNITS_PER_METER, NIF_SCALE_MULTIPLIER};
+use bevy_nif::loader::Nif;
+use common::consts::MW_UNITS_PER_METER;
 use common::state::CharCreationState;
 use esm_parser_lib::{
     RefId,
@@ -78,9 +75,6 @@ pub fn setup_race_select(
     asset_server: Res<AssetServer>,
 ) {
     let Some(default_player) = esm_store.npcs.get(&RefId::from_str("player")) else {
-        for def in esm_store.npcs.iter_shared() {
-            dbg!(def);
-        }
         panic!("missing player def in esm file!")
     };
     // TODO:: get and set player's current race, for now just default to index 0 on available races
@@ -614,8 +608,11 @@ fn respawn_preview(
     mut next_available_skeleton_id: ResMut<NextAvailableSkeletonId>,
 ) {
     for old_nif_scene in old_nif_scenes {
-        dbg!("despawning");
-        commands.entity(old_nif_scene).despawn();
+        commands
+            .delayed()
+            .secs(0.01)
+            .entity(old_nif_scene)
+            .despawn();
     }
 
     let path_hair = esm_store
@@ -632,6 +629,7 @@ fn respawn_preview(
         .model
         .clone();
     let path_head = prepend_mesh_data_path(path_head);
+    dbg!(&path_head);
     // Pre rotate the preview mesh according to the starting rotation of the slider
     let current_px = match slider_thumb.left {
         Val::Px(px) => px,
@@ -644,17 +642,18 @@ fn respawn_preview(
     let race_preview_entity = commands
         .spawn((
             Name::new("race select preview mesh"),
-            Transform {
-                scale: Vec3::splat(NIF_SCALE_MULTIPLIER),
-                rotation: NIF_TO_BEVY_ROTATION * Quat::from_rotation_z(angle),
-                ..default()
-            },
-            Visibility::Visible,
+            Transform::default(),
+            Visibility::Hidden,
             // Render to the preview window (propagate makes all children layer 1 as well)
             Propagate(RenderLayers::layer(1)),
             RacePreviewScene,
         ))
         .id();
+    commands
+        .delayed()
+        .secs(0.01)
+        .entity(race_preview_entity)
+        .insert(Visibility::Visible);
     spawn_race_select_preview(
         race_select_ui.preview_skeleton_handle.clone(),
         race_preview_entity,
@@ -784,7 +783,7 @@ fn update_preview_view(
 ) {
     // 1. Calculate rotation
     let angle = t * std::f32::consts::TAU;
-    race_preview_scene.rotation = NIF_TO_BEVY_ROTATION * Quat::from_rotation_z(angle);
+    race_preview_scene.rotation = Quat::from_rotation_z(angle);
 
     // 2. Update Camera
     if let Ok(head_global) = global_transforms.get(head_entity) {

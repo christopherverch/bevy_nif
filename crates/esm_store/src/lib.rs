@@ -276,39 +276,6 @@ impl<T: EsmRecord> Store<T> {
     }
 }
 
-pub struct SetPlayerRaceInfo {
-    race: RefId,
-    male: bool,
-    head: RefId,
-    hair: RefId,
-}
-impl Store<Npc> {
-    /// Returns true if the state actually changed
-    pub fn update_player_visuals(
-        &mut self,
-        ptr: *const Npc,
-        new_race_info: SetPlayerRaceInfo,
-    ) -> bool {
-        let player = unsafe { &mut *(ptr as *mut Npc) };
-
-        // Only update if something changed (prevents unnecessary re-inserts)
-        if player.race != new_race_info.race
-            || player.head != new_race_info.head
-            || player.hair != new_race_info.hair
-            || player.is_male() != new_race_info.male
-        {
-            return false;
-        }
-
-        player.race = new_race_info.race;
-        player.head = new_race_info.head;
-        player.hair = new_race_info.hair;
-        player.set_is_male(new_race_info.male);
-
-        return true;
-    }
-}
-
 impl Store<GameSetting> {
     pub fn find(&self, str: &str) -> &GameSetting {
         self.search(str)

@@ -1,8 +1,5 @@
-use std::f32::consts::{FRAC_PI_2, PI};
-
 use bevy::prelude::*;
-use bevy_nif::{NIF_TO_BEVY_ROTATION, attach_parts::AttachmentType, spawner::NifScene};
-use common::consts::NIF_SCALE_MULTIPLIER;
+use bevy_nif::{attach_parts::AttachmentType, spawner::NifScene};
 use esm_parser_lib::{Bodypart, BodypartId, BodypartType, RefId, types::bodypart::BodypartFlags};
 use esm_store::EsmStore;
 use strum::EnumCount;
@@ -36,8 +33,7 @@ pub fn spawn_npc(
             CreatureControllerLink(root_entity),
             Transform {
                 translation: Vec3::ZERO,
-                rotation: NIF_TO_BEVY_ROTATION,
-                scale: Vec3::splat(NIF_SCALE_MULTIPLIER),
+                ..default()
             },
             Visibility::Inherited,
             ShowAabbGizmo::default(),
@@ -79,9 +75,7 @@ pub fn spawn_npc(
                 continue;
             }
 
-            if let Some(attachment) = get_attachment_info(part_ref).build(skeleton_id) {
-                paths_to_spawn.push((prepend_mesh_data_path(part.model.clone()), attachment));
-            }
+            if let Some(attachment) = get_attachment_info(part_ref).build(skeleton_id) {}
         }
     }
     if skins_path != "" {

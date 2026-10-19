@@ -18,7 +18,6 @@ use crate::shared_defs::skeletons::NextAvailableSkeletonId;
 use avian3d::prelude::{CollisionLayers, RigidBody};
 use bevy::prelude::*;
 use bevy_kira_audio::{SpatialAudioEmitter, SpatialAudioReceiver, SpatialRadius};
-use bevy_nif::NIF_TO_BEVY_ROTATION;
 use bevy_nif::attach_parts::AttachmentType;
 use bevy_nif::nif_animation::{NifAnimator, NifAnimatorAdded};
 use bevy_nif::spawner::NifScene;
@@ -34,7 +33,6 @@ use std::time::Instant;
 
 use crate::camera::MWCameraTarget;
 use crate::physics::{AnimationDisplacement, CreatureControllerLink, RootMotionState};
-use common::consts::NIF_SCALE_MULTIPLIER;
 use esm_store::EsmStore;
 
 pub fn setup_player(
@@ -108,7 +106,6 @@ pub fn setup_player(
                 PositionInterpolation::new(Vec3::ZERO, player_start_location),
                 Transform {
                     translation: player_start_location,
-                    rotation: NIF_TO_BEVY_ROTATION,
                     ..default()
                 },
                 Movement::default(),
@@ -128,7 +125,7 @@ pub fn setup_player(
                     entity: player_entity,
                     serializable_transform: SerializableTransform {
                         translation: player_start_location,
-                        rotation: NIF_TO_BEVY_ROTATION,
+                        rotation: Quat::IDENTITY,
                         scale: Vec3::splat(1.0),
                     },
                     last_packet_time: Instant::now(),
@@ -161,11 +158,7 @@ pub fn setup_player(
             commands.reborrow(),
             &asset_server,
             skeleton_id,
-            Transform {
-                rotation: NIF_TO_BEVY_ROTATION,
-                scale: Vec3::splat(NIF_SCALE_MULTIPLIER),
-                ..default()
-            },
+            Transform::default(),
         );
 
         commands.entity(player_mesh).insert((
@@ -336,7 +329,7 @@ fn spawn_player_mesh(
         &asset_server,
         skeleton_entity,
         &mut commands,
-        Transform::from_scale(Vec3::splat(1.0)),
+        Transform::default(),
     );
     skeleton_entity
 }
@@ -384,9 +377,6 @@ fn spawn_nifs(
         if matches!(attachment_type, AttachmentType::Skinned { skeleton_id: _ }) {
             // Needs to rotate skinned attachments since these aren't attached to the pre-rotated
             // skeleton, they're just a child of the mesh
-            commands.entity(child).insert(Transform::from_rotation(
-                Quat::from_rotation_x(-FRAC_PI_2) * Quat::from_rotation_z(PI),
-            ));
         }
         commands.entity(skeleton_entity).add_child(child);
     }

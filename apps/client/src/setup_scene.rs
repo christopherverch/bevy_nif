@@ -11,16 +11,10 @@ use bevy::{
 };
 use bevy_anti_alias::fxaa::Fxaa;
 use bevy_nif::{
-    MW_SCALE_TO_BEVY, NIF_TO_BEVY_ROTATION, check_exists, clean_path_common, loader::Nif,
-    resolve_bevy_asset_path, spawner::NifScene,
-};
-use common::consts::MW_UNITS_PER_METER;
-use esm_parser_lib::{
-    ESM3ExteriorCellRefId, EmptyRefId, EsmReader, RefId,
-    types::{cell::Cell, cell_ref::CellRef},
+    check_exists, clean_path_common, loader::Nif, resolve_bevy_asset_path, spawner::NifScene,
 };
 use esm_store::EsmStore;
-use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, PI};
+use std::f32::consts::{FRAC_PI_4, PI};
 
 #[derive(Component)]
 pub struct HudText;
@@ -62,18 +56,17 @@ pub fn setup_scene(
         Visibility::Visible,
         Transform {
             translation: start_location,
-            rotation: Quat::from_rotation_x(-FRAC_PI_2) * Quat::from_rotation_z(PI),
-            scale: Vec3::splat(0.03), //nifs are huge otherwise
+            ..default()
         },
     ));
+
     commands.spawn((
         Name::new("hair"),
         Visibility::Visible,
         NifScene(hair),
         Transform {
             translation: start_location,
-            rotation: Quat::from_rotation_x(-FRAC_PI_2) * Quat::from_rotation_z(PI),
-            scale: Vec3::splat(0.03), //nifs are huge otherwise
+            ..default()
         },
     ));
     let cell_entity = commands
@@ -270,59 +263,6 @@ pub fn setup_scene(
         HudText,
     ));
 }
-fn test_build_seyda_neen(
-    store: &EsmStore,
-    commands: &mut Commands,
-    esm_reader: &mut EsmReader,
-    asset_server: &AssetServer,
-) {
-    let cell = store
-        .cells
-        .get(&RefId::ESM3ExteriorCell(ESM3ExteriorCellRefId::new(-2, -9)))
-        .unwrap();
-
-    cell.restore(esm_reader, 0).unwrap();
-    dbg!(&cell);
-    let mut cell_ref = CellRef::default();
-    let mut is_deleted = false;
-    let parent = commands
-        .spawn((Transform::default(), Name::new("PARENT")))
-        .id();
-    while let Ok(has_ref) = Cell::get_next_ref(esm_reader, &mut cell_ref, &mut is_deleted) {
-        if !has_ref {
-            return;
-        }
-        if cell_ref.id != RefId::Empty(EmptyRefId) {
-            dbg!(&cell_ref.id);
-            if let Some(stat) = store.statics.get(&cell_ref.id) {
-                let pos = cell_ref.pos.pos;
-                let path = format!("data/Data Files/Meshes/{}", stat.model);
-                let path = clean_path_common(&path);
-                let path = if check_exists(&path) {
-                    path
-                } else {
-                    resolve_bevy_asset_path(&path).unwrap()
-                };
-                dbg!(&path);
-                let handle = asset_server.load(path);
-                let mut pos = pos / MW_UNITS_PER_METER;
-                let tmp = pos.z;
-                pos.z = pos.y;
-                pos.y = tmp;
-                pos.y = tmp - 1.0 / MW_UNITS_PER_METER;
-                pos.x = -pos.x;
-                pos.x += CELL_SIZE_METERS / 2.0;
-                pos.z -= CELL_SIZE_METERS / 2.0;
-                dbg!(pos);
-                let rot = cell_ref.pos.rot;
-                dbg!(rot);
-                let rot = Quat::from_euler(EulerRot::XYZ, -rot.x, rot.y, -rot.z);
-                let nif = spawn_nif_unattached(commands, handle, pos, rot);
-                commands.entity(parent).add_child(nif);
-            }
-        }
-    }
-}
 
 pub fn spawn_nif_unattached(
     commands: &mut Commands,
@@ -336,8 +276,8 @@ pub fn spawn_nif_unattached(
             Visibility::Visible,
             Transform {
                 translation: pos,
-                rotation: NIF_TO_BEVY_ROTATION * rotation,
-                scale: MW_SCALE_TO_BEVY,
+                rotation,
+                ..default()
             },
         ))
         .id()

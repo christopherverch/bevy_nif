@@ -1160,22 +1160,21 @@ fn refresh_movement_anims(
         if !creature.flags.contains(CreatureFlags::FLIES) {
             let walk_state = run_state_to_walk_state(char_cont.movement.state);
             let anim = movement_state_to_anim_group(walk_state);
-            char_cont.movement.applied_move_anim_speed =
-                animation_context.get_velocity(anim) / MW_UNITS_PER_METER;
-            if char_cont.movement.applied_move_anim_speed <= 1.0 / MW_UNITS_PER_METER {
+            char_cont.movement.applied_move_anim_speed = animation_context.get_velocity(anim);
+            if char_cont.movement.applied_move_anim_speed <= 1.0 {
                 // Another bug: when using a fallback animation (e.g. RunForward as fallback to SwimRunForward),
                 // then the equivalent Walk animation will not use a fallback, and if that animation doesn't exist
                 // we will play without any scaling.
                 // Makes the speed attribute of most water creatures totally useless.
                 // And again, this can not be fixed without patching game data.
                 char_cont.movement.adjust_anim_speed = false;
-                char_cont.movement.applied_move_anim_speed = 1.0 / MW_UNITS_PER_METER;
+                char_cont.movement.applied_move_anim_speed = 1.0;
             }
         }
     } else {
         char_cont.movement.applied_move_anim_speed =
-            animation_context.get_velocity(&char_cont.movement.current_group) / MW_UNITS_PER_METER;
-        if char_cont.movement.applied_move_anim_speed <= 1.0 / MW_UNITS_PER_METER {
+            animation_context.get_velocity(&char_cont.movement.current_group);
+        if char_cont.movement.applied_move_anim_speed <= 1.0 {
             // The first person anims don't have any velocity to calculate a speed multiplier from.
             // We use the third person velocities instead.
             // FIXME: should be pulled from the actual animation, but it is not presently loaded.
@@ -1313,7 +1312,6 @@ fn reset_current_movement_state(
     character_controller: &mut CharacterController,
     animation_context: &mut AnimationContext,
 ) {
-    dbg!(&character_controller.movement.current_group);
     clear_state_animation(
         &mut character_controller.movement.current_group,
         animation_context,
@@ -1327,7 +1325,6 @@ fn clear_state_animation(anim_group: &mut String, animation_context: &mut Animat
     }
 
     animation_context.clear_animation(anim_group);
-    dbg!("called clear from clear_state");
     anim_group.clear();
 }
 fn hit_state_to_anim_group(state: CharacterState) -> String {

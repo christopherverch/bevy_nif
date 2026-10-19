@@ -2,3 +2,7 @@
 Morrowind.esm
 Morrowind.bsa
 **/assets/
+Cargo.lock
+crates/esm_parser_lib/quiksave.ess
+crates/esm_parser_lib/save.hex
+

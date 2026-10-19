@@ -62,4 +62,3 @@ impl Sub for TimeStamp {
         (day_diff * 24.0) + hour_diff
     }
 }
-

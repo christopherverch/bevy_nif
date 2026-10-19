@@ -1,7 +1,7 @@
 use std::{f32::consts::PI, time::Instant};
 
-use bevy::prelude::*;
 use crate::defs::Pause;
+use bevy::prelude::*;
 
 use crate::setup_scene::HudText;
 

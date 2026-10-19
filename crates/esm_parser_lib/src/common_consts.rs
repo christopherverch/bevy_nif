@@ -1,1 +1,2 @@
 pub const NUM_MAGIC_EFFECTS: i32 = 143;
+pub const MW_SCALE_DIVISOR: f32 = 69.991251091;

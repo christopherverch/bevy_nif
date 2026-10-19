@@ -6,7 +6,6 @@ use crate::{
 };
 use bevy::prelude::*;
 use bevy_nif::nif_animation::NifAnimator;
-use common::consts::MW_UNITS_PER_METER;
 use common::mechanics::{CharacterController, JumpingStateKind};
 
 use crate::animation::animation_helpers::get_anim_components_for_creature;
@@ -126,13 +125,13 @@ pub fn calculate_animation_displacement_system(
                                 .map_or(Vec3::ZERO, |(now, prev)| now - prev)
                         };
 
-                        let scaled_delta = (delta / MW_UNITS_PER_METER) * anim_state.speed();
+                        let scaled_delta = delta * anim_state.speed();
                         // Transform from NIF's coordinate system (Y-up, X-right) to Bevy's (Y-up, -Z-forward).
                         // The vertical (Y) component of root motion is discarded
                         // since the physics system handles y-motion with gravity
                         // TODO:: check if openmw flattens the y (scaled_delta.z) to 0.0
                         // I'm pretty certain it does
-                        frame_displacement = Vec3::new(scaled_delta.x, 0.0, -scaled_delta.y);
+                        frame_displacement = Vec3::new(scaled_delta.x, 0.0, scaled_delta.z);
 
                         root_motion_state.previous_time = current_time;
                         root_motion_state.last_animation_group = current_move_group.clone();

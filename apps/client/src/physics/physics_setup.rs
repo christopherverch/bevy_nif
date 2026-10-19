@@ -3,7 +3,6 @@ use avian3d::prelude::{Collider, CollisionLayers, SleepingDisabled};
 use bevy::prelude::*;
 use bevy_nif::{BoundData, NeedsNifPhysics, NiType};
 use bevy_nif::{loader::Nif, spawner::NifScene};
-use common::consts::NIF_SCALE_MULTIPLIER;
 
 use super::CreaturePhysicsState;
 use crate::defs::ColliderEntityLink;
@@ -53,17 +52,12 @@ pub fn setup_nif_physics(
                         box_bv.extents.y.abs(),
                     );
 
-                    let scale = NIF_SCALE_MULTIPLIER;
                     //multiplied by 2 for half extents
                     bevy_extents *= 2.0;
                     compound_parts.push((
-                        bevy_center * scale,
+                        bevy_center,
                         Quat::IDENTITY,
-                        Collider::cuboid(
-                            bevy_extents.x * scale,
-                            bevy_extents.y * scale,
-                            bevy_extents.z * scale,
-                        ),
+                        Collider::cuboid(bevy_extents.x, bevy_extents.y, bevy_extents.z),
                     ));
                 }
                 _ => {
@@ -130,7 +124,6 @@ fn collect_shapes_recursively(
     nif_shape: &NifCollisionShape,
     parts: &mut Vec<(Vec3, Quat, Collider)>,
 ) {
-    let scale = NIF_SCALE_MULTIPLIER;
 
     match nif_shape {
         NifCollisionShape::Box { center, extents } => {

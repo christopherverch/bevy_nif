@@ -1,14 +1,26 @@
 use bytemuck::{Pod, Zeroable};
 use core::fmt;
-use glam::Vec3;
+use glam::{EulerRot, Quat, Vec3};
 use std::path::PathBuf;
 use std::str;
 
-use esm_parser_macros::LoadSave;
-#[derive(LoadSave, Clone, Debug, Default, PartialEq)]
+use crate::{Load, to_bevy_quat, to_bevy_vec3};
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Position {
     pub pos: Vec3,
-    pub rot: Vec3, // Euler angles in radians (X, Y, Z)
+    pub rot: Quat,
+}
+impl Load for Position {
+    fn load(reader: &mut crate::EsmReader) -> Result<Self, crate::EsmError>
+    where
+        Self: Sized,
+    {
+        let pos = to_bevy_vec3(reader.load()?);
+        let euler_rot: Vec3 = reader.load()?;
+        let mw_rot = Quat::from_euler(EulerRot::XYZ, euler_rot.x, euler_rot.y, euler_rot.z);
+        let rot = to_bevy_quat(mw_rot);
+        Ok(Self { pos, rot })
+    }
 }
 pub type StringSizeType = u32;
 

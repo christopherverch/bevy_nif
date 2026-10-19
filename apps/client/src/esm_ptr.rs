@@ -1,7 +1,7 @@
 use esm_store::EsmStore;
 use std::ops::Deref;
 /// A wrapper to make raw pointers work with Bevy
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct EsmPtr<T>(pub *const T);
 
 // SAFETY: EsmStore is a Global Resource, that after initial load can only be added to,
@@ -26,3 +26,11 @@ impl<T> EsmPtr<T> {
         unsafe { &mut *(self.0 as *mut T) }
     }
 }
+impl<T> Clone for EsmPtr<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+// Manually implement Copy without requiring T: Copy
+impl<T> Copy for EsmPtr<T> {}

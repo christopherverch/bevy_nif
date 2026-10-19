@@ -40,7 +40,7 @@ impl Plugin for MWGuiPlugin {
                 Update,
                 listen_keyboard_input_events.run_if(in_state(GameState::MainMenu)),
             )
-            .add_systems(PreUpdate, on_preview_head_loaded);
+            .add_systems(Update, on_preview_head_loaded);
 
         // Race selection
         app.insert_resource(SliderDragStart::default())

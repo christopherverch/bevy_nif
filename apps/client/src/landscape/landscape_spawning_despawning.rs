@@ -8,7 +8,6 @@ use crate::{
 };
 use bevy::prelude::*;
 use bevy_nif::{check_exists, clean_path_common, resolve_bevy_asset_path};
-use common::consts::MW_UNITS_PER_METER;
 use esm_parser_lib::{
     ESM3ExteriorCellRefId, EsmReader, RefId,
     types::{cell::Cell, cell_ref::CellRef},
@@ -134,7 +133,10 @@ fn load_setup_exterior(
             return spawned_entities;
         }
         if let Some(stat) = store.statics.get(&cell_ref.id) {
-            let pos = cell_ref.pos.pos;
+            let mut pos = cell_ref.pos.pos;
+            if !stat.model.contains("nord") {
+                continue;
+            }
             let path = format!("data/Data Files/Meshes/{}", stat.model);
             let path = clean_path_common(&path);
             let path = if check_exists(&path) {
@@ -142,17 +144,13 @@ fn load_setup_exterior(
             } else {
                 resolve_bevy_asset_path(&path).unwrap()
             };
-            //   let handle = asset_server.load(path);
-            let mut pos = pos / MW_UNITS_PER_METER;
-            let tmp = pos.z;
-            pos.z = pos.y;
-            pos.y = tmp;
-            pos.y = tmp - 1.0 / MW_UNITS_PER_METER;
-            pos.x = -pos.x;
+            let handle = asset_server.load(path);
             pos.x += CELL_SIZE_METERS / 2.0;
             pos.z -= CELL_SIZE_METERS / 2.0;
             let rot = cell_ref.pos.rot;
-            let rot = Quat::from_euler(EulerRot::XYZ, -rot.x, rot.y, -rot.z);
+            let nif = spawn_nif_unattached(commands, handle, pos, rot);
+            commands.entity(nif).insert(Name::new(stat.model.clone()));
+            spawned_entities.push(nif);
         }
     }
     spawned_entities

@@ -3,20 +3,19 @@ use avian3d::PhysicsPlugins;
 use bevy::{
     app::HierarchyPropagatePlugin,
     camera::visibility::RenderLayers,
-    gizmos::aabb::AabbGizmoPlugin,
     image::{ImageAddressMode, ImageSamplerDescriptor},
     light::DirectionalLightShadowMap,
     pbr::DefaultOpaqueRendererMethod,
     prelude::*,
 };
-use bevy_egui::EguiPlugin;
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
+
 use bevy_kira_audio::{AudioPlugin, SpatialAudioPlugin};
 use bevy_nif::{BevyNifPlugin, nif_animation::SkeletonMap};
 use bevy_renet::RenetClientPlugin;
-use common::state::{CharCreationState, GameState};
 use serde::Deserialize;
 use std::{env, fs};
+#[cfg(feature = "debug_inspector")]
+use {bevy_egui::EguiPlugin, bevy_inspector_egui::quick::WorldInspectorPlugin};
 
 // Internal imports
 use crate::{
@@ -29,6 +28,7 @@ use crate::{
     shared_defs::skeletons::NextAvailableSkeletonId,
 };
 use camera::MWCameraPlugin;
+use common::state::{CharCreationState, GameState};
 use equipment::on_player_ready_weapon;
 use gui::MWGuiPlugin;
 use initial_esm_parse::*;
@@ -93,36 +93,40 @@ fn main() {
             PhysicsPlugins::default(),
             HierarchyPropagatePlugin::<RenderLayers>::new(PostUpdate),
         ))
-        .add_plugins((
-            DefaultPlugins.set(ImagePlugin {
-                // Sets the default fallback sampler for all standard asset loads
-                default_sampler: ImageSamplerDescriptor {
-                    address_mode_u: ImageAddressMode::Repeat,
-                    address_mode_v: ImageAddressMode::Repeat,
-                    address_mode_w: ImageAddressMode::Repeat,
-                    ..default()
-                },
-            }),
-            // Internal plugins
-            BevyNifPlugin,
-            MWInputPlugin,
-            MWMechanicsPlugin,
-            MWGuiPlugin,
-            MWPhysicsPlugin,
-            LandscapePlugin,
-            RenetClientPlugin,
-            AudioPlugin,
-            SpatialAudioPlugin,
-            NetworkingPlugin,
-        ))
-        .add_plugins(MWCameraPlugin)
-        .insert_resource(Pause(true));
+        .add_plugins(DefaultPlugins.set(ImagePlugin {
+            // Sets the default fallback sampler for all standard asset loads
+            // Morrowind assumes that uvs repeat, so we have to set this
+            default_sampler: ImageSamplerDescriptor {
+                address_mode_u: ImageAddressMode::Repeat,
+                address_mode_v: ImageAddressMode::Repeat,
+                address_mode_w: ImageAddressMode::Repeat,
+                ..default()
+            },
+        }));
+
+    #[cfg(feature = "debug_inspector")]
+    app.add_plugins((EguiPlugin::default(), WorldInspectorPlugin::default()));
+
+    // Internal plugins
+    app.add_plugins((
+        BevyNifPlugin,
+        MWCameraPlugin,
+        MWInputPlugin,
+        MWMechanicsPlugin,
+        MWGuiPlugin,
+        MWPhysicsPlugin,
+        LandscapePlugin,
+        RenetClientPlugin,
+        AudioPlugin,
+        SpatialAudioPlugin,
+        NetworkingPlugin,
+    ))
+    .insert_resource(Pause(true));
     app.insert_resource(PlayerInput::default())
         .insert_resource(IdToEntityMap::default())
         .insert_resource(WorldFrameData::default())
         .insert_resource(WorldSettings::default())
         .insert_resource(GameSettings::default())
-        // Default to 1 because 0 is used by the initial player
         .insert_resource(NextAvailableSkeletonId::default())
         .init_state::<GameState>()
         .init_state::<CharCreationState>()
@@ -134,6 +138,7 @@ fn main() {
         .add_systems(OnEnter(GameState::Offline), spawn_player_offline)
         .add_systems(Update, (switch_mode, animate_light_direction))
         .add_systems(Update, handle_animation_transitions)
+        .add_systems(Update, dbg_transforms)
         .add_systems(Update, interpolate_visual_positions)
         .add_systems(PostUpdate, clear_player_rotation_input_system)
         .run();
@@ -190,6 +195,13 @@ fn recursive_wireframe(
                 // Pass the current entity's position as the parent position for the next call
                 recursive_wireframe(child, current_pos, entity_q, gizmos);
             }
+        }
+    }
+}
+fn dbg_transforms(transforms: Query<(&Transform, &Name), Changed<Transform>>) {
+    for (transform, name) in transforms {
+        if name.contains("nord") {
+            dbg!(transform.rotation);
         }
     }
 }

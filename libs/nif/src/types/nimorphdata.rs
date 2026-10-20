@@ -31,7 +31,11 @@ impl Save for NiMorphData {
     fn save(&self, stream: &mut Writer) -> io::Result<()> {
         stream.save(&self.base)?;
         stream.save_as::<u32>(self.targets.len())?;
-        stream.save_as::<u32>(self.targets.first().map_or(0, |target| target.vertices.len()))?;
+        stream.save_as::<u32>(
+            self.targets
+                .first()
+                .map_or(0, |target| target.vertices.len()),
+        )?;
         stream.save_as::<u8>(self.relative_targets)?;
         stream.save_seq(&self.targets)?;
         Ok(())
@@ -55,7 +59,11 @@ impl MorphTarget {
             _ if (num_keys == 0) => default(), // Allowed only when there are no keys.
             _ => Reader::error(format!("Invalid KeyType: {key_type:?}"))?,
         };
-        let vertices = stream.load_vec(num_vertices)?;
+        let mut vertices = stream.load_vec(num_vertices)?;
+        for vertex in &mut vertices {
+            *vertex = nif_to_bevy_vec3(*vertex);
+        }
+
         Ok(Self { keys, vertices })
     }
 }

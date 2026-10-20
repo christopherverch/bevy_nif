@@ -59,7 +59,7 @@ pub struct BoneData {
 
 impl Load for BoneData {
     fn load(stream: &mut Reader<'_>) -> io::Result<Self> {
-        let rotation = nif_to_bevy_mat3(stream.load()?).inverse();
+        let rotation = nif_to_bevy_mat3(stream.load()?);
         let translation = nif_to_bevy_vec3(stream.load()?);
         let scale = stream.load()?;
         let bound = stream.load()?;

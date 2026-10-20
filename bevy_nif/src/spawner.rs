@@ -6,7 +6,6 @@ use avian3d::prelude::{Collider, RigidBody};
 use bevy_asset::{AssetServer, Assets, Handle, RenderAssetUsages};
 use bevy_camera::visibility::Visibility;
 use bevy_color::Color;
-use bevy_ecs::name::Name;
 use bevy_ecs::{
     component::Component,
     entity::Entity,
@@ -15,7 +14,6 @@ use bevy_ecs::{
     query::Without,
     system::{Commands, Query, Res, ResMut},
 };
-use bevy_gizmos::aabb::ShowAabbGizmo;
 use bevy_log::{error, info, warn};
 use bevy_material::AlphaMode;
 use bevy_math::{Mat4, Quat, Vec2, Vec3};
@@ -204,7 +202,6 @@ fn spawn_nif_node_recursive<'a>(
             };
             let new_ninode_entity = commands
                 .spawn((
-                    Name::new(ni_node.name.clone()),
                     bevy_transform,
                     ChildOf(parent_entity),
                     Visibility::Inherited,
@@ -308,11 +305,14 @@ fn spawn_nif_node_recursive<'a>(
                 commands
                     .entity(new_nitrishape_entity)
                     .insert(Mesh3d(mesh_handle.clone()));
+                /*
+                use bevy_gizmos::aabb::ShowAabbGizmo;
                 commands
                     .entity(new_nitrishape_entity)
                     .insert(ShowAabbGizmo {
                         color: Some(Color::WHITE),
                     });
+                */
                 mesh_handle
             };
             // Loop through properties such as material and textures

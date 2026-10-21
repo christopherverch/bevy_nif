@@ -75,12 +75,10 @@ pub fn handle_animation_transitions(
 
         // Step 2: Execute state changes for finished animations.
         for name in animations_to_remove {
-            dbg!("called clear from transition");
             animation_context.clear_animation(&name);
         }
         // Step 3: Handle intro-to-loop transitions.
         for (current_anim_name, next_anim_name, should_loop) in transitions_to_perform {
-            dbg!("called clear from transition to loop/outro");
             if let Some(transitioning_anim) = animation_context.clear_animation(&current_anim_name)
             {
                 if let Some(next_anim_definition) = animation_context

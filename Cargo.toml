@@ -26,7 +26,7 @@ common = { path = "crates/common" }
 serializer = { path = "crates/serializer" }
 networking = { path = "crates/networking" }
 to_utf8 = { path = "crates/to_utf8" }
-glam = "0.32.0"
+glam = "0.33.12"
 
 bevy = {version = "0.20.0", default-features = false}
 bevy_ecs = {version = "0.20.0"}
@@ -49,7 +49,7 @@ bevy_text = "0.20.0"
 bevy_scene = "0.20.0"
 strum =  "0.28"
 strum_macros =  "0.28"
-avian3d = {git = "https://github.com/avianphysics/avian.git"}
+avian3d = {git = "https://github.com/avianphysics/avian.git", features = ["3d"]}
 unordered_map = { path = "crates/unordered_map"}
 
 # Networking logic

@@ -31,12 +31,8 @@ pub fn spawn_npc(
             NpcMesh,
             AttachmentType::MainSkeleton { skeleton_id },
             CreatureControllerLink(root_entity),
-            Transform {
-                translation: Vec3::ZERO,
-                ..default()
-            },
+            Transform::default(),
             Visibility::Inherited,
-            ShowAabbGizmo::default(),
         ))
         .id();
     commands.entity(skeleton_entity).insert((
@@ -75,7 +71,9 @@ pub fn spawn_npc(
                 continue;
             }
 
-            if let Some(attachment) = get_attachment_info(part_ref).build(skeleton_id) {}
+            if let Some(attachment) = get_attachment_info(part_ref).build(skeleton_id) {
+                paths_to_spawn.push((prepend_mesh_data_path(part.model.clone()), attachment));
+            }
         }
     }
     if skins_path != "" {
@@ -100,7 +98,7 @@ pub fn spawn_npc(
         &asset_server,
         skeleton_entity,
         commands,
-        Transform::from_scale(Vec3::splat(1.0)),
+        Transform::default(),
     );
     skeleton_entity
 }

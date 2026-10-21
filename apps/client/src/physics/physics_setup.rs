@@ -1,5 +1,5 @@
 use avian3d::parry::math::Pose3;
-use avian3d::prelude::{Collider, CollisionLayers, SleepingDisabled};
+use avian3d::prelude::{Collider, CollisionLayers};
 use bevy::prelude::*;
 use bevy_nif::{BoundData, NeedsNifPhysics, NiType};
 use bevy_nif::{loader::Nif, spawner::NifScene};
@@ -10,7 +10,7 @@ use crate::physics::CreatureControllerLink;
 
 /// This system runs once for each newly spawned `NifScene` entity which
 /// also has a NeedsNifPhysic component.
-/// It creates and attaches the appropriate Rapier physics components, handling
+/// It creates and attaches the Avian physics components, handling
 /// local collider offsets by spawning a dedicated child entity for the collider.
 pub fn setup_nif_physics(
     mut commands: Commands,
@@ -45,11 +45,11 @@ pub fn setup_nif_physics(
         for bounding_volume in bounding_volumes {
             match bounding_volume.bound_data {
                 BoundData::NiBoxBV(box_bv) => {
-                    let bevy_center = Vec3::new(-box_bv.center.x, box_bv.center.z, box_bv.center.y);
+                    let bevy_center = Vec3::new(box_bv.center.x, box_bv.center.y, box_bv.center.z);
                     let mut bevy_extents = Vec3::new(
                         box_bv.extents.x.abs(),
-                        box_bv.extents.z.abs(),
                         box_bv.extents.y.abs(),
+                        box_bv.extents.z.abs(),
                     );
 
                     //multiplied by 2 for half extents
@@ -85,14 +85,13 @@ pub fn setup_nif_physics(
                 Visibility::default(),
                 Transform::default(),
                 GlobalTransform::default(),
-                SleepingDisabled,
                 compound_collider.clone(), // Attach the collider here
-                CollisionLayers::default(),
+                CollisionLayers::NONE,
             ))
             .id();
         let aabb = compound_collider.shape().compute_aabb(&Pose3::IDENTITY);
         // This assumes the entity's transform origin is at its feet. The physics collider's
-        // origin is its geometric center, so we must offset it vertically by half its
+        // origin is its geometric center, so we offset it vertically by half its
         // height to align its base with the entity's transform.
         //let vertical_offset = aabb.half_extents().y;
         let vertical_offset = aabb.half_extents().y;
@@ -101,7 +100,7 @@ pub fn setup_nif_physics(
         }
         commands.entity(creature_controller_link.0).insert((
             CreaturePhysicsState {
-                // Also add a "copy" (sharedshape) of the collider to our state component for easy access
+                // Also add a "copy" (sharedshape) of the collider to state component for easy access
                 // in the movement system. This avoids having to query for children.
                 collider: compound_collider.clone(),
                 vertical_offset,
@@ -111,13 +110,14 @@ pub fn setup_nif_physics(
             ColliderEntityLink(collider_entity),
         ));
 
-        // Parent the collider entity to the actor root ---
+        // Parent the collider entity to the actor root
         commands
             .entity(creature_controller_link.0)
             .add_child(collider_entity);
     }
 }
 /*
+ * old
 /// A recursive helper function to flatten nested collision shapes (like Unions)
 /// into a single list of colliders and their local transforms.
 fn collect_shapes_recursively(

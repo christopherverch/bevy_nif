@@ -35,15 +35,23 @@ pub fn debug_stat_modifier(stat: RefId, stat_value: f32, commands: &mut Commands
             ..default()
         })
         .with_children(|root| {
-            root.spawn((Button, Text::new(" - "), PlayerDebugStat(stat.clone())))
-                .observe(on_subtract);
+            root.spawn((
+                bevy::ui_widgets::Button,
+                Text::new(" - "),
+                PlayerDebugStat(stat.clone()),
+            ))
+            .observe(on_subtract);
             root.spawn((
                 PlayerDebugStatText(stat.clone()),
                 Text::new(format!("{}: {}", stat_name, stat_value)),
             ));
-            root.spawn((Button, Text::new(" + "), PlayerDebugStat(stat)))
-                .observe(on_add_hold)
-                .observe(on_add);
+            root.spawn((
+                bevy::ui_widgets::Button,
+                Text::new(" + "),
+                PlayerDebugStat(stat),
+            ))
+            .observe(on_add_hold)
+            .observe(on_add);
         })
         .id()
 }
@@ -62,7 +70,7 @@ pub fn spawn_debug_menu_scene(
     spawn_debug_menu(debug_stat_entities, &mut commands);
 }
 fn on_subtract(
-    ev: On<Pointer<Press>>,
+    ev: On<PointerPress>,
     child_of_q: Query<(&ChildOf, &PlayerDebugStat)>,
     children_q: Query<&Children>,
     player_creature_stats: Single<&mut CreatureStats, With<LocalPlayer>>,
@@ -78,7 +86,7 @@ fn on_subtract(
     );
 }
 fn on_add(
-    ev: On<Pointer<Press>>,
+    ev: On<PointerPress>,
     child_of_q: Query<(&ChildOf, &PlayerDebugStat)>,
     children_q: Query<&Children>,
     player_creature_stats: Single<&mut CreatureStats, With<LocalPlayer>>,
@@ -94,7 +102,7 @@ fn on_add(
     );
 }
 fn on_add_hold(
-    ev: On<Pointer<Drag>>,
+    ev: On<PointerDrag>,
     child_of_q: Query<(&ChildOf, &PlayerDebugStat)>,
     children_q: Query<&Children>,
     player_creature_stats: Single<&mut CreatureStats, With<LocalPlayer>>,

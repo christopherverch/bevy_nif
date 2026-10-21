@@ -1,6 +1,7 @@
 use bevy::{
     app::Propagate,
     camera::{RenderTarget, visibility::RenderLayers},
+    diagnostic::FrameCount,
     prelude::*,
     render::render_resource::TextureFormat,
 };
@@ -22,14 +23,12 @@ use crate::{
     gui::{
         RenderPosition,
         generic_button::generic_button,
+        race_select_character_preview::{PreviewHeadBoneEntity, spawn_race_select_preview},
         spell_description::{
             on_out_hide_tooltip, update_spell_description_tooltip, update_tooltip_position,
         },
     },
-    setup::{
-        character_preview::{PreviewHeadBoneEntity, spawn_race_select_preview},
-        setup_npc::{NpcMesh, resolve_body_parts, spawn_npc},
-    },
+    setup::setup_npc::{NpcMesh, resolve_body_parts, spawn_npc},
     shared_defs::skeletons::NextAvailableSkeletonId,
     utils::prepend_mesh_data_path,
 };
@@ -266,7 +265,7 @@ pub fn setup_race_select(
         race_select_handles.push(asset_server.load(head_path));
     }
 
-    dbg!(&race_select_handles);
+    // dbg!(&race_select_handles);
     let race_select_ui = RaceSelectUI {
         preview_skeleton_handle: skeleton_asset_handle,
         is_male: !default_player.npc_flags.contains(NpcFlags::FEMALE),
@@ -287,11 +286,12 @@ fn preview_area(handle: Handle<Image>) -> impl Scene {
     bsn! {
         Node { width: px(PREVIEW_WINDOW_PX), height: px(256), flex_direction: FlexDirection::Column }
         Children [
-            (Node {
+            Node {
                 width: Val::Px(256.0),
                 height: Val::Px(236.0),
             }
-            ImageNode { image: {handle}, color: Color::WHITE }),
+            ImageNode { image: {handle}, color: Color::WHITE }
+            --
             Node {
                 width: Val::Px(256.0),
                 height: Val::Px(20.0),
@@ -323,7 +323,7 @@ pub fn despawn_race_select_panel(
     commands.entity(*race_select_preview_camera).despawn();
 }
 fn on_race_accepted(
-    _event: On<Pointer<Press>>,
+    _event: On<PointerClick>,
     mut char_creation_state: ResMut<NextState<CharCreationState>>,
     esm_store: Res<EsmStore>,
     race_select_ui: Single<&RaceSelectUI>,
@@ -335,26 +335,6 @@ fn on_race_accepted(
     player_mesh: Single<Entity, With<NpcMesh>>,
     player_components: Single<(Entity, &ColliderEntityLink), With<LocalPlayer>>,
 ) {
-    let is_male = race_select_ui.is_male;
-    let neck = get_body_parts(
-        BodypartId::Neck,
-        &esm_store.bodyparts,
-        &race_select_ui.current_race_refid,
-        is_male,
-    );
-    let chest = get_body_parts(
-        BodypartId::Chest,
-        &esm_store.bodyparts,
-        &race_select_ui.current_race_refid,
-        is_male,
-    );
-    let clav = get_body_parts(
-        BodypartId::Clavicle,
-        &esm_store.bodyparts,
-        &race_select_ui.current_race_refid,
-        is_male,
-    );
-
     let hair_path = esm_store
         .bodyparts
         .get(&race_select_ui.available_hairs[race_select_ui.hair_index])
@@ -397,7 +377,7 @@ fn on_race_accepted(
 #[derive(Component)]
 pub struct RacePreviewScene;
 fn race_select_button_pressed(
-    event: On<Pointer<Press>>,
+    event: On<PointerClick>,
     button_indices: Query<&RaceSelectButtonIndex>,
     mut race_select_ui: Single<&mut RaceSelectUI>,
     esm_store: Res<EsmStore>,
@@ -431,7 +411,7 @@ fn recount_bodyparts(bodyparts: &Store<Bodypart>, race_select_ui: &mut RaceSelec
     race_select_ui.hair_index = 0;
 }
 fn head_select_left_pressed(
-    _event: On<Pointer<Press>>,
+    _event: On<PointerClick>,
     mut race_select_ui: Single<&mut RaceSelectUI>,
     mut commands: Commands,
 ) {
@@ -440,7 +420,7 @@ fn head_select_left_pressed(
     commands.run_system_cached(respawn_preview);
 }
 fn head_select_right_pressed(
-    _event: On<Pointer<Press>>,
+    _event: On<PointerClick>,
     mut race_select_ui: Single<&mut RaceSelectUI>,
     mut commands: Commands,
 ) {
@@ -449,7 +429,7 @@ fn head_select_right_pressed(
     commands.run_system_cached(respawn_preview);
 }
 fn hair_select_left_pressed(
-    _event: On<Pointer<Press>>,
+    _event: On<PointerClick>,
     mut race_select_ui: Single<&mut RaceSelectUI>,
     mut commands: Commands,
 ) {
@@ -458,7 +438,7 @@ fn hair_select_left_pressed(
     commands.run_system_cached(respawn_preview);
 }
 fn hair_select_right_pressed(
-    _event: On<Pointer<Press>>,
+    _event: On<PointerClick>,
     mut race_select_ui: Single<&mut RaceSelectUI>,
     mut commands: Commands,
 ) {
@@ -467,7 +447,7 @@ fn hair_select_right_pressed(
     commands.run_system_cached(respawn_preview);
 }
 fn change_sex(
-    _event: On<Pointer<Press>>,
+    _event: On<PointerClick>,
     mut race_select_ui: Single<&mut RaceSelectUI>,
     mut commands: Commands,
     esm_store: Res<EsmStore>,
@@ -629,7 +609,6 @@ fn respawn_preview(
         .model
         .clone();
     let path_head = prepend_mesh_data_path(path_head);
-    dbg!(&path_head);
     // Pre rotate the preview mesh according to the starting rotation of the slider
     let current_px = match slider_thumb.left {
         Val::Px(px) => px,
@@ -638,11 +617,10 @@ fn respawn_preview(
     let t = current_px / ROTATION_SLIDER_MAX_PX;
 
     let angle = t * std::f32::consts::TAU;
-    dbg!(angle);
     let race_preview_entity = commands
         .spawn((
             Name::new("race select preview mesh"),
-            Transform::default(),
+            Transform::from_rotation(Quat::from_rotation_y(angle)),
             Visibility::Hidden,
             // Render to the preview window (propagate makes all children layer 1 as well)
             Propagate(RenderLayers::layer(1)),
@@ -669,35 +647,11 @@ fn respawn_preview(
 const LOOK_AT_OFFSET: Vec3 = Vec3::new(0.0, 5.0 / MW_UNITS_PER_METER, 0.0);
 const PREVIEW_CAMERA_OFFSET: Vec3 =
     Vec3::new(0.0, 5.0 / MW_UNITS_PER_METER, -30.0 / MW_UNITS_PER_METER);
-pub fn on_preview_head_loaded(
-    mut slider_thumb: Single<&mut Node, With<SliderThumb>>,
-    mut race_preview_scene: Single<
-        &mut Transform,
-        (With<RacePreviewScene>, Without<RaceSelectPreviewCamera>),
-    >,
-    global_transforms_q: Query<&GlobalTransform>,
-    mut race_preview_camera: Single<
-        &mut Transform,
-        (With<RaceSelectPreviewCamera>, Without<RacePreviewScene>),
-    >,
-    head_bone_entity: Single<Entity, Added<PreviewHeadBoneEntity>>,
-    time: Res<Time>,
-) {
-    dbg!(time.elapsed());
-    set_head_rotation_to_slider(
-        &mut slider_thumb,
-        0.0,
-        &global_transforms_q,
-        *head_bone_entity,
-        &mut race_preview_camera,
-        &mut race_preview_scene,
-    );
-}
 
 #[derive(Resource, Default)]
 pub struct SliderDragStart(pub Vec2);
 fn on_rotation_slider_drag_start(
-    event: On<Pointer<Press>>,
+    event: On<PointerPress>,
     thumb: Single<&Node, With<SliderThumb>>,
     mut slider_drag_start: ResMut<SliderDragStart>,
 ) {
@@ -706,24 +660,24 @@ fn on_rotation_slider_drag_start(
         _ => 0.0,
     };
     // How far is the mouse from the thumb's current left edge?
-    slider_drag_start.0.x = event.pointer_location.position.x - current_px;
+    slider_drag_start.0.x = event.pointer.location().position.x - current_px;
 }
 fn rotation_slider_dragged(
-    event: On<Pointer<Drag>>,
+    event: On<PointerDrag>,
     slider_drag_start: Res<SliderDragStart>,
     mut slider_thumb: Single<&mut Node, With<SliderThumb>>,
+    global_transforms_q: Query<&GlobalTransform>,
     mut race_preview_scene: Single<
         &mut Transform,
         (With<RacePreviewScene>, Without<RaceSelectPreviewCamera>),
     >,
-    global_transforms_q: Query<&GlobalTransform>,
     mut race_preview_camera: Single<
         &mut Transform,
         (With<RaceSelectPreviewCamera>, Without<RacePreviewScene>),
     >,
     head_entity: Single<Entity, With<PreviewHeadBoneEntity>>,
 ) {
-    let relative_mouse_x = event.pointer_location.position.x - slider_drag_start.0.x;
+    let relative_mouse_x = event.pointer.location().position.x - slider_drag_start.0.x;
     let new_px = relative_mouse_x.clamp(0.0, ROTATION_SLIDER_MAX_PX);
 
     // Update UI
@@ -739,7 +693,7 @@ fn rotation_slider_dragged(
     );
 }
 
-fn set_head_rotation_to_slider(
+pub fn set_head_rotation_to_slider(
     slider_thumb: &mut Node,
     delta: f32,
     global_transforms_q: &Query<&GlobalTransform>,
@@ -783,10 +737,24 @@ fn update_preview_view(
 ) {
     // 1. Calculate rotation
     let angle = t * std::f32::consts::TAU;
-    race_preview_scene.rotation = Quat::from_rotation_z(angle);
+    race_preview_scene.rotation = Quat::from_rotation_y(angle);
 
     // 2. Update Camera
     if let Ok(head_global) = global_transforms.get(head_entity) {
+        let head_pos = head_global.translation();
+        race_preview_camera.translation = head_pos + PREVIEW_CAMERA_OFFSET;
+        race_preview_camera.look_at(head_pos + LOOK_AT_OFFSET, Vec3::Y);
+    }
+}
+pub fn update_race_select_preview_camera(
+    global_transforms: Query<&GlobalTransform>,
+    mut race_preview_camera: Single<
+        &mut Transform,
+        (With<RaceSelectPreviewCamera>, Without<RacePreviewScene>),
+    >,
+    head_entity: Single<Entity, With<PreviewHeadBoneEntity>>,
+) {
+    if let Ok(head_global) = global_transforms.get(*head_entity) {
         let head_pos = head_global.translation();
         race_preview_camera.translation = head_pos + PREVIEW_CAMERA_OFFSET;
         race_preview_camera.look_at(head_pos + LOOK_AT_OFFSET, Vec3::Y);

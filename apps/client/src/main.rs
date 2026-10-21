@@ -1,5 +1,5 @@
 // External imports
-use avian3d::PhysicsPlugins;
+use avian3d::{PhysicsPlugins, prelude::PhysicsDebugPlugin};
 use bevy::{
     app::HierarchyPropagatePlugin,
     camera::visibility::RenderLayers,
@@ -87,8 +87,7 @@ fn main() {
     }
 
     let mut app = App::new();
-    app.insert_resource(DefaultOpaqueRendererMethod::deferred())
-        .insert_resource(DirectionalLightShadowMap { size: 4096 })
+    app.insert_resource(DirectionalLightShadowMap { size: 4096 })
         .add_plugins((
             PhysicsPlugins::default(),
             HierarchyPropagatePlugin::<RenderLayers>::new(PostUpdate),

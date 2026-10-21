@@ -1,8 +1,10 @@
 use bevy::{
-    color::palettes::css::{GRAY, GREEN, RED, WHITE},
+    color::palettes::css::{GRAY, GREEN, WHITE},
     input::keyboard::{Key, KeyboardInput},
+    picking::hover::Hovered,
     prelude::*,
     ui::FocusPolicy,
+    ui_widgets::Activate,
 };
 
 use crate::networking::ServerIP;
@@ -82,13 +84,13 @@ pub fn setup_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                                 IpInputField,
                             ));
                         })
-                        .insert(Interaction::default())
+                        .insert(Hovered::default())
                         .insert(FocusPolicy::Pass);
 
                     // Connect button
                     parent
                         .spawn((
-                            Button,
+                            bevy::ui_widgets::Button,
                             Node {
                                 // The main button Node
                                 width: Val::Px(150.0),
@@ -102,8 +104,9 @@ pub fn setup_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                             BorderColor::all(Color::BLACK),
                             BackgroundColor(GREEN.into()), // Assuming NORMAL_BUTTON is Color::GREEN
                             ConnectButton,
-                            Interaction::default(),
+                            Hovered::default(),
                         ))
+                        .observe(on_pressed)
                         .with_children(|parent| {
                             parent.spawn((
                                 Text::new("Connect"),
@@ -128,12 +131,14 @@ pub fn despawn_main_menu_ui(mut commands: Commands, mut query: Query<Entity, Wit
 }
 pub fn set_initial_focus(
     focused_input: Res<FocusedIpInput>,
-    mut interaction_query: Query<&mut Interaction>,
+    mut commands: Commands,
+    window: Single<Entity, With<Window>>,
 ) {
     if let Some(entity) = focused_input.entity {
-        if let Ok(mut interaction) = interaction_query.get_mut(entity) {
-            *interaction = Interaction::Pressed; // Simulate a click to focus.
-        }
+        commands.trigger(bevy::input_focus::AcquireFocus {
+            focused_entity: entity,
+            window: *window,
+        });
     }
 }
 const NORMAL_BUTTON: Color = Color::srgb(0.15, 0.15, 0.15);
@@ -141,42 +146,34 @@ const HOVERED_BUTTON: Color = Color::srgb(0.25, 0.25, 0.25);
 const PRESSED_BUTTON: Color = Color::srgb(0.35, 0.75, 0.35);
 pub fn button_system(
     mut interaction_query: Query<
-        (
-            &Interaction,
-            &mut BackgroundColor,
-            &mut BorderColor,
-            &Children,
-        ),
-        (Changed<Interaction>, With<Button>),
+        (&Hovered, &mut BackgroundColor, &mut BorderColor, &Children),
+        (Changed<Hovered>, With<bevy::ui_widgets::Button>),
     >,
     mut text_query: Query<&mut Text, Without<IpInputField>>,
-    mut game_state: ResMut<NextState<GameState>>,
-    mut server_addr: ResMut<ServerIP>,
-    ip_input_field: Single<&mut Text, With<IpInputField>>,
 ) {
-    for (interaction, mut color, mut border_color, children) in &mut interaction_query {
+    for (hovered, mut color, mut border_color, children) in &mut interaction_query {
         let mut text = text_query.get_mut(children[0]).unwrap();
-        match *interaction {
-            Interaction::Pressed => {
-                **text = "Press".to_string();
-                *color = PRESSED_BUTTON.into();
-                *border_color = BorderColor::all(RED);
-                game_state.set(GameState::Connecting);
-                server_addr.0 = ip_input_field.0.clone();
-                println!("ip: {}", server_addr.0);
-            }
-            Interaction::Hovered => {
-                **text = "Hover".to_string();
-                *color = HOVERED_BUTTON.into();
-                *border_color = BorderColor::all(Color::WHITE);
-            }
-            Interaction::None => {
-                **text = "Button".to_string();
-                *color = NORMAL_BUTTON.into();
-                *border_color = BorderColor::all(Color::BLACK);
-            }
+
+        if hovered.0 {
+            **text = "Hover".to_string();
+            *color = HOVERED_BUTTON.into();
+            *border_color = BorderColor::all(Color::WHITE);
+        } else {
+            **text = "Button".to_string();
+            *color = NORMAL_BUTTON.into();
+            *border_color = BorderColor::all(Color::BLACK);
         }
     }
+}
+fn on_pressed(
+    _ev: On<Activate>,
+    ip_input_field: Single<&mut Text, With<IpInputField>>,
+    mut game_state: ResMut<NextState<GameState>>,
+    mut server_addr: ResMut<ServerIP>,
+) {
+    game_state.set(GameState::Connecting);
+    server_addr.0 = ip_input_field.0.clone();
+    println!("ip: {}", server_addr.0);
 }
 pub fn listen_keyboard_input_events(
     mut events: MessageReader<KeyboardInput>,

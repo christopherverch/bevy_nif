@@ -221,7 +221,6 @@ impl CellRef {
                 }
             }
         }
-
         let is_esm3_format = reader.header.format_version == DEFAULT_FORMAT_VERSION;
 
         if is_esm3_format {

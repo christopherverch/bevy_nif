@@ -17,7 +17,7 @@ impl Load for Position {
     {
         let pos = to_bevy_vec3(reader.load()?);
         let euler_rot: Vec3 = reader.load()?;
-        let mw_rot = Quat::from_euler(EulerRot::XYZ, euler_rot.x, euler_rot.y, euler_rot.z);
+        let mw_rot = Quat::from_euler(EulerRot::ZYX, euler_rot.z, euler_rot.y, euler_rot.x);
         let rot = to_bevy_quat(mw_rot);
         Ok(Self { pos, rot })
     }

@@ -115,13 +115,13 @@ fn load_setup_exterior(
     commands: &mut Commands,
     esm_reader: &mut EsmReader,
     asset_server: &AssetServer,
-    pos: IVec2,
+    cell_pos: IVec2,
 ) -> Vec<Entity> {
     let mut spawned_entities = Vec::new();
     let cell = store
         .cells
         .get(&RefId::ESM3ExteriorCell(ESM3ExteriorCellRefId::new(
-            pos.x, pos.y,
+            cell_pos.x, cell_pos.y,
         )))
         .unwrap();
 
@@ -133,10 +133,6 @@ fn load_setup_exterior(
             return spawned_entities;
         }
         if let Some(stat) = store.statics.get(&cell_ref.id) {
-            let mut pos = cell_ref.pos.pos;
-            if !stat.model.contains("nord") {
-                continue;
-            }
             let path = format!("data/Data Files/Meshes/{}", stat.model);
             let path = clean_path_common(&path);
             let path = if check_exists(&path) {
@@ -145,10 +141,14 @@ fn load_setup_exterior(
                 resolve_bevy_asset_path(&path).unwrap()
             };
             let handle = asset_server.load(path);
+
+            let mut pos = cell_ref.pos.pos;
             pos.x += CELL_SIZE_METERS / 2.0;
+            // Morrowind is +Y forward, bevy is -Z forward, and we mapped Y to Z,
+            // so we have to subtract from z to go "forward" in the morrowind world
             pos.z -= CELL_SIZE_METERS / 2.0;
             let rot = cell_ref.pos.rot;
-            let nif = spawn_nif_unattached(commands, handle, pos, rot);
+            let nif = spawn_nif_unattached(commands, handle, pos, rot, Vec3::splat(cell_ref.scale));
             commands.entity(nif).insert(Name::new(stat.model.clone()));
             spawned_entities.push(nif);
         }

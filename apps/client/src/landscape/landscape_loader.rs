@@ -26,7 +26,7 @@ use std::collections::{HashMap, HashSet};
 include!(concat!(env!("OUT_DIR"), "/landscape_lut.rs"));
 
 pub fn load_landscape(
-    added_event: On<Add, LandscapeLoader>,
+    added_event: On<Add<LandscapeLoader>>,
     landscape_loader_q: Query<(Entity, &LandscapeLoader)>,
     mut commands: Commands,
 ) {

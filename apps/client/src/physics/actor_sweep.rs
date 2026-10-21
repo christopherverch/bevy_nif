@@ -1,4 +1,4 @@
-use avian3d::math::{Dir, Quaternion, Scalar, Vector3};
+use avian3d::math::Real;
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
@@ -6,9 +6,9 @@ use crate::physics::collision::MWCollisionGroup;
 
 pub struct SweepHit {
     pub entity: Entity,
-    pub normal: Vector3,
-    pub point: Vector3,
-    pub fraction: Scalar,
+    pub normal: Vec3,
+    pub point: Vec3,
+    pub fraction: Real,
 }
 
 pub fn sweep_helper(
@@ -16,13 +16,13 @@ pub fn sweep_helper(
     colliders: &Query<(&Transform, &Collider)>,
     collision_layers: &Query<&CollisionLayers>,
     collider_entity: Entity,
-    from: Vector3,
-    to: Vector3,
+    from: Vec3,
+    to: Vec3,
 ) -> Option<SweepHit> {
     let sweep_vector = to - from;
     let max_distance = sweep_vector.length();
 
-    let Ok(direction) = Dir::new(sweep_vector) else {
+    let Ok(direction) = Dir3::new(sweep_vector) else {
         return None;
     };
 
@@ -66,7 +66,7 @@ pub fn sweep_helper(
             let intersections = spatial_query.shape_intersections(
                 collider,
                 from,
-                Quaternion::IDENTITY,
+                Quat::IDENTITY,
                 &SpatialQueryFilter::from_excluded_entities([collider_entity]),
             );
 

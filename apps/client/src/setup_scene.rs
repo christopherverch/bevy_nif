@@ -3,7 +3,8 @@ use crate::{
     defs::{CellLookup, ESM_READER, MWCell, PlayerCamera, TestingComponent},
 };
 use bevy::{
-    camera::Hdr,
+    app::Propagate,
+    camera::{Hdr, visibility::RenderLayers},
     core_pipeline::prepass::{DeferredPrepass, DepthPrepass, MotionVectorPrepass},
     light::{CascadeShadowConfigBuilder, NotShadowCaster, NotShadowReceiver},
     material::OpaqueRendererMethod,
@@ -37,6 +38,7 @@ pub fn setup_scene(
         head_handle,
         glass_helmet_pos,
         Quat::default(),
+        Vec3::ONE,
     );
     test_spawn("Terrain_rock_BC_15.nif", &asset_server, &mut commands, 0.0);
     test_spawn("Terrain_rock_BC_14.nif", &asset_server, &mut commands, 15.0);
@@ -80,6 +82,8 @@ pub fn setup_scene(
     commands.insert_resource(cell_lookup);
     let camera_start_pos = Vec3::new(190.0, 2.8, -890.0);
     commands.spawn((
+        PlayerCamera,
+        MWCamera::default(),
         Camera3d::default(),
         Camera::default(),
         Hdr,
@@ -90,11 +94,7 @@ pub fn setup_scene(
             far: 1000.0,
             ..default()
         }),
-        PlayerCamera,
-        MWCamera::default(),
         Transform::from_translation(camera_start_pos).looking_at(Vec3::new(0.0, 0.3, 0.0), Vec3::Y),
-        // MSAA needs to be off for Deferred rendering
-        Msaa::Off,
         AmbientLight {
             color: Color::linear_rgb(1.0, 1.0, 1.0),
             brightness: 500.0,
@@ -106,9 +106,6 @@ pub fn setup_scene(
             intensity: 0.0,
             ..default()
         },
-        DepthPrepass,
-        MotionVectorPrepass,
-        DeferredPrepass,
         Fxaa {
             enabled: true,
             ..default()
@@ -269,6 +266,7 @@ pub fn spawn_nif_unattached(
     nif_handle: Handle<Nif>,
     pos: Vec3,
     rotation: Quat,
+    scale: Vec3,
 ) -> Entity {
     commands
         .spawn((
@@ -277,7 +275,7 @@ pub fn spawn_nif_unattached(
             Transform {
                 translation: pos,
                 rotation,
-                ..default()
+                scale,
             },
         ))
         .id()
@@ -296,5 +294,11 @@ fn test_spawn(name: &str, asset_server: &AssetServer, commands: &mut Commands, o
         -9.0 * CELL_SIZE_METERS,
     );
     let rock = asset_server.load(path);
-    spawn_nif_unattached(commands, rock, player_start_location, Quat::default());
+    spawn_nif_unattached(
+        commands,
+        rock,
+        player_start_location,
+        Quat::default(),
+        Vec3::ONE,
+    );
 }

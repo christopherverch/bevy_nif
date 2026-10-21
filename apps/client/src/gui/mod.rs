@@ -1,10 +1,11 @@
 mod debug_menu;
 mod generic_button;
 mod race_select;
+mod race_select_character_preview;
 mod server_selection;
 mod spell_description;
 
-use bevy::prelude::*;
+use bevy::{diagnostic::FrameCount, prelude::*};
 // Internal
 use common::state::{CharCreationState, GameState};
 use race_select::{SliderDragStart, despawn_race_select_panel, setup_race_select};
@@ -14,7 +15,9 @@ use server_selection::{
 };
 use spell_description::setup_spell_description_tooltip;
 
-use crate::gui::{debug_menu::spawn_debug_menu_scene, race_select::on_preview_head_loaded};
+use crate::gui::{
+    debug_menu::spawn_debug_menu_scene, race_select::update_race_select_preview_camera,
+};
 
 // External
 
@@ -36,16 +39,23 @@ impl Plugin for MWGuiPlugin {
                 spawn_debug_menu_scene,
             )
             .add_systems(Update, button_system.run_if(in_state(GameState::MainMenu)))
+            .add_systems(Update, dbg_transform)
+            .add_systems(
+                PostUpdate,
+                update_race_select_preview_camera.before(TransformSystems::Propagate),
+            )
             .add_systems(
                 Update,
                 listen_keyboard_input_events.run_if(in_state(GameState::MainMenu)),
-            )
-            .add_systems(Update, on_preview_head_loaded);
+            );
 
         // Race selection
         app.insert_resource(SliderDragStart::default())
             .add_systems(Startup, setup_spell_description_tooltip);
     }
+}
+fn dbg_transform(frame_count: Res<FrameCount>) {
+    dbg!(frame_count.0);
 }
 #[repr(u8)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]

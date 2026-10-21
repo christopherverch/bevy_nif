@@ -243,7 +243,7 @@ impl<'w> AnimationContext<'w> {
         }
 
         if let Some(removed_anim) = self.nif_animator.active_animations.remove(group_name) {
-            dbg!("Stopping animation group: '{}'", group_name);
+            info!("Stopping animation group: '{}'", group_name);
 
             // Stop playback in Bevy
             self.animation_player.stop(removed_anim.node_index);
@@ -296,49 +296,51 @@ impl<'w> AnimationContext<'w> {
 
     /// Recalculates the effective blend mask for every active animation based on priority and applies it.
     pub fn recalculate_and_apply_masks(&mut self) {
+        let mut graph = match self.anim_graphs.get_mut(self.graph_handle) {
+            Some(g) => g,
+            None => return,
+        };
         // First, reset all nodes to "masked out" (or default state)
-        for active_anim in &self.nif_animator.animation_definitions {
-            if let Some(mut graph) = self.anim_graphs.get_mut(self.graph_handle) {
-                if let Some(node) = graph.get_mut(active_anim.1.node_index) {
-                    node.mask = !0;
-                }
+        for active_anim in &self.nif_animator.active_animations {
+            if let Some(node) = graph.get_mut(active_anim.1.node_index) {
+                node.mask = !0;
             }
         }
 
-        let mut sorted_keys: Vec<_> = self.nif_animator.active_animations.keys().collect();
-        sorted_keys.sort();
         // For each body region, find the animation with the highest priority that wants to affect it.
         for i in 0..NUM_DISCRETE_REGIONS {
             let region_mask = 1 << i;
-            let mut winner_key: Option<String> = None;
+            let mut winner_key: Option<&str> = None;
             let mut highest_priority: Option<Priority> = None;
 
             for (key, anim) in &self.nif_animator.active_animations {
-                //  read the animation's original, intended blend mask.
+                // If this animation's mask includes this region
                 if anim.blend_mask.bits() & region_mask != 0 {
                     if highest_priority.is_none() || anim.priorities[i] > highest_priority.unwrap()
                     {
                         highest_priority = Some(anim.priorities[i]);
-                        winner_key = Some(key.clone());
+                        winner_key = Some(&key);
                     }
                 }
             }
 
             // the highest priority gets the region
             if let Some(key) = winner_key {
-                let actual_key = match self.nif_animator.active_animations[&key].anim_type {
-                    AnimType::Intro => key,
-                    AnimType::Loop => format!("{}_loop", key),
-                    AnimType::Outro => format!("{}_outro", key),
-                    _ => {
-                        //TODO::
-                        key
+                let anim_type = &self.nif_animator.active_animations[key].anim_type;
+                let def = match anim_type {
+                    AnimType::Intro => self.nif_animator.animation_definitions.get(key),
+                    AnimType::Loop => {
+                        let loop_key = format!("{}_loop", key);
+                        self.nif_animator.animation_definitions.get(&loop_key)
                     }
+                    AnimType::Outro => {
+                        let outro_key = format!("{}_outro", key);
+                        self.nif_animator.animation_definitions.get(&outro_key)
+                    }
+                    _ => self.nif_animator.animation_definitions.get(key),
                 };
 
-                dbg!(&actual_key);
-                let def = &self.nif_animator.animation_definitions[&actual_key];
-                if let Some(mut graph) = self.anim_graphs.get_mut(self.graph_handle) {
+                if let Some(def) = def {
                     if let Some(node) = graph.get_mut(def.node_index) {
                         node.mask &= !region_mask; // unmask these parts to have them contribute
                     }

@@ -202,24 +202,11 @@ pub fn run_initial_parse() -> Result<
     Ok((reader, landscapes, land_textures, esm_store))
 }
 pub fn print_header_information(header: &Header) {
-    println!("\n--- Header Information ---");
-    println!("  File Version (float): {}", header.esm_version_f());
-    println!("  Author: '{}'", header.get_author());
     let desc_preview = header
         .get_description()
         .chars()
         .take(70)
         .collect::<String>();
-    println!(
-        "  Description: '{}'{}",
-        desc_preview,
-        if header.get_description().len() > 70 {
-            "..."
-        } else {
-            ""
-        }
-    );
-    println!("  Number of Records: {}", header.get_record_count());
     if !header.master_data.is_empty() {
         println!("  Master Files:");
         for master in &header.master_data {
@@ -379,10 +366,6 @@ pub fn load_record(
                     esm_store.gamesettings.remove_static(&gmst.id);
                 } else {
                     let hash_val = gmst.id.debug_hash();
-                    println!(
-                        "Inserting Record ID: {:?} | Hash: 0x{:X}",
-                        gmst.id, hash_val
-                    );
                     esm_store.gamesettings.insert_static(gmst.id.clone(), gmst);
                 }
             }

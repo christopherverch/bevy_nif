@@ -35,8 +35,7 @@ impl<'a, 'w, 's> Stepper<'a, 'w, 's> {
             return false;
         }
 
-        // 2. Trace UP
-        // OpenMW: position + osg::Vec3f(0, 0, StepSizeUp)
+        // 2. Trace Up
         let up_target = *position + Vec3::new(0.0, STEP_SIZE_UP, 0.0);
         self.up_stepper.do_trace(
             collider_entity,
@@ -47,14 +46,13 @@ impl<'a, 'w, 's> Stepper<'a, 'w, 's> {
             self.collision_layers_q,
         );
 
-        let mut up_distance = 0.0;
-        if self.up_stepper.hit_entity.is_none() {
-            up_distance = STEP_SIZE_UP;
+        let mut up_distance = if self.up_stepper.hit_entity.is_none() {
+            STEP_SIZE_UP
         } else if self.up_stepper.fraction * STEP_SIZE_UP > COLLISION_MARGIN {
-            up_distance = self.up_stepper.fraction * STEP_SIZE_UP - COLLISION_MARGIN;
+            self.up_stepper.fraction * STEP_SIZE_UP - COLLISION_MARGIN
         } else {
             return false; // Ceiled, can't even start the step
-        }
+        };
 
         let to_move = *velocity * *remaining_time;
         let tracer_pos = *position + Vec3::new(0.0, up_distance, 0.0);
@@ -87,7 +85,7 @@ impl<'a, 'w, 's> Stepper<'a, 'w, 's> {
                 tracer_dest = tracer_pos + normal_move * MIN_STEP_2;
             }
 
-            // Trace FORWARD
+            // Trace Forward
             self.tracer.do_trace(
                 collider_entity,
                 tracer_pos,
@@ -124,7 +122,7 @@ impl<'a, 'w, 's> Stepper<'a, 'w, 's> {
                 }
             }
 
-            // 4. Trace DOWN
+            // 4. Trace Down
             if attempt > 2 {
                 down_step_size = up_distance;
             } else {
@@ -142,7 +140,7 @@ impl<'a, 'w, 's> Stepper<'a, 'w, 's> {
             );
 
             if can_step_down(&self.down_stepper, self.collision_layers_q) {
-                break; // Found a valid landing!
+                break; // Found a valid landing
             } else {
                 // Check if we should try next attempt
                 if attempt == 2

@@ -15,7 +15,6 @@ use crate::physics::position_interpolate::PositionInterpolation;
 use crate::setup::setup_npc::NpcMesh;
 use crate::shared_defs::container::Container;
 use crate::shared_defs::skeletons::NextAvailableSkeletonId;
-use avian3d::prelude::{CollisionLayers, RigidBody};
 use bevy::prelude::*;
 use bevy_kira_audio::{SpatialAudioEmitter, SpatialAudioReceiver, SpatialRadius};
 use bevy_nif::attach_parts::AttachmentType;
@@ -28,7 +27,6 @@ use esm_parser_lib::RefId;
 use esm_parser_lib::types::attribute::Attribute;
 use esm_parser_lib::types::skill::SkillIndex;
 use serializer::SerializableTransform;
-use std::f32::consts::{FRAC_PI_2, PI};
 use std::time::Instant;
 
 use crate::camera::MWCameraTarget;
@@ -118,7 +116,6 @@ pub fn setup_player(
                     collision_shape_center,
                     collision_shape_extents,
                 ),
-                CollisionLayers::default(),
                 character_controller,
                 NetworkedEntity {
                     network_id: setup_info.network_id,
@@ -133,7 +130,6 @@ pub fn setup_player(
                 // Animation / physics
                 AnimationDisplacement::default(),
                 AnimateableEntity,
-                RigidBody::Kinematic,
                 // Audio
                 SpatialAudioEmitter::default(),
                 SpatialRadius { radius: 12.0 },

@@ -45,7 +45,7 @@ pub fn setup_spell_description_tooltip(mut commands: Commands) {
         });
 }
 pub fn update_spell_description_tooltip(
-    event: On<Pointer<Over>>,
+    event: On<PointerOver>,
     race_select_spell_power_components: Query<&RaceSelectSpellPower>,
     spell_descriptor_tooltip: Single<
         (Entity, &mut Visibility, &Children),
@@ -148,15 +148,14 @@ pub fn update_spell_description_tooltip(
     dbg!(&esm_store.magic_effects.get(&race_select_spell_power_comp.0));
 }
 pub fn update_tooltip_position<const OFFSET: i32>(
-    event: On<Pointer<Move>>,
+    event: On<PointerMove>,
     mut tooltip: Single<&mut Node, With<SpellDescriptionTooltip>>,
 ) {
-    dbg!("updating position");
-    tooltip.top = Val::Px(event.pointer_location.position.y + OFFSET as f32);
-    tooltip.left = Val::Px(event.pointer_location.position.x);
+    tooltip.top = Val::Px(event.pointer.location().position.y + OFFSET as f32);
+    tooltip.left = Val::Px(event.pointer.location().position.x);
 }
 pub fn on_out_hide_tooltip(
-    _event: On<Pointer<Out>>,
+    _event: On<PointerOut>,
     mut tooltip_visibility: Single<&mut Visibility, With<SpellDescriptionTooltip>>,
 ) {
     **tooltip_visibility = Visibility::Hidden;

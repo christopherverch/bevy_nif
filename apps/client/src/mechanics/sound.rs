@@ -16,11 +16,7 @@ pub fn generate_sound(
         SoundSource::Attached(entity) => Some(entity),
         SoundSource::Located(translation) => {
             let detached_entity = commands
-                .spawn((Transform {
-                    translation,
-                    rotation: Quat::IDENTITY,
-                    scale: Vec3::splat(1.0),
-                },))
+                .spawn(Transform::from_translation(translation))
                 .id();
             Some(detached_entity)
         }

@@ -27,11 +27,11 @@ pub struct TerrainBlendMaterial {
 
 impl Material for TerrainBlendMaterial {
     fn fragment_shader() -> ShaderRef {
-        "shaders/terrain_blend_shader.wgsl".into()
+        "shaders/terrain_blend_shader.wesl".into()
     }
 
     fn vertex_shader() -> ShaderRef {
-        "shaders/terrain_blend_shader.wgsl".into()
+        "shaders/terrain_blend_shader.wesl".into()
     }
 
     fn alpha_mode(&self) -> AlphaMode {

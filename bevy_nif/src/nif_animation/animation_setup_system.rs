@@ -13,7 +13,7 @@ use crate::{
 };
 use bevy_animation::{
     AnimatedBy, AnimationClip, AnimationPlayer, AnimationTargetId, animated_field,
-    animation_curves::{AnimatableCurve, AnimatableKeyframeCurve, AnimatedField},
+    animation_curves::{AnimatableCurve, AnimatableKeyframeCurve},
     graph::{AnimationGraph, AnimationGraphHandle},
 };
 use bevy_asset::Assets;
@@ -118,11 +118,6 @@ pub fn setup_animations(
         }
         // --- Call the Parser ---
         let processed_animations = parse_and_split_animation_blocks(global_nif_text_keys);
-        info!(
-            "--- Extracting All Bone Keyframes for {:?} (Entity {:?}) ---",
-            nif_handle.path(),
-            entity
-        );
         let loop_base_names: HashSet<String> = processed_animations
             .iter()
             .filter_map(|clip| clip.name.strip_suffix("_loop").map(String::from))
@@ -232,7 +227,9 @@ pub fn setup_animations(
 
                 raw_bone_data.push(bone_anim);
             }
-        } // Pre-process and sort the Bip01 translation keys once for fast lookups.
+        }
+
+        // Pre-process and sort the Bip01 translation keys once for fast lookups.
         let bip01_translation_keys: Vec<(f32, Vec3)> = 'find_keys: {
             // Find the Bip01/root bone controller index first.
             let bip01_target_key = all_bone_controllers.keys().find(|bone_key| {
@@ -302,7 +299,6 @@ pub fn setup_animations(
             let region_idx = determine_bone_primary_region_index(&bone.bone_name, skeleton);
             animation_graph.add_target_to_mask_group(bone.target_id, region_idx as u32);
         }
-
         for processed_clip in &processed_animations {
             let mut root_translation_curve: Option<AnimatableKeyframeCurve<Vec3>> = None;
             let mut bevy_clip = AnimationClip::default();
@@ -503,7 +499,7 @@ pub fn setup_animations(
         // Iterate over the keys of the original map to find which clips need linking.
         for name in animation_definitions_map.keys() {
             if name.contains("knockout") {
-                dbg!(name);
+                //dbg!(name);
             }
             // If this is an "intro" clip (and not a loop or outro)...
             if !name.ends_with("_loop") && !name.ends_with("_outro") {
@@ -517,7 +513,7 @@ pub fn setup_animations(
             else if let Some(base_name) = name.strip_suffix("_loop") {
                 let potential_outro_name = format!("{}_outro", base_name);
                 if base_name.contains("knockout") {
-                    dbg!(&potential_outro_name);
+                    //dbg!(&potential_outro_name);
                 }
                 // ...check if its corresponding outro clip exists.
                 if all_clip_names_set.contains(&potential_outro_name) {

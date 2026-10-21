@@ -5,7 +5,6 @@ use crate::{NeedsNifPhysics, hash_str, skeleton::*};
 use avian3d::prelude::{Collider, RigidBody};
 use bevy_asset::{AssetServer, Assets, Handle, RenderAssetUsages};
 use bevy_camera::visibility::Visibility;
-use bevy_color::Color;
 use bevy_ecs::{
     component::Component,
     entity::Entity,
@@ -67,7 +66,6 @@ pub fn spawn_nif_scenes(
     mut skeleton_map_res: ResMut<SkeletonMap>,
 ) {
     for (original_entity, nif_scene_component, attachment_type_opt) in &mut new_scenes {
-        dbg!(nif_scene_component.0.path());
         let is_skeleton = attachment_type_opt
             .as_ref()
             .map(|att| matches!(**att, AttachmentType::MainSkeleton { skeleton_id: _ }))
@@ -85,6 +83,7 @@ pub fn spawn_nif_scenes(
         }
 
         let Some(nif) = nif_assets.get(&nif_scene_component.0) else {
+            #[cfg(debug_assertions)]
             info!("Waiting for asset {:?}", &nif_scene_component.0);
             continue;
         };

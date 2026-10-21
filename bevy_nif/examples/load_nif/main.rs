@@ -1,8 +1,11 @@
 use bevy::camera_controller::free_camera::FreeCameraPlugin;
+use bevy::input::common_conditions::input_just_pressed;
 // This example runs animations and is meant to be run with base_anim.nif and the B_N dark elf nif
 // files inside of assets/data, but any can be loaded by replacing the names in setup.rs
 use bevy::prelude::*;
+use bevy_egui::EguiPlugin;
 use bevy_image::{ImageAddressMode, ImageSamplerDescriptor};
+use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_nif::nif_animation::bevy_types::{ActiveAnimation, AnimType, Priority};
 use bevy_nif::nif_animation::{BlendMask, NifAnimator, SkeletonMap};
 use bevy_nif::*;
@@ -20,6 +23,7 @@ fn main() {
             },
         }))
         .add_plugins(BevyNifPlugin)
+        .add_plugins((EguiPlugin::default(), WorldInspectorPlugin::default()))
         .insert_resource(GlobalAmbientLight {
             color: Color::srgb(1.0, 0.8, 0.6),
             brightness: 100.0,
@@ -29,7 +33,10 @@ fn main() {
         .add_systems(Startup, setup::setup_scene)
         .add_systems(Startup, setup::setup)
         .add_systems(Update, wireframe)
-        .add_systems(Update, test_animations)
+        .add_systems(
+            Update,
+            test_animations.run_if(input_just_pressed(KeyCode::KeyL)),
+        )
         .add_systems(Update, test_loop_anims)
         .run();
 }

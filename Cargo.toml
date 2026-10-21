@@ -49,7 +49,7 @@ bevy_text = "0.20.0"
 bevy_scene = "0.20.0"
 strum =  "0.28"
 strum_macros =  "0.28"
-avian3d = {git = "https://github.com/avianphysics/avian.git", features = ["3d"]}
+avian3d = "0.8.0"
 unordered_map = { path = "crates/unordered_map"}
 
 # Networking logic

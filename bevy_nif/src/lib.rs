@@ -14,6 +14,7 @@ use bevy_app::{App, Plugin, PreUpdate, Update};
 use bevy_asset::AssetApp;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_math::Vec3;
 pub use helper_funcs::*;
 use loader::{BMPLoader, Nif, NifAssetLoader};
@@ -36,8 +37,8 @@ impl Plugin for BevyNifPlugin {
             .init_asset_loader::<DDSLoader>()
             .insert_resource(SkeletonMap::default())
             .add_observer(attach_parts)
-            .add_systems(Update, spawn_nif_scenes)
-            .add_systems(PreUpdate, setup_animations);
+            .add_systems(PreUpdate, spawn_nif_scenes)
+            .add_systems(PreUpdate, setup_animations.after(spawn_nif_scenes));
         // check for one of avian's core plugins to check if the user already added the
         // physicsplugin
         if !app.is_plugin_added::<PhysicsSchedulePlugin>() {

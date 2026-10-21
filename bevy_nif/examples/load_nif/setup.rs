@@ -103,22 +103,8 @@ pub fn setup_scene(
 
     commands.spawn((
         Camera3d::default(),
-        Camera::default(),
-        Hdr,
-        Projection::Perspective(PerspectiveProjection {
-            fov: PI / 3.6,
-            aspect_ratio: 1.0,
-            near: 0.1,
-            far: 1000.0,
-            ..default()
-        }),
         FreeCamera::default(),
         Transform::from_xyz(0.7, 0.7, 1.0).looking_at(Vec3::new(0.0, 0.3, 0.0), Vec3::Y),
-        // MSAA needs to be off for Deferred rendering
-        Msaa::Off,
-        DepthPrepass,
-        MotionVectorPrepass,
-        DeferredPrepass,
     ));
 
     let transform_almost_down = Transform::from_rotation(Quat::from_axis_angle(

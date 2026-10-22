@@ -27,3 +27,4 @@ pub mod book;
 pub mod clothing;
 pub mod potion;
 pub mod apparatus;
+pub mod birthsign;

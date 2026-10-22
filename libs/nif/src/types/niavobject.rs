@@ -77,7 +77,10 @@ impl Save for NiAVObject {
 impl NiAVObject {
     flag_props! {
         app_culled @ (mask = 0x0001) -> bool,
+        mesh_collision @ (mask = 0x0002) -> bool,
+        bbox_collision @ (mask = 0x0004) -> bool,
         propagate_mode @ (mask = 0x0006, pos = 1) -> PropagateMode,
         visual @ (mask = 0x0008) -> bool,
+        active_collision @ (mask = 0x0020) -> bool,
     }
 }

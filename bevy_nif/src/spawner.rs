@@ -83,8 +83,6 @@ pub fn spawn_nif_scenes(
         }
 
         let Some(nif) = nif_assets.get(&nif_scene_component.0) else {
-            #[cfg(debug_assertions)]
-            info!("Waiting for asset {:?}", &nif_scene_component.0);
             continue;
         };
 
@@ -120,6 +118,7 @@ pub fn spawn_nif_scenes(
                 &mut meshes,
                 &mut inverse_bindposes,
                 &mut commands,
+                false,
                 false,
             );
         }
@@ -180,7 +179,8 @@ fn spawn_nif_node_recursive<'a>(
     meshes: &mut ResMut<Assets<Mesh>>,
     inverse_bindposes: &mut ResMut<Assets<SkinnedMeshInverseBindposes>>,
     commands: &mut Commands,
-    is_collider: bool,
+    is_nonvisual_collider: bool,
+    mut create_collider_from_mesh: bool,
 ) {
     if spawn_context
         .already_spawned_nodes
@@ -199,6 +199,7 @@ fn spawn_nif_node_recursive<'a>(
                 rotation: Quat::from_mat3(&ni_node.rotation),
                 scale: Vec3::splat(ni_node.scale),
             };
+
             let new_ninode_entity = commands
                 .spawn((
                     bevy_transform,
@@ -229,6 +230,7 @@ fn spawn_nif_node_recursive<'a>(
                 );
                 current_bone_name_opt = Some(ni_node.name.as_str());
             }
+            create_collider_from_mesh = ni_node.mesh_collision();
             for child in &ni_node.children {
                 spawn_nif_node_recursive(
                     nif,
@@ -242,7 +244,8 @@ fn spawn_nif_node_recursive<'a>(
                     meshes,
                     inverse_bindposes,
                     commands,
-                    is_collider,
+                    is_nonvisual_collider,
+                    create_collider_from_mesh,
                 );
             }
         }
@@ -278,12 +281,14 @@ fn spawn_nif_node_recursive<'a>(
                 .nif_node_index
                 .tri_shapes
                 .push(new_nitrishape_entity);
-            if is_collider {
+            if is_nonvisual_collider || create_collider_from_mesh {
                 let collider = create_collider(trishape_data);
                 commands
                     .entity(new_nitrishape_entity)
                     .insert((RigidBody::Static, collider));
-                return;
+                if is_nonvisual_collider {
+                    return;
+                }
             }
             let name_ref: &str = &ni_trishape.name;
             // Make shadow invisible (or if it's the main skeleton, the bones)
@@ -404,6 +409,7 @@ fn spawn_nif_node_recursive<'a>(
                     inverse_bindposes,
                     commands,
                     true,
+                    false,
                 );
             }
         }
@@ -765,12 +771,6 @@ fn create_mesh_with_flat_normals(
     }
 
     mesh.insert_indices(Indices::U16(final_indices)); // Use new sequential indices
-
-    #[cfg(debug_assertions)]
-    info!(
-        "Successfully computed flat normals. Final vertex count: {}",
-        mesh.count_vertices()
-    );
 
     Some(mesh)
 }

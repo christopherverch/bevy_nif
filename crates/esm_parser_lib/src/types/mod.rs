@@ -26,3 +26,4 @@ pub mod weapon;
 pub mod book;
 pub mod clothing;
 pub mod potion;
+pub mod apparatus;

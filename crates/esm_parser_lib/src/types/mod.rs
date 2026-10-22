@@ -24,3 +24,4 @@ pub mod static_object;
 pub mod transport;
 pub mod weapon;
 pub mod book;
+pub mod clothing;

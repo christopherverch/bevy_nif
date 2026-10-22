@@ -25,3 +25,4 @@ pub mod transport;
 pub mod weapon;
 pub mod book;
 pub mod clothing;
+pub mod potion;

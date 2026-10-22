@@ -1,4 +1,6 @@
+pub mod activator;
 pub mod aipackage;
+pub mod armor;
 pub mod attribute;
 pub mod bodypart;
 pub mod cell;

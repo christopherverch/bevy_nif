@@ -1,4 +1,4 @@
-use glam::Vec3;
+use glam::{IVec2, IVec3, Vec3};
 
 use crate::{
     RefId,
@@ -111,5 +111,20 @@ impl Load for Vec3 {
         let y = reader.read_typed(ConsumptionType::SubrecordPayload)?;
         let z = reader.read_typed(ConsumptionType::SubrecordPayload)?;
         Ok(Vec3::new(x, y, z))
+    }
+}
+impl Load for IVec2 {
+    fn load(reader: &mut EsmReader) -> Result<Self, EsmError> {
+        let x = reader.read_typed(ConsumptionType::SubrecordPayload)?;
+        let y = reader.read_typed(ConsumptionType::SubrecordPayload)?;
+        Ok(IVec2::new(x, y))
+    }
+}
+impl Load for IVec3 {
+    fn load(reader: &mut EsmReader) -> Result<Self, EsmError> {
+        let x = reader.read_typed(ConsumptionType::SubrecordPayload)?;
+        let y = reader.read_typed(ConsumptionType::SubrecordPayload)?;
+        let z = reader.read_typed(ConsumptionType::SubrecordPayload)?;
+        Ok(IVec3::new(x, y, z))
     }
 }

@@ -95,7 +95,7 @@ pub enum SkillIdI8 {
 }
 
 #[repr(i32)]
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Default)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Default, LoadSave)]
 pub enum EffectId {
     #[default]
     None = -1,
@@ -451,7 +451,7 @@ pub enum BookType {
 }
 
 #[repr(u32)]
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Default)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Default, LoadSave)]
 pub enum ClothingType {
     #[default]
     Pants = 0,
@@ -608,8 +608,8 @@ pub enum WeaponType {
 unsafe impl bytemuck::Zeroable for WeaponType {}
 unsafe impl bytemuck::Pod for WeaponType {}
 
-#[repr(u32)]
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Default)]
+#[repr(i32)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Default, LoadSave)]
 pub enum EnchantType {
     #[default]
     CastOnce = 0,
@@ -651,8 +651,16 @@ pub enum BipedObjectType {
     Tail = 26,
 }
 
+impl BipedObjectType {
+    #[inline]
+    pub fn from_u8_unchecked(value: u8) -> Self {
+        debug_assert!(value <= 26);
+        unsafe { std::mem::transmute(value) }
+    }
+}
+
 #[repr(i8)]
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Default)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Default, LoadSave)]
 pub enum Sex {
     #[default]
     Any = -1,
@@ -660,17 +668,17 @@ pub enum Sex {
     Female = 1,
 }
 
-#[repr(u32)]
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, LoadSave)]
+#[repr(i32)]
 pub enum DialogueType {
     #[default]
+    Unknown = -1,
     Topic = 0,
     Voice = 1,
     Greeting = 2,
     Persuasion = 3,
     Journal = 4,
 }
-
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Default)]
 pub enum DialogueTypeU8 {

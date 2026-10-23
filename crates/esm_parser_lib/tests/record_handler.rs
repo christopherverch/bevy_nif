@@ -1,9 +1,13 @@
 use esm_parser_lib::{
     ESM3ExteriorCellRefId, EsmError, EsmReader, LandTexture, Landscape, RefId, Weapon,
     types::{
-        bodypart::Bodypart, cell::Cell, cell_ref::CellRef, creature::Creature, gmst::GameSetting,
-        magic_effect::MagicEffect, race::Race, reference::Reference, skill::Skill, spell::Spell,
-        static_object::Static,
+        activator::Activator, apparatus::Apparatus, armor::Armor, birthsign::BirthSign,
+        bodypart::Bodypart, book::Book, cell::Cell, cell_ref::CellRef, class::Class,
+        clothing::Clothing, creature::Creature, enchantment::Enchantment, enums::ApparatusType,
+        gmst::GameSetting, info::DialInfo, ingredient::Ingredient, light::Light,
+        lockpick::Lockpick, magic_effect::MagicEffect, miscellaneous::Miscellaneous,
+        pathgrid::Pathgrid, probe::Probe, race::Race, reference::Reference, skill::Skill,
+        spell::Spell, static_object::Static,
     },
 };
 
@@ -20,84 +24,78 @@ where
 {
     let mut seyda_neen_cell = None;
     let mut is_deleted = false;
+    macro_rules! load_rec {
+        ($t:ty) => {{
+            let rec = <$t>::load(reader, &mut is_deleted)?;
+            on_load(name, &rec);
+        }};
+        (direct $t:ty) => {{
+            let rec: $t = reader.load()?;
+            on_load(name, &rec);
+        }};
+    }
 
     match name {
         b"LAND" => {
             let mut landscape: Landscape = reader.load()?;
-            // If it's the center cell, load the heavy vertex data
             if landscape.grid_x == 0 && landscape.grid_y == 0 {
                 landscape.load_detailed_data(reader)?;
                 on_load(name, &landscape);
             }
         }
-        b"LTEX" => {
-            let tex: LandTexture = LandTexture::load(reader, &mut is_deleted)?;
-            on_load(name, &tex);
-        }
-        b"WEAP" => {
-            let weap: Weapon = reader.load()?;
-            on_load(name, &weap);
-        }
-        b"CELL" => {
-            let mut cell = Cell::load(reader, &mut is_deleted, false)?;
-            let mut cell_ref = CellRef::default();
-            if cell.id == RefId::ESM3ExteriorCell(ESM3ExteriorCellRefId::new(-2, -9)) {
-                on_load(name, &cell);
-                cell.post_load(reader).unwrap();
-                seyda_neen_cell = Some(cell);
-                dbg!(&seyda_neen_cell);
-            } else {
-                while Cell::get_next_ref(reader, &mut cell_ref, &mut is_deleted)? {}
-            }
-        }
-        b"REFR" => {
-            let reference: Reference = reader.load()?;
-            on_load(name, &reference);
-        }
-        b"STAT" => {
-            let static_obj: Static = Static::load(reader, &mut is_deleted)?;
-            on_load(name, &static_obj);
-        }
-        b"RACE" => {
-            let race = Race::load(reader, &mut is_deleted)?;
-            on_load(name, &race);
-        }
-        b"BODY" => {
-            let bodypart = Bodypart::load(reader, &mut is_deleted)?;
-            on_load(name, &bodypart);
-        }
-        b"MGEF" => {
-            let mgef = MagicEffect::load(reader, &mut is_deleted)?;
-            on_load(name, &mgef);
-        }
+        b"LTEX" => load_rec!(LandTexture),
+        b"WEAP" => load_rec!(direct Weapon),
+        b"ARMO" => load_rec!(Armor),
+        b"STAT" => load_rec!(Static),
+        b"RACE" => load_rec!(Race),
+        b"BODY" => load_rec!(Bodypart),
+        b"MGEF" => load_rec!(MagicEffect),
+        b"SKIL" => load_rec!(Skill),
+        b"CREA" => load_rec!(Creature),
+        b"SPEL" => load_rec!(Spell),
+        b"REFR" => load_rec!(direct Reference),
+        b"ACTI" => load_rec!(Activator),
+        b"CLOT" => load_rec!(Clothing),
+        b"BOOK" => load_rec!(Book),
+        b"BSGN" => load_rec!(BirthSign),
+        b"APPA" => load_rec!(Apparatus),
+        b"CLAS" => load_rec!(Class),
+        b"ENCH" => load_rec!(Enchantment),
+        b"INFO" => load_rec!(DialInfo),
+        b"INGR" => load_rec!(Ingredient),
+        b"LIGH" => load_rec!(Light),
+        b"LOCK" => load_rec!(Lockpick),
+        b"MISC" => load_rec!(Miscellaneous),
+        b"PGRD" => load_rec!(Pathgrid),
+        b"PROB" => load_rec!(Probe),
         b"GMST" => {
             let gmst = GameSetting::load(reader, &mut is_deleted)?;
-            // Keep your specific filter logic
             if gmst.id.resolve_string().eq_ignore_ascii_case("sAbsorb") {
                 on_load(name, &gmst);
             }
         }
-        b"SKIL" => {
-            let skill = Skill::load(reader, &mut is_deleted)?;
-            on_load(name, &skill);
-        }
-        b"CREA" => {
-            let creature = Creature::load(reader, &mut is_deleted)?;
-            on_load(name, &creature);
-        }
-        b"SPEL" => {
-            let spell = Spell::load(reader, &mut is_deleted)?;
-            on_load(name, &spell);
+        b"CELL" => {
+            let cell = Cell::load(reader, &mut is_deleted, false)?;
+            if cell.id == RefId::ESM3ExteriorCell(ESM3ExteriorCellRefId::new(-2, -9)) {
+                on_load(name, &cell);
+                let mut seyda_neen = cell;
+                seyda_neen.post_load(reader).unwrap();
+                seyda_neen_cell = Some(seyda_neen);
+            } else {
+                let mut cell_ref = CellRef::default();
+                while Cell::get_next_ref(reader, &mut cell_ref, &mut is_deleted)? {}
+            }
         }
         _ => {
             reader.skip_record()?;
         }
     }
+
     if let Some(seyda_neen) = seyda_neen_cell {
         seyda_neen.restore(reader, 0).unwrap();
         let mut cell_ref = CellRef::default();
         while Cell::get_next_ref(reader, &mut cell_ref, &mut is_deleted)? {
-            on_load(b"REFR", &cell_ref); // Sub-records are debugged here
+            on_load(b"REFR", &cell_ref);
         }
     }
     Ok(())

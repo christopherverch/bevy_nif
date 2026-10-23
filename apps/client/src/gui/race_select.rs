@@ -12,7 +12,7 @@ use esm_parser_lib::{
     RefId,
     types::{
         bodypart::{Bodypart, BodypartFlags, BodypartId, BodypartType},
-        flags::{NpcFlags, RaceFlags},
+        flags::{NpcFlags, ObjectFlags, RaceFlags},
         race::Race,
     },
 };
@@ -39,6 +39,7 @@ pub struct RaceSelectPreviewCamera;
 pub struct RaceSelectUI {
     preview_skeleton_handle: Handle<Nif>,
     is_male: bool,
+    is_beast: bool,
     head_index: usize,
     hair_index: usize,
     playable_race_refids: Vec<RefId>,
@@ -264,11 +265,13 @@ pub fn setup_race_select(
         let head_path = prepend_mesh_data_path(head_path);
         race_select_handles.push(asset_server.load(head_path));
     }
+    let race = esm_store.races.get(&default_player.race).unwrap();
 
     // dbg!(&race_select_handles);
     let race_select_ui = RaceSelectUI {
         preview_skeleton_handle: skeleton_asset_handle,
         is_male: !default_player.npc_flags.contains(NpcFlags::FEMALE),
+        is_beast: race.data.flags.contains(RaceFlags::BEAST_RACE),
         head_index: 0,
         hair_index: 0,
         current_race_refid: default_race_refid,
@@ -370,6 +373,7 @@ fn on_race_accepted(
         hair_path,
         //TEMPORARY
         true,
+        race_select_ui.is_beast,
     );
 
     char_creation_state.set(CharCreationState::ChoosingClass);
@@ -388,6 +392,11 @@ fn race_select_button_pressed(
     };
     race_select_ui.current_race_refid = race_select_ui.playable_race_refids[button_index.0].clone();
     let is_male = race_select_ui.is_male;
+    let race = esm_store
+        .races
+        .get(&race_select_ui.current_race_refid)
+        .unwrap();
+    race_select_ui.is_beast = race.data.flags.contains(RaceFlags::BEAST_RACE);
     recount_bodyparts(&esm_store.bodyparts, &mut race_select_ui, is_male);
     commands.run_system_cached(respawn_preview);
     commands.run_system_cached(redraw_race_select_ui);

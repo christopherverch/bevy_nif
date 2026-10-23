@@ -23,8 +23,14 @@ pub fn spawn_npc(
     head_path: String,
     hair_path: String,
     is_local_player: bool,
+    is_beast: bool,
 ) -> Entity {
-    let asset_handle = asset_server.load("data/base_anim.nif");
+    let path = if !is_beast {
+        "data/base_anim.nif"
+    } else {
+        "data/base_animKnA.nif"
+    };
+    let asset_handle = asset_server.load(path);
     let skeleton_entity = commands
         .spawn((
             NifScene(asset_handle),

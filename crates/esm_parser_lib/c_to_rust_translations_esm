@@ -1,0 +1,16 @@
+skiphsub -> skip_sub_header
+getHNRefId -> read_header_refid_check_name
+getHNORefId -> read_refid_named_sub_or_default
+getSubName -> get_or_read_sub_name
+getHString -> read_header_decode_string
+getHNString -> read_header_decode_string_validate_subname
+getrefid() -> read_ref_id
+getsubcomposite -> read_typed_header_load()
+
+getsubsize -> reader.context.remaining_subrec_data
+getSubHeader -> read_sub_header
+getsubnameis -> get_or_read_validated_subname
+getht -> read_typed_header (_load or as is)
+gethnt -> read_typed_named_header
+gethnot -> read_typed_named_header_opt
+getT -> load()

@@ -5,6 +5,7 @@ pub mod common_inventory_types;
 pub mod common_types;
 pub mod esm_reader;
 pub mod esm_record;
+pub mod esm_writer;
 pub mod format_version_defs;
 pub mod header_types;
 pub mod name_defs;

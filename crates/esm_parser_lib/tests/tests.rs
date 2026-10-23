@@ -67,7 +67,7 @@ fn test_print_samples() {
             //"BODY", "REPA", "PGRD", "CELL", "NPC_", "SNDG", "AMMO", "LVLN", "SCPT", "DIAL",
             //"INFO", "LTEX", "WAYP", "LAND", "KEYM",
             // "LAND", "LTEX", "WEAP",
-            "CELL",
+            "PROB",
         ];
         while reader.has_more_recs().unwrap() {
             let name = reader.read_rec_name().unwrap();

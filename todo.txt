@@ -1,4 +1,3 @@
-animation system - might be correct? backwards animation and sidestep are questionable, not sure if this is how it looks in mw
 still lacking masking/any animations besides movement
-
 landscape loading - needs LODs
+openmw/mwrender/npcanimation.cpp isBeast, isFirstPerson, all of that for skeleton setup rather than hardcoding it.

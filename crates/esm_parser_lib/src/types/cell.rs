@@ -85,7 +85,7 @@ impl Load for AtmosphereData {
 }
 
 // Helper function to unpack packed indices
-const fn unpack(packed_indices: u32) -> (u32, u32) {
+pub const fn unpack(packed_indices: u32) -> (u32, u32) {
     let mast_index = packed_indices >> 24;
     let refr_index = packed_indices & 0xFFFFFF;
     (mast_index, refr_index)

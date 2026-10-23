@@ -4,7 +4,11 @@ Morrowind.bsa
 **/assets/
 Cargo.lock
 crates/esm_parser_lib/quiksave.ess
+crates/esm_parser_lib/Morrowind.esm
 crates/esm_parser_lib/save.hex
 apps/client/AGENTS.md
+crates/esm_parser_lib/AGENTS.md
+crates/esm_parser_lib/aider.sh
+crates/esm_parser_lib/test.esp
 
 .aider*

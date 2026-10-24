@@ -7,19 +7,25 @@ use bevy_render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use image_dds::ddsfile::Dds;
 pub use nif::loader::Nif;
 use nif::loader::load_nif_bytes;
+use serde::{Deserialize, Serialize};
 use std::io::{Cursor, ErrorKind};
+
+use crate::attach_parts::AttachmentType;
 
 #[derive(Default, TypePath)]
 pub struct NifAssetLoader;
-
+#[derive(Serialize, Deserialize, Default, Clone)]
+pub struct NifSettings {
+    pub is_skeleton: bool,
+}
 impl AssetLoader for NifAssetLoader {
     type Asset = Nif;
-    type Settings = ();
+    type Settings = NifSettings;
     type Error = std::io::Error;
     async fn load(
         &self,
         reader: &mut dyn Reader,
-        _settings: &(),
+        settings: &NifSettings,
         load_context: &mut LoadContext<'_>,
     ) -> Result<Self::Asset, Self::Error> {
         let mut bytes = Vec::new();
@@ -28,7 +34,9 @@ impl AssetLoader for NifAssetLoader {
             error!("NifAssetLoader: Failed to read bytes: {:?}", e);
             return Err(e);
         }
-        load_nif_bytes(&bytes, load_context)
+        let nif = load_nif_bytes(&bytes, load_context)?;
+        let is_skeleton = settings.is_skeleton;
+        Ok(nif)
     }
 
     fn extensions(&self) -> &[&str] {

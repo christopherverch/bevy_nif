@@ -17,8 +17,9 @@ use bevy_mesh::{Mesh, Mesh3d, VertexAttributeValues};
 use bevy_pbr::{MeshMaterial3d, StandardMaterial};
 use bevy_render::render_resource::Face;
 use bevy_transform::components::Transform;
+use serde::{Deserialize, Serialize};
 
-#[derive(Component, PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, Component, PartialEq, Clone, Debug)]
 pub enum AttachmentType {
     /// Marks this nif asset as a skeleton, for other nifs to be attached to
     MainSkeleton {

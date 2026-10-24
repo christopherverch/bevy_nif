@@ -22,7 +22,7 @@ use bevy_ecs::{
     name::Name,
     system::{Commands, Query, Res, ResMut},
 };
-use bevy_log::{info, warn};
+use bevy_log::warn;
 use bevy_math::{Quat, Vec3};
 use bevy_transform::components::Transform;
 use nif::{NiKey, NiKeyframeController, NiTextKey};

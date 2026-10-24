@@ -10,7 +10,7 @@ use crate::loader::DDSLoader;
 use attach_parts::attach_parts;
 use avian3d::PhysicsPlugins;
 use avian3d::prelude::PhysicsSchedulePlugin;
-use bevy_app::{App, Plugin, PreUpdate, Update};
+use bevy_app::{App, Plugin, PreUpdate};
 use bevy_asset::AssetApp;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;

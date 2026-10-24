@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use bevy_ecs::entity::Entity;
+use bevy_log::warn;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BoneId(pub usize);
@@ -31,7 +32,7 @@ impl Skeleton {
 
     pub fn add_bone(&mut self, entity: Entity, name: String, parent_name: Option<&str>) -> BoneId {
         if self.name_to_id.contains_key(&name) {
-            panic!("Bone with name '{}' already exists!", name);
+            warn!("Bone with name '{}' already exists!", name);
         }
 
         let new_id = BoneId(self.bones.len());

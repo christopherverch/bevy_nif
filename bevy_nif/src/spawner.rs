@@ -3,6 +3,7 @@ use crate::nif_animation::SkeletonMap;
 use crate::spawning_ni_helpers::{process_nimaterialproperty, process_nitexturingproperty};
 use crate::{NeedsNifPhysics, hash_str, skeleton::*};
 use avian3d::prelude::{Collider, RigidBody};
+use bevy_asset::meta::Settings;
 use bevy_asset::{AssetServer, Assets, Handle, RenderAssetUsages};
 use bevy_camera::visibility::Visibility;
 use bevy_ecs::{
@@ -13,7 +14,7 @@ use bevy_ecs::{
     query::Without,
     system::{Commands, Query, Res, ResMut},
 };
-use bevy_log::{error, info, warn};
+use bevy_log::{error, warn};
 use bevy_material::AlphaMode;
 use bevy_math::{Mat4, Quat, Vec2, Vec3};
 use bevy_mesh::{Indices, Mesh3d, PrimitiveTopology};
@@ -25,6 +26,7 @@ use bevy_pbr::{MeshMaterial3d, StandardMaterial};
 use bevy_transform::components::Transform;
 use nif::{NiKey, NiSkinInstance, NiType, loader::Nif};
 use nif::{NiTriBasedGeomData, NiTriShapeData};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 #[derive(Component, Default)]
 pub struct NifNodeIndex {
@@ -72,6 +74,7 @@ pub fn spawn_nif_scenes(
             .unwrap_or_default();
 
         let target_skeleton_id_opt = attachment_type_opt.map(|att| att.get_target_skeleton_id());
+        dbg!(nif_scene_component.0.path());
 
         // If this asset requires a skeleton, check if the skeleton it attaches to is ready
         if !is_skeleton {
@@ -96,7 +99,7 @@ pub fn spawn_nif_scenes(
             ninodes_with_bvs: Vec::new(),
         };
 
-        // Spawn root nodes, parenting to work_root
+        // Spawn root nodes, parenting to original entity
         for current_node in nif.roots.iter() {
             let root_node_entity = commands
                 .spawn((
@@ -343,9 +346,8 @@ fn spawn_nif_node_recursive<'a>(
             // Assemble the final material, if there was one
             if let Some(mut material) = material_opt {
                 material.base_color_texture = texture_handle_opt.take();
+                // Is this necessary?
                 material.alpha_mode = AlphaMode::Mask(1.0);
-                //TODO:: fix culling, when attaching bones some transform scales are set to -1
-                //which breaks the culling, for now no culling
                 let material_h = materials.add(material);
                 commands
                     .entity(new_nitrishape_entity)
@@ -559,6 +561,8 @@ fn apply_skin_instance(
                 break;
             }
         }
+    } else {
+        warn!("Missing target skeleton for skin instance!",);
     }
     // 3c. Add Bevy SkinnedMesh Component (if all bones found)
     // Required for animation
@@ -577,9 +581,12 @@ fn apply_skin_instance(
             joints: joints_vec,
         });
     } else {
-        warn!(
-            "   Failed to add SkinnedMesh component due to missing bone entity or count mismatch."
-        );
+        if missing_bone {
+            warn!("Failed to add SkinnedMesh component due to missing bone entity");
+        }
+        if joints_vec.len() != skin_data.bone_data.len() {
+            warn!("Failed to add SkinnedMesh component due to count mismatch.");
+        }
     }
 }
 pub fn convert_nif_mesh(data: &NiTriShapeData) -> Option<Mesh> {

@@ -6,9 +6,8 @@ pub mod nif_animation;
 mod physics;
 pub mod skeleton;
 pub mod spawning_ni_helpers;
-use attach_parts::attach_parts;
+use avian3d::PhysicsPlugins;
 use avian3d::prelude::PhysicsSchedulePlugin;
-use avian3d::{PhysicsPlugins, prelude::BodySizeMetrics};
 use bevy_app::{App, Plugin};
 use bevy_asset::AssetApp;
 use bevy_ecs::component::Component;
@@ -18,7 +17,7 @@ pub use helper_funcs::*;
 use loader::{BMPLoader, Nif, NifAssetLoader};
 pub use nif::types::*;
 
-use crate::attach_parts::{attach_parts_observer, insert_into_skeleton_map};
+use crate::attach_parts::insert_into_skeleton_map;
 use crate::loader::DDSLoader;
 use crate::physics::replace_temp_colliders;
 use crate::skeleton::{SkeletonIdManager, SkeletonMap};
@@ -34,14 +33,12 @@ impl Plugin for BevyNifPlugin {
         app.init_asset::<Nif>()
             .preregister_asset_loader::<NifAssetLoader>(&["nif", "kf"])
             .register_asset_loader(NifAssetLoader)
-            .register_type::<BodySizeMetrics>()
             .init_asset_loader::<BMPLoader>()
             .init_asset_loader::<DDSLoader>()
             .init_resource::<SkeletonIdManager>()
             .init_resource::<SkeletonMap>()
             .add_observer(replace_temp_colliders)
-            .add_observer(insert_into_skeleton_map)
-            .add_observer(attach_parts_observer);
+            .add_observer(insert_into_skeleton_map);
         // check for one of avian's core plugins to check if the user already added the
         // physicsplugin
         if !app.is_plugin_added::<PhysicsSchedulePlugin>() {

@@ -3,12 +3,7 @@ use bevy_animation::{
     graph::AnimationNodeIndex,
 };
 use bevy_asset::{Assets, Handle};
-use bevy_ecs::{
-    component::Component,
-    entity::Entity,
-    event::{EntityEvent, Event},
-    reflect::ReflectComponent,
-};
+use bevy_ecs::{component::Component, entity::Entity, event::Event, reflect::ReflectComponent};
 use bevy_math::Vec3;
 use bevy_reflect::Reflect;
 use bitflags::bitflags;

@@ -2,6 +2,7 @@ use bevy_asset::{Handle, LoadContext, RenderAssetUsages};
 use bevy_camera::visibility::Visibility;
 use bevy_ecs::component::Component;
 use bevy_ecs::hierarchy::ChildOf;
+use bevy_ecs::name::Name;
 use bevy_ecs::reflect::ReflectComponent;
 use bevy_ecs::{entity::Entity, world::World};
 use bevy_log::{error, warn};
@@ -84,8 +85,9 @@ pub fn spawn_nif_node_recursive(
 
             let mut current_bone_name_opt = None;
             if let Some(skeleton) = skeleton_opt.as_mut() {
-                dbg!("adding bone");
-                dbg!(new_ninode_entity);
+                world
+                    .entity_mut(new_ninode_entity)
+                    .insert(Name::new(ni_node.name.to_string()));
                 skeleton.add_bone(
                     new_ninode_entity,
                     ni_node.name.to_string(), // Use the raw NIF name
@@ -143,7 +145,6 @@ pub fn spawn_nif_node_recursive(
                 .nif_node_index
                 .tri_shapes
                 .push(new_nitrishape_entity);
-            dbg!(new_nitrishape_entity);
 
             if is_nonvisual_collider || create_collider_from_mesh {
                 let temp_nif_collider = create_collider(trishape_data);
@@ -385,7 +386,6 @@ fn apply_skin_instance(
             bone_names.push(String::new());
         }
     }
-    dbg!(current_entity);
     // Required for animation
     let Some(target_skeleton_id) = spawn_context.target_skeleton_id_opt else {
         warn!("Skinned mesh was missing target skeleton id opt, skipping...");

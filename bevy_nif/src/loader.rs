@@ -29,8 +29,6 @@ pub struct NifAssetLoader;
 pub struct NifSettings {
     pub skeleton_id: Option<u64>,
     pub target_skeleton_id: Option<u64>,
-    /// Whether to mirror all the trishape translations and their meshes/normals
-    pub mirror_trishapes: bool,
 }
 impl AssetLoader for NifAssetLoader {
     type Asset = WorldAsset;
@@ -43,7 +41,6 @@ impl AssetLoader for NifAssetLoader {
         load_context: &mut LoadContext<'_>,
     ) -> Result<WorldAsset, Self::Error> {
         let mut bytes = Vec::new();
-        dbg!(settings.mirror_trishapes);
 
         if let Err(e) = reader.read_to_end(&mut bytes).await {
             error!("NifAssetLoader: Failed to read bytes: {:?}", e);
@@ -62,7 +59,6 @@ impl AssetLoader for NifAssetLoader {
             already_spawned_nodes: HashMap::default(),
             nif_node_index: NifNodeIndex::default(),
             ninodes_with_bvs: Vec::new(),
-            mirror_trishapes: settings.mirror_trishapes,
             target_skeleton_id_opt: settings.target_skeleton_id,
         };
         let mut world = World::default();
@@ -134,7 +130,6 @@ pub(crate) struct SpawnContext {
     pub(crate) already_spawned_nodes: HashMap<NiKey, Entity>,
     pub(crate) nif_node_index: NifNodeIndex,
     pub(crate) ninodes_with_bvs: Vec<(Entity, NiKey)>,
-    pub(crate) mirror_trishapes: bool,
     pub(crate) target_skeleton_id_opt: Option<u64>,
 }
 #[derive(Default, TypePath)]

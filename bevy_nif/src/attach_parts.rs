@@ -11,9 +11,10 @@ use bevy_ecs::{
     hierarchy::{ChildOf, Children},
     lifecycle::Add,
     observer::On,
-    system::{Commands, Query, Res, ResMut},
+    system::{Commands, Query, ResMut},
 };
 use bevy_log::{error, warn};
+use bevy_math::{Mat3, Quat};
 use bevy_mesh::{Mesh, Mesh3d, VertexAttributeValues, skinning::SkinnedMesh};
 use bevy_pbr::{MeshMaterial3d, StandardMaterial};
 use bevy_render::render_resource::Face;
@@ -37,6 +38,8 @@ pub enum AttachmentType {
     },
     // Maybe Morphed { target_bone: String }, later
 }
+// TODO:: this is pretty brittle, it just relies on skeletons taking longer to load than other nifs,
+// so that they will already be ready in attach_parts when the skeleton is finally ready
 pub fn insert_into_skeleton_map(
     event: On<Add<Skeleton>>,
     mut skeletons: Query<(Entity, &mut Skeleton)>,
@@ -47,7 +50,7 @@ pub fn insert_into_skeleton_map(
     materials: ResMut<Assets<StandardMaterial>>,
     nif_node_index_q: Query<&NifNodeIndex>,
     meshes: ResMut<Assets<Mesh>>,
-    mut pending_nif_skins: Query<(Entity, &mut PendingNifSkin)>,
+    pending_nif_skins: Query<(Entity, &mut PendingNifSkin)>,
     mut commands: Commands,
 ) {
     let Ok((skeleton_entity, mut skeleton)) = skeletons.get_mut(event.entity) else {
@@ -59,8 +62,6 @@ pub fn insert_into_skeleton_map(
         roots: std::mem::take(&mut skeleton.roots),
         skeleton_id: skeleton.skeleton_id,
     };
-    dbg!("inserting");
-    dbg!(owned_skeleton.skeleton_id);
     commands.entity(event.entity).remove::<Skeleton>();
     skeleton_map
         .id_to_skeleton
@@ -69,7 +70,6 @@ pub fn insert_into_skeleton_map(
         .id_to_skeleton_entity
         .insert(skeleton.skeleton_id, skeleton_entity);
     attach_parts(
-        event.entity,
         attach_query,
         &skeleton_map,
         commands,
@@ -81,34 +81,8 @@ pub fn insert_into_skeleton_map(
         pending_nif_skins,
     );
 }
-pub fn attach_parts_observer(
-    event: On<Add<NifNodeIndex>>,
-    attach_query: Query<(Entity, &AttachmentType, &Children)>,
-    skeleton_map: Res<SkeletonMap>,
-    commands: Commands,
-    transforms: Query<&mut Transform>,
-    materials_query: Query<(&Mesh3d, &MeshMaterial3d<StandardMaterial>)>,
-    materials: ResMut<Assets<StandardMaterial>>,
-    nif_node_index_q: Query<&NifNodeIndex>,
-    meshes: ResMut<Assets<Mesh>>,
-    mut pending_nif_skins: Query<(Entity, &mut PendingNifSkin)>,
-) {
-    attach_parts(
-        event.entity,
-        attach_query,
-        &skeleton_map,
-        commands,
-        transforms,
-        materials_query,
-        materials,
-        nif_node_index_q,
-        meshes,
-        pending_nif_skins,
-    );
-}
+
 pub fn attach_parts(
-    // This is a proxy for when the nif heirarchy is set up
-    entity: Entity,
     attach_query: Query<(Entity, &AttachmentType, &Children)>,
     skeleton_map: &SkeletonMap,
     mut commands: Commands,
@@ -140,37 +114,31 @@ pub fn attach_parts(
 
                     for trishape in &nif_index.tri_shapes {
                         if let Ok(mut transform) = transforms.get_mut(*trishape) {
-                            transform.translation = -transform.translation;
+                            // 1. Mirror translation and scale
+                            transform.translation.x = -transform.translation.x;
                             transform.scale.x = -1.0;
+
+                            // 2. Mirror the rotation matrix across the X axis
+                            let mut mat = Mat3::from_quat(transform.rotation);
+                            mat.y_axis.x = -mat.y_axis.x;
+                            mat.z_axis.x = -mat.z_axis.x;
+                            mat.x_axis.y = -mat.x_axis.y;
+                            mat.x_axis.z = -mat.x_axis.z;
+                            transform.rotation = Quat::from_mat3(&mat);
                         }
-                        // TODO:: maybe do the normal flipping in a shader so we don't have to clone
-                        // the whole mesh
-                        if let Ok((mesh3d, material)) = materials_query.get(*trishape) {
-                            if let Some(mesh) = meshes.get(&mesh3d.0) {
-                                let mut clone_mesh = mesh.clone();
-                                if let Some(VertexAttributeValues::Float32x3(normals)) =
-                                    clone_mesh.attribute_mut(Mesh::ATTRIBUTE_NORMAL)
-                                {
-                                    //Flip normals since we flipped x scale
-                                    for normal in normals {
-                                        normal[0] *= -1.0;
-                                        normal[1] *= -1.0;
-                                        normal[2] *= -1.0;
-                                    }
-                                }
-                                let mesh_handle = meshes.add(clone_mesh);
-                                commands.entity(*trishape).insert(Mesh3d(mesh_handle));
-                            }
-                            if let Some(mut standard_material) = materials.get_mut(&material.0) {
-                                standard_material.cull_mode = Some(Face::Front);
-                                standard_material.double_sided = true;
+                        if let Ok((_, material)) = materials_query.get(*trishape) {
+                            if let Some(standard_material) = materials.get(&material.0) {
+                                let mut cloned_material = standard_material.clone();
+                                cloned_material.cull_mode = Some(Face::Front);
+                                commands
+                                    .entity(*trishape)
+                                    .insert(MeshMaterial3d(materials.add(cloned_material)));
                             }
                         }
                     }
                 }
             }
 
-            dbg!(skeleton_bone.entity);
             commands
                 .entity(nifscene_root)
                 .insert(ChildOf(skeleton_bone.entity));
@@ -180,23 +148,18 @@ pub fn attach_parts(
             match attach_type {
                 AttachmentType::Skinned { skeleton_id } => {
                     for (trishape_entity, mut pending_skin) in pending_nif_skins.iter_mut() {
-                        dbg!(skeleton_id);
-                        dbg!(pending_skin.target_skeleton_id);
                         if pending_skin.target_skeleton_id != *skeleton_id {
                             continue;
                         }
 
                         let Some(skeleton) = skeleton_map.id_to_skeleton.get(skeleton_id) else {
-                            dbg!("a");
                             return;
                         };
                         let Some(skeleton_entity) =
                             skeleton_map.id_to_skeleton_entity.get(skeleton_id)
                         else {
-                            dbg!("a");
                             return;
                         };
-                        dbg!("a");
                         // Skinned sets the skeleton root as the parent
                         commands
                             .entity(nifscene_root)

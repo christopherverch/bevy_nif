@@ -41,11 +41,7 @@ fn main() {
         .add_systems(Update, test_loop_anims)
         .run();
 }
-fn debug_rotations(transforms: Query<&Transform, Changed<Transform>>) {
-    for transform in transforms {
-        dbg!(transform.rotation);
-    }
-}
+
 fn test_loop_anims(
     mut animator_q: Query<(
         &mut AnimationPlayer,
@@ -102,6 +98,7 @@ fn test_animations(
     >,
     mut anim_graphs: ResMut<Assets<AnimationGraph>>,
 ) {
+    dbg!("added");
     for (mut animation_player, mut nif_animator, graph_handle) in animator_q.iter_mut() {
         // --- print out all animation names ---
         let mut animation_names = Vec::new();

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use bevy_ecs::entity::{EntityMapper, MapEntities};
+use bevy_ecs::entity::MapEntities;
 use bevy_ecs::reflect::ReflectComponent;
 use bevy_ecs::reflect::ReflectMapEntities;
 use bevy_ecs::resource::Resource;

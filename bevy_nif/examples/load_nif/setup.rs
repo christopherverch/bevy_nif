@@ -1,15 +1,18 @@
 use bevy::camera_controller::free_camera::FreeCamera;
-use bevy::core_pipeline::prepass::{DeferredPrepass, DepthPrepass, MotionVectorPrepass};
 use bevy::light::{CascadeShadowConfigBuilder, NotShadowCaster, NotShadowReceiver};
 use bevy::prelude::*;
-use bevy_camera::Hdr;
 use bevy_material::OpaqueRendererMethod;
 use bevy_nif::attach_parts::AttachmentType;
-use bevy_nif::spawner::NifScene;
+use bevy_nif::loader::NifSettings;
+use bevy_nif::skeleton::SkeletonIdManager;
 use bevy_pbr::{MeshMaterial3d, StandardMaterial};
-use bevy_render::view::Msaa;
 
-pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+pub fn setup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+
+    mut skeleton_id_manager: ResMut<SkeletonIdManager>,
+) {
     spawn_nif_unattached(commands.reborrow(), &asset_server);
     let player_entity = commands
         .spawn(Transform {
@@ -21,11 +24,11 @@ pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         player_entity,
         commands.reborrow(),
         &asset_server,
-        0,
+        &mut skeleton_id_manager,
         Transform::default(),
     );
 }
-use std::f32::consts::{FRAC_PI_4, PI};
+use std::f32::consts::FRAC_PI_4;
 
 fn spawn_nifs(
     paths_with_target_bone: Vec<(&str, AttachmentType)>,
@@ -35,7 +38,17 @@ fn spawn_nifs(
     transform: Transform,
 ) {
     for (path, mut attachment_type) in paths_with_target_bone {
-        let asset_handle = asset_server.load(path.to_string());
+        let asset_handle = if let AttachmentType::Skinned { skeleton_id } = attachment_type.clone()
+        {
+            asset_server
+                .load_builder()
+                .with_settings(move |settings: &mut NifSettings| {
+                    settings.target_skeleton_id = Some(skeleton_id)
+                })
+                .load(path.to_string())
+        } else {
+            asset_server.load(path.to_string())
+        };
         if let AttachmentType::DoubleSidedRigid {
             target_bone,
             skeleton_id,
@@ -47,7 +60,7 @@ fn spawn_nifs(
             };
             let child = commands
                 .spawn((
-                    NifScene(asset_handle.clone()),
+                    WorldAssetRoot(asset_handle.clone()),
                     attachment_type,
                     transform,
                     InheritedVisibility::VISIBLE,
@@ -61,7 +74,7 @@ fn spawn_nifs(
         }
         let child = commands
             .spawn((
-                NifScene(asset_handle),
+                WorldAssetRoot(asset_handle),
                 transform,
                 InheritedVisibility::VISIBLE,
             ))
@@ -78,26 +91,19 @@ pub fn setup_scene(
     mut meshes: ResMut<Assets<Mesh>>,
     asset_server: Res<AssetServer>,
 ) {
-    let house = asset_server.load("data/b_n_dark elf_m_skins.nif");
     let head = asset_server.load("data/B_N_Dark Elf_M_Head_01.nif");
     let hair = asset_server.load("data/B_N_Dark Elf_M_Hair_01.nif");
     commands.spawn((
         Name::new("head"),
-        NifScene(head),
+        WorldAssetRoot(head),
         Visibility::Visible,
         Transform::default(),
-    ));
-    commands.spawn((
-        Name::new("house"),
-        NifScene(house),
-        Visibility::Visible,
-        Transform::from_xyz(0.0, 10.0, 0.0),
     ));
 
     commands.spawn((
         Name::new("hair"),
         Visibility::Visible,
-        NifScene(hair),
+        WorldAssetRoot(hair),
         Transform::default(),
     ));
 
@@ -169,7 +175,7 @@ pub fn setup_scene(
 fn spawn_nif_unattached(mut commands: Commands, asset_server: &Res<AssetServer>) {
     let head_handle = asset_server.load("data/A_Glass_Helmet.nif");
     commands.spawn((
-        NifScene(head_handle),
+        WorldAssetRoot(head_handle),
         InheritedVisibility::VISIBLE,
         Transform {
             translation: Vec3::new(-0.0, 0.5, -1.0),
@@ -178,7 +184,7 @@ fn spawn_nif_unattached(mut commands: Commands, asset_server: &Res<AssetServer>)
     ));
 }
 
-/// This system runs once for each newly spawned `NifScene` entity which
+/// This system runs once for each newly spawned `WorldAssetRoot` entity which
 /// also has a NeedsNifPhysic component.
 /// It creates and attaches the appropriate Rapier physics components, handling
 /// local collider offsets by spawning a dedicated child entity for the collider.
@@ -188,7 +194,7 @@ fn spawn_nif_unattached(mut commands: Commands, asset_server: &Res<AssetServer>)
 pub fn setup_nif_physics(
     mut commands: Commands,
     nif_assets: Res<Assets<Nif>>,
-    query: Query<(Entity, &NifScene, &Children, &NeedsNifPhysics)>,
+    query: Query<(Entity, &WorldAssetRoot, &Children, &NeedsNifPhysics)>,
 ) {
     for (top_level_entity, nif_scene, children, needs_physics) in query.iter() {
         // Mark the top-level entity so we don't process it again.
@@ -223,20 +229,23 @@ fn spawn_nif_attached(
     player_entity: Entity,
     mut commands: Commands,
     asset_server: &Res<AssetServer>,
-    skeleton_id: u64,
+    skeleton_id_manager: &mut SkeletonIdManager,
     transform: Transform,
 ) -> Entity {
-    let asset_handle = asset_server.load("data/base_anim.nif");
-    let child = commands
+    let skeleton_id = skeleton_id_manager.next_id();
+    let asset_handle = asset_server
+        .load_builder()
+        .with_settings(move |settings: &mut NifSettings| settings.skeleton_id = Some(skeleton_id))
+        .load("data/base_anim.nif");
+    let skeleton = commands
         .spawn((
-            NifScene(asset_handle),
+            WorldAssetRoot(asset_handle),
             Name::new("skeleton"),
-            AttachmentType::MainSkeleton { skeleton_id },
             transform,
             InheritedVisibility::VISIBLE,
         ))
         .id();
-    commands.entity(player_entity).add_child(child);
+    commands.entity(player_entity).add_child(skeleton);
     let paths_with_target_bone: Vec<(&str, AttachmentType)> = vec![
         (
             "data/b_n_dark elf_m_skins.nif",

@@ -1,28 +1,52 @@
 use std::collections::HashMap;
 
-use bevy_ecs::entity::Entity;
+use bevy_ecs::entity::{EntityMapper, MapEntities};
+use bevy_ecs::reflect::ReflectComponent;
+use bevy_ecs::reflect::ReflectMapEntities;
+use bevy_ecs::resource::Resource;
+use bevy_ecs::{component::Component, entity::Entity};
 use bevy_log::warn;
+use bevy_reflect::Reflect;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Resource, Default)]
+pub struct SkeletonMap {
+    pub id_to_skeleton: HashMap<u64, Skeleton>,
+    pub id_to_skeleton_entity: HashMap<u64, Entity>,
+}
+
+#[derive(Resource, Default)]
+pub struct SkeletonIdManager(u64);
+impl SkeletonIdManager {
+    pub fn next_id(&mut self) -> u64 {
+        self.0 += 1;
+        self.0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Reflect)]
 pub struct BoneId(pub usize);
 
-#[derive(Debug)]
+#[derive(Component, Default, Debug, Reflect, MapEntities)]
+#[reflect(Component, MapEntities)]
+pub struct Skeleton {
+    /// Stores all bone data
+    #[entities] // Tells the derived mapper to map entities inside this collection
+    pub bones: Vec<BoneData>,
+    /// Lookup of bone ID by name
+    pub(crate) name_to_id: HashMap<String, BoneId>,
+    /// BoneIds of root bones
+    pub(crate) roots: Vec<BoneId>,
+    pub(crate) skeleton_id: u64,
+}
+
+#[derive(Debug, Reflect, MapEntities)]
 pub struct BoneData {
     pub id: BoneId,
     pub name: String,
     pub parent: Option<BoneId>,
     pub children: Vec<BoneId>,
+    #[entities] // Tells the derived mapper to map this entity field
     pub entity: Entity,
-}
-
-#[derive(Default, Debug)]
-pub struct Skeleton {
-    /// Stores all bone data
-    pub bones: Vec<BoneData>,
-    /// Lookup of bone ID by name
-    name_to_id: HashMap<String, BoneId>,
-    /// BoneIds of root bones
-    roots: Vec<BoneId>,
 }
 
 impl Skeleton {

@@ -1,27 +1,27 @@
 pub mod attach_parts;
 pub mod helper_funcs;
 pub mod loader;
+mod loader_spawners;
 pub mod nif_animation;
+mod physics;
 pub mod skeleton;
-pub mod spawner;
 pub mod spawning_ni_helpers;
-
-use crate::loader::DDSLoader;
 use attach_parts::attach_parts;
-use avian3d::PhysicsPlugins;
 use avian3d::prelude::PhysicsSchedulePlugin;
-use bevy_app::{App, Plugin, PreUpdate};
+use avian3d::{PhysicsPlugins, prelude::BodySizeMetrics};
+use bevy_app::{App, Plugin};
 use bevy_asset::AssetApp;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_math::Vec3;
 pub use helper_funcs::*;
 use loader::{BMPLoader, Nif, NifAssetLoader};
 pub use nif::types::*;
-use nif_animation::SkeletonMap;
-use nif_animation::animation_setup_system::setup_animations;
-use spawner::spawn_nif_scenes;
+
+use crate::attach_parts::{attach_parts_observer, insert_into_skeleton_map};
+use crate::loader::DDSLoader;
+use crate::physics::replace_temp_colliders;
+use crate::skeleton::{SkeletonIdManager, SkeletonMap};
 
 pub const MW_UNITS_PER_METER: f32 = 69.991251091;
 pub const MW_SCALE_TO_BEVY: Vec3 = Vec3::splat(1.0 / MW_UNITS_PER_METER);
@@ -32,13 +32,16 @@ pub struct BevyNifPlugin;
 impl Plugin for BevyNifPlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<Nif>()
-            .init_asset_loader::<NifAssetLoader>()
+            .preregister_asset_loader::<NifAssetLoader>(&["nif", "kf"])
+            .register_asset_loader(NifAssetLoader)
+            .register_type::<BodySizeMetrics>()
             .init_asset_loader::<BMPLoader>()
             .init_asset_loader::<DDSLoader>()
-            .insert_resource(SkeletonMap::default())
-            .add_observer(attach_parts)
-            .add_systems(PreUpdate, spawn_nif_scenes)
-            .add_systems(PreUpdate, setup_animations.after(spawn_nif_scenes));
+            .init_resource::<SkeletonIdManager>()
+            .init_resource::<SkeletonMap>()
+            .add_observer(replace_temp_colliders)
+            .add_observer(insert_into_skeleton_map)
+            .add_observer(attach_parts_observer);
         // check for one of avian's core plugins to check if the user already added the
         // physicsplugin
         if !app.is_plugin_added::<PhysicsSchedulePlugin>() {

@@ -7,7 +7,8 @@ use bevy_egui::EguiPlugin;
 use bevy_image::{ImageAddressMode, ImageSamplerDescriptor};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_nif::nif_animation::bevy_types::{ActiveAnimation, AnimType, Priority};
-use bevy_nif::nif_animation::{BlendMask, NifAnimator, SkeletonMap};
+use bevy_nif::nif_animation::{BlendMask, NifAnimator};
+use bevy_nif::skeleton::{Skeleton, SkeletonMap};
 use bevy_nif::*;
 mod setup;
 
@@ -52,49 +53,41 @@ fn test_loop_anims(
         &AnimationGraphHandle,
     )>,
     mut anim_graphs: ResMut<Assets<AnimationGraph>>,
-    skeleton_map_res: Res<SkeletonMap>,
     animation_clips: Res<Assets<AnimationClip>>,
 ) {
-    for (id, _skeleton) in &skeleton_map_res.skeletons {
-        for (mut animation_player, mut nif_animator, graph_handle) in animator_q.iter_mut() {
-            if nif_animator.skeleton_id != *id {
-                continue;
-            }
-            let Some(run_forward_anim) = nif_animator.active_animations.get("runforward2w") else {
+    for (mut animation_player, mut nif_animator, graph_handle) in animator_q.iter_mut() {
+        let Some(run_forward_anim) = nif_animator.active_animations.get("runforward2w") else {
+            return;
+        };
+        let Some(runforward_clip) = animation_clips.get(&run_forward_anim.clip_handle) else {
+            return;
+        };
+        let duration = runforward_clip.duration();
+        let elapsed = {
+            let Some(animation) = animation_player.animation(run_forward_anim.node_index) else {
                 return;
             };
-            let Some(runforward_clip) = animation_clips.get(&run_forward_anim.clip_handle) else {
-                return;
-            };
-            let duration = runforward_clip.duration();
-            let elapsed = {
-                let Some(animation) = animation_player.animation(run_forward_anim.node_index)
-                else {
-                    return;
-                };
-                animation.elapsed()
-            };
-            println!("duration: {}, elapsed: {}", duration, elapsed,);
-            if animation_player
-                .animation(run_forward_anim.node_index)
-                .unwrap()
-                .elapsed()
-                >= duration
-            {
-                animation_player.stop(run_forward_anim.node_index);
-                let run_forward_anim = nif_animator
-                    .animation_definitions
-                    .get("runforward2w_loop")
-                    .unwrap();
-                let mut anim_graph = anim_graphs.get_mut(graph_handle).unwrap();
-                let run_forward_graph_node =
-                    anim_graph.get_mut(run_forward_anim.node_index).unwrap();
-                run_forward_graph_node.mask = BlendMask::UPPER_BODY.bits();
-                animation_player.play(run_forward_anim.node_index).repeat();
+            animation.elapsed()
+        };
+        println!("duration: {}, elapsed: {}", duration, elapsed,);
+        if animation_player
+            .animation(run_forward_anim.node_index)
+            .unwrap()
+            .elapsed()
+            >= duration
+        {
+            animation_player.stop(run_forward_anim.node_index);
+            let run_forward_anim = nif_animator
+                .animation_definitions
+                .get("runforward2w_loop")
+                .unwrap();
+            let mut anim_graph = anim_graphs.get_mut(graph_handle).unwrap();
+            let run_forward_graph_node = anim_graph.get_mut(run_forward_anim.node_index).unwrap();
+            run_forward_graph_node.mask = BlendMask::UPPER_BODY.bits();
+            animation_player.play(run_forward_anim.node_index).repeat();
 
-                nif_animator.active_animations.remove("runforward2w");
-                println!("looping animation");
-            }
+            nif_animator.active_animations.remove("runforward2w");
+            println!("looping animation");
         }
     }
 }
@@ -108,76 +101,70 @@ fn test_animations(
         Added<NifAnimator>,
     >,
     mut anim_graphs: ResMut<Assets<AnimationGraph>>,
-    skeleton_map_res: Res<SkeletonMap>,
 ) {
-    for (id, _skeleton) in &skeleton_map_res.skeletons {
-        for (mut animation_player, mut nif_animator, graph_handle) in animator_q.iter_mut() {
-            if nif_animator.skeleton_id != *id {
-                continue;
-            }
-            // --- print out all animation names ---
-            let mut animation_names = Vec::new();
-            for (name, animation) in &nif_animator.animation_definitions {
-                animation_names.push((name, animation.clone()));
-            }
-            animation_names.sort_by_key(|pair| pair.0.clone());
-            /*for (animation, animation_def) in animation_names {
-                println!(
-                    " animation: {}, {:?}",
-                    animation,
-                    animation_clips
-                        .get(&animation_def.clip_handle)
-                        .unwrap()
-                        .duration()
-                );
-                dbg!(animation_def.min_hit_time_relative);
-                dbg!(animation_def.hit_time_relative);
-            }*/
-            // ------------------------------------
-
-            let mut anim_graph = anim_graphs.get_mut(graph_handle).unwrap();
-            let run_forward_anim = nif_animator
-                .animation_definitions
-                .get("runforward2w")
-                .unwrap();
-
-            let chop_animation = nif_animator
-                .animation_definitions
-                .get("weapontwohand: chop_release")
-                .unwrap();
-            let chop_anim_graph_node = anim_graph.get_mut(chop_animation.node_index).unwrap();
-            chop_anim_graph_node.mask = BlendMask::LOWER_BODY.bits();
-            println!("chop mask: {}", BlendMask::LOWER_BODY.bits());
-            let run_forward_graph_node = anim_graph.get_mut(run_forward_anim.node_index).unwrap();
-            run_forward_graph_node.mask = BlendMask::UPPER_BODY.bits();
-            println!("run forward mask: {}", BlendMask::UPPER_BODY.bits());
-            animation_player.play(chop_animation.node_index).repeat();
-            animation_player.play(run_forward_anim.node_index);
-            let node_index = run_forward_anim.node_index;
-            let clip_handle = run_forward_anim.clip_handle.clone();
-            nif_animator.active_animations.insert(
-                "runforward2w".to_string(),
-                ActiveAnimation {
-                    clip_handle,
-                    node_index,
-                    blend_mask: BlendMask::empty(),
-                    next_clip_name: Some("runforward2w_loop".to_string()),
-                    priorities: [Priority::Hit; 4],
-                    speed_mult: 1.0,
-                    anim_type: AnimType::Loop,
-                    next_should_loop: false,
-                    auto_remove: true,
-                },
-            );
+    for (mut animation_player, mut nif_animator, graph_handle) in animator_q.iter_mut() {
+        // --- print out all animation names ---
+        let mut animation_names = Vec::new();
+        for (name, animation) in &nif_animator.animation_definitions {
+            animation_names.push((name, animation.clone()));
         }
+        animation_names.sort_by_key(|pair| pair.0.clone());
+        /*for (animation, animation_def) in animation_names {
+            println!(
+                " animation: {}, {:?}",
+                animation,
+                animation_clips
+                    .get(&animation_def.clip_handle)
+                    .unwrap()
+                    .duration()
+            );
+            dbg!(animation_def.min_hit_time_relative);
+            dbg!(animation_def.hit_time_relative);
+        }*/
+        // ------------------------------------
+
+        let mut anim_graph = anim_graphs.get_mut(graph_handle).unwrap();
+        let run_forward_anim = nif_animator
+            .animation_definitions
+            .get("runforward2w")
+            .unwrap();
+
+        let chop_animation = nif_animator
+            .animation_definitions
+            .get("weapontwohand: chop_release")
+            .unwrap();
+        let chop_anim_graph_node = anim_graph.get_mut(chop_animation.node_index).unwrap();
+        chop_anim_graph_node.mask = BlendMask::LOWER_BODY.bits();
+        println!("chop mask: {}", BlendMask::LOWER_BODY.bits());
+        let run_forward_graph_node = anim_graph.get_mut(run_forward_anim.node_index).unwrap();
+        run_forward_graph_node.mask = BlendMask::UPPER_BODY.bits();
+        println!("run forward mask: {}", BlendMask::UPPER_BODY.bits());
+        animation_player.play(chop_animation.node_index).repeat();
+        animation_player.play(run_forward_anim.node_index);
+        let node_index = run_forward_anim.node_index;
+        let clip_handle = run_forward_anim.clip_handle.clone();
+        nif_animator.active_animations.insert(
+            "runforward2w".to_string(),
+            ActiveAnimation {
+                clip_handle,
+                node_index,
+                blend_mask: BlendMask::empty(),
+                next_clip_name: Some("runforward2w_loop".to_string()),
+                priorities: [Priority::Hit; 4],
+                speed_mult: 1.0,
+                anim_type: AnimType::Loop,
+                next_should_loop: false,
+                auto_remove: true,
+            },
+        );
     }
 }
 fn wireframe(
-    skeleton_map_res: Res<SkeletonMap>,
+    skeleton_map: Res<SkeletonMap>,
     entity_q: Query<(Option<&Children>, &GlobalTransform)>,
     mut gizmos: Gizmos,
 ) {
-    for (_id, skeleton_entity) in &skeleton_map_res.root_skeleton_entity_map {
+    for (_, skeleton_entity) in skeleton_map.id_to_skeleton_entity.iter() {
         if let Ok((children_opt, global_transform)) = entity_q.get(*skeleton_entity) {
             // Use the first child of the skeleton entity to draw the wireframe, the other one is
             // the dark elf skinned mesh which we don't want to draw a wireframe for

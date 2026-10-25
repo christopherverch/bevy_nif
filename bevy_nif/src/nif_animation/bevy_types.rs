@@ -7,22 +7,13 @@ use bevy_ecs::{
     component::Component,
     entity::Entity,
     event::{EntityEvent, Event},
-    resource::Resource,
+    reflect::ReflectComponent,
 };
 use bevy_math::Vec3;
+use bevy_reflect::Reflect;
 use bitflags::bitflags;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-
-use crate::skeleton::Skeleton;
-
-#[derive(Resource, Debug, Default)]
-pub struct SkeletonMap {
-    /// Maps skeleton id to entity
-    pub root_skeleton_entity_map: HashMap<u64, Entity>,
-    /// Maps skeleton id to the Skeleton
-    pub skeletons: HashMap<u64, Skeleton>,
-}
 
 bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)] // Added Default
@@ -33,8 +24,10 @@ bitflags! {
         const RIGHT_ARM  = 1 << 3;    // 0b00001000
 
         const UPPER_BODY = Self::TORSO.bits() | Self::LEFT_ARM.bits() | Self::RIGHT_ARM.bits();         const ALL        = Self::LOWER_BODY.bits() | Self::UPPER_BODY.bits();     }
+
 }
-#[derive(Debug, Clone)]
+
+#[derive(Debug, Clone, Reflect)]
 pub struct AnimationDefinition {
     /// Bevy AnimationGraph node index for the clip
     pub node_index: AnimationNodeIndex,
@@ -52,7 +45,6 @@ pub struct AnimationDefinition {
     /// The isolated translation curve for the root bone (`Bip01`).
     /// This is sampled manually for root motion.
     pub root_translation_curve: Option<AnimatableKeyframeCurve<Vec3>>,
-    pub animation_events: Vec<(f32, ManualNifEvent)>,
     /// For attack animations only
     pub min_attack_time_relative: f32,
     /// For attack animations only
@@ -60,7 +52,7 @@ pub struct AnimationDefinition {
     /// For attack animations only
     pub min_hit_time_relative: f32,
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Reflect)]
 pub struct ActiveAnimation {
     /// Bevy AnimationGraph node index for the clip
     pub node_index: AnimationNodeIndex,
@@ -68,6 +60,7 @@ pub struct ActiveAnimation {
     pub clip_handle: Handle<AnimationClip>,
     pub anim_type: AnimType,
     /// A bitmask defining which body parts this animation affects.
+    #[reflect(ignore)]
     pub blend_mask: BlendMask,
     /// The name of the clip to transition to when this one finishes.
     pub next_clip_name: Option<String>,
@@ -81,7 +74,7 @@ pub struct ActiveAnimation {
 }
 /// Defines the animation priority levels, ordered from lowest to highest.
 /// determines which animations override others.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Reflect)]
 pub enum Priority {
     #[default]
     Default,
@@ -99,7 +92,7 @@ pub enum Priority {
     Death,
     Scripted,
 }
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Reflect)]
 pub enum AnimType {
     OneShot,
     Intro,
@@ -111,9 +104,9 @@ pub enum AnimType {
     SpecificFollow,
 }
 
-#[derive(Component)]
+#[derive(Component, Reflect)]
+#[reflect(Component)]
 pub struct NifAnimator {
-    pub skeleton_id: u64,
     // Maps animation name (e.g., "Idle", "HandToHand:Chop") to its definition
     pub animation_definitions: HashMap<String, AnimationDefinition>,
     // Currently playing animations on this animator, keyed by name
@@ -147,12 +140,6 @@ pub enum NifEventType {
 }
 #[derive(Clone, Debug, Serialize, Deserialize, AnimationEvent)]
 pub struct NifEvent {
-    pub entity: Entity,
-    pub event_type: NifEventType,
-}
-/// So we can manually trigger events that would normally be animation events
-#[derive(Clone, Debug, Serialize, Deserialize, EntityEvent)]
-pub struct ManualNifEvent {
     pub entity: Entity,
     pub event_type: NifEventType,
 }

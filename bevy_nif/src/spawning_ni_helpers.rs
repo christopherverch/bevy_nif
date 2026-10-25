@@ -1,4 +1,4 @@
-use bevy_asset::{AssetServer, Handle};
+use bevy_asset::{Handle, LoadContext};
 use bevy_color::{Color, LinearRgba};
 use bevy_image::Image;
 use bevy_material::AlphaMode;
@@ -12,7 +12,7 @@ use crate::helper_funcs::resolve_nif_path;
 pub fn process_nitexturingproperty(
     tex_prop: &NiTexturingProperty,
     nif: &Nif,
-    asset_server: &AssetServer,
+    load_context: &mut LoadContext,
 ) -> Option<Handle<Image>> {
     let mut texture_handle_opt: Option<Handle<Image>> = None;
     let base_texture = tex_prop.texture_maps[0].as_ref().unwrap();
@@ -27,7 +27,7 @@ pub fn process_nitexturingproperty(
                                 //dbg!(ext_path);
                                 let path = resolve_nif_path(ext_path);
                                 if let Some(path) = path {
-                                    texture_handle_opt = Some(asset_server.load(path));
+                                    texture_handle_opt = Some(load_context.load(path));
                                 }
                             }
                             TextureSource::Internal(_link) => {

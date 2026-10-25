@@ -1,9 +1,9 @@
 use crate::attach_parts::AttachmentType;
+use crate::loader::NifNodeIndex;
 use crate::nif_animation::SkeletonMap;
 use crate::spawning_ni_helpers::{process_nimaterialproperty, process_nitexturingproperty};
 use crate::{NeedsNifPhysics, hash_str, skeleton::*};
 use avian3d::prelude::{Collider, RigidBody};
-use bevy_asset::meta::Settings;
 use bevy_asset::{AssetServer, Assets, Handle, RenderAssetUsages};
 use bevy_camera::visibility::Visibility;
 use bevy_ecs::{
@@ -28,15 +28,6 @@ use nif::{NiKey, NiSkinInstance, NiType, loader::Nif};
 use nif::{NiTriBasedGeomData, NiTriShapeData};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-#[derive(Component, Default)]
-pub struct NifNodeIndex {
-    /// For specific, named parts (e.g., "NifScene", "LeftArm")
-    /// u64 is the hashed string for smaller storage size
-    pub named_nodes: HashMap<u64, Entity>,
-
-    /// all spawned trishape entities since these are iterated over in bulk in attach_parts
-    pub tri_shapes: Vec<Entity>,
-}
 #[derive(Component)]
 pub struct NeedsNifAnimator {
     pub handle: Handle<Nif>,
@@ -210,10 +201,12 @@ fn spawn_nif_node_recursive<'a>(
                     Visibility::Inherited,
                 ))
                 .id();
+
             spawn_context
                 .nif_node_index
                 .named_nodes
                 .insert(hash_str(&ni_node.name), new_ninode_entity);
+
             if let Some(_bounding_volume) = &ni_node.bounding_volume {
                 // dbg!("pushing bv to", new_ninode_entity);
                 spawn_context
@@ -224,6 +217,7 @@ fn spawn_nif_node_recursive<'a>(
             spawn_context
                 .already_spawned_nodes
                 .insert(current_key, new_ninode_entity);
+
             let mut current_bone_name_opt = None;
             if spawn_context.is_skeleton {
                 skeleton.add_bone(
@@ -781,7 +775,7 @@ fn create_mesh_with_flat_normals(
 
     Some(mesh)
 }
-pub fn create_collider(data: &NiTriShapeData) -> Collider {
+fn create_collider(data: &NiTriShapeData) -> Collider {
     // TODO:: not sure what to do with shared normals
     let NiTriShapeData {
         base,

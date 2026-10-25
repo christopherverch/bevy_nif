@@ -4,9 +4,10 @@ use std::io::{Read, Seek};
 use std::path::Path;
 
 // external imports
-use bevy_asset::{Asset, LoadContext};
+use bevy_asset::{Asset, Handle, LoadContext};
 use bevy_log::warn;
 use bevy_reflect::TypePath;
+use bevy_world_serialization::WorldAsset;
 use slotmap::{DenseSlotMap, Key};
 
 // internal imports
@@ -21,6 +22,7 @@ pub struct Nif {
     pub text_keys: Vec<NiTextKey>,
     /// For the animation setup system to easily find the bone it's looking for
     pub node_names: HashMap<NiKey, String>,
+    pub scenes: Vec<Handle<WorldAsset>>,
 }
 
 pub const HEADER: [u8; 40] = *b"NetImmerse File Format, Version 4.0.0.2\n";
@@ -196,6 +198,7 @@ pub fn load_nif_bytes(bytes: &[u8], _load_context: &mut LoadContext<'_>) -> io::
         all_controller_links,
         text_keys: final_text_keys,
         node_names,
+        scenes: Vec::new(),
     })
 }
 

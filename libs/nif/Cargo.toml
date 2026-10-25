@@ -8,6 +8,7 @@ license.workspace = true
 
 [dependencies]
 bevy_asset.workspace = true
+bevy_world_serialization.workspace = true
 bevy_log.workspace = true
 bevy_mesh.workspace = true
 bevy_reflect.workspace = true

@@ -14,18 +14,21 @@ use bevy_reflect::Reflect;
 use nif::{NiKey, loader::Nif};
 use nif::{NiSkinInstance, NiTriBasedGeomData, NiTriShapeData, NiType};
 
-use crate::hash_str;
-use crate::loader::SpawnContext;
+use crate::loader::{PendingNifSkins, SpawnContext};
 use crate::skeleton::Skeleton;
 use crate::spawning_ni_helpers::{process_nimaterialproperty, process_nitexturingproperty};
+use crate::{NifColliderData, hash_str};
 
 use bevy_pbr::{MeshMaterial3d, StandardMaterial};
 use bevy_render::mesh::Mesh3d;
 use bevy_transform::components::Transform;
 
-#[derive(Component, Reflect)]
-#[reflect(Component)]
-pub struct TempNifCollider(pub (Vec<Vec3>, Vec<[u32; 3]>));
+#[derive(Reflect)]
+pub struct NifBox {
+    pub translation: Vec3,
+    pub rotation: Quat,
+    pub extents: Vec3,
+}
 
 pub fn spawn_nif_node_recursive(
     nif: &Nif,
@@ -35,6 +38,7 @@ pub fn spawn_nif_node_recursive(
     parent_entity: Entity,
     parent_bone_name_opt: Option<&str>,
     mut skeleton_opt: Option<&mut Skeleton>,
+    pending_nif_skins: &mut Option<PendingNifSkins>,
     world: &mut World,
     is_nonvisual_collider: bool,
     mut create_collider_from_mesh: bool,
@@ -107,6 +111,7 @@ pub fn spawn_nif_node_recursive(
                     new_ninode_entity,
                     current_bone_name_opt,
                     skeleton_opt.as_deref_mut(),
+                    pending_nif_skins,
                     world,
                     is_nonvisual_collider,
                     create_collider_from_mesh,
@@ -122,6 +127,7 @@ pub fn spawn_nif_node_recursive(
 
             let new_nitrishape_entity = world
                 .spawn((
+                    Name::new(ni_trishape.name.clone()),
                     bevy_transform,
                     ChildOf(parent_entity),
                     Visibility::Inherited,
@@ -147,10 +153,10 @@ pub fn spawn_nif_node_recursive(
                 .push(new_nitrishape_entity);
 
             if is_nonvisual_collider || create_collider_from_mesh {
-                let temp_nif_collider = create_collider(trishape_data);
+                let nif_collider_data = create_collider(trishape_data);
                 world
                     .entity_mut(new_nitrishape_entity)
-                    .insert(temp_nif_collider);
+                    .insert(nif_collider_data);
                 if is_nonvisual_collider {
                     return;
                 }
@@ -165,9 +171,7 @@ pub fn spawn_nif_node_recursive(
             }
 
             // Convert and register mesh via LoadContext instead of meshes resource store
-            let Some(mut mesh) = convert_nif_mesh(trishape_data) else {
-                return;
-            };
+            let mut mesh_opt = convert_nif_mesh(trishape_data);
 
             // Process properties (materials and textures)
             let ni_properties = &ni_trishape.properties;
@@ -214,20 +218,36 @@ pub fn spawn_nif_node_recursive(
                             skin_instance,
                             new_nitrishape_entity,
                             &ni_trishape.name,
-                            &mut mesh,
-                            spawn_context,
+                            &mut mesh_opt,
                             load_context,
+                            pending_nif_skins,
                             world,
                         );
                     }
                 }
             }
             let label = format!("Mesh_{}", name_ref);
+            if let Some(mesh_data) = mesh_opt.take() {
+                let mut mesh = Mesh::new(
+                    PrimitiveTopology::TriangleList,
+                    RenderAssetUsages::default(),
+                )
+                .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, mesh_data.0);
 
-            let handle = load_context.add_loaded_labeled_asset(label, mesh.into());
-            world
-                .entity_mut(new_nitrishape_entity)
-                .insert(Mesh3d(handle));
+                // Create the Bevy Mesh
+                mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, mesh_data.1); // MOVE
+
+                // Insert UVs if they exist
+                if !mesh_data.2.is_empty() {
+                    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, mesh_data.2); // MOVE
+                }
+                // Insert the final flat indices
+                mesh.insert_indices(Indices::U16(mesh_data.3));
+                let handle = load_context.add_loaded_labeled_asset(label, mesh.into());
+                world
+                    .entity_mut(new_nitrishape_entity)
+                    .insert(Mesh3d(handle));
+            }
         }
 
         NiType::RootCollisionNode(node) => {
@@ -263,6 +283,7 @@ pub fn spawn_nif_node_recursive(
                     new_collision_node_entity,
                     None,
                     skeleton_opt.as_deref_mut(),
+                    pending_nif_skins,
                     world,
                     true,
                     false,
@@ -272,7 +293,7 @@ pub fn spawn_nif_node_recursive(
         _ => {}
     }
 }
-fn create_collider(data: &NiTriShapeData) -> TempNifCollider {
+fn create_collider(data: &NiTriShapeData) -> NifColliderData {
     // TODO:: not sure what to do with shared normals
     let NiTriShapeData {
         base,
@@ -286,18 +307,19 @@ fn create_collider(data: &NiTriShapeData) -> TempNifCollider {
         .iter()
         .map(|&[x, y, z]| [x as u32, y as u32, z as u32])
         .collect();
-    TempNifCollider((vertices, u32_indices))
+    NifColliderData::Trimesh(vertices, u32_indices)
 }
 fn apply_skin_instance(
     nif: &Nif,
     skin_instance: &NiSkinInstance,
     current_entity: Entity,
     current_name: &str,
-    mesh: &mut Mesh,
-    spawn_context: &mut SpawnContext,
+    mesh_opt: &mut Option<(Vec<Vec3>, Vec<Vec3>, Vec<Vec2>, Vec<u16>)>,
     load_context: &mut LoadContext,
+    pending_nif_skins: &mut Option<PendingNifSkins>,
     world: &mut World,
 ) {
+    let Some(mesh_ref) = mesh_opt else { return };
     let skin_data_key = skin_instance.data.key;
     let Some(skin_data) = nif.objects.get(skin_data_key) else {
         return;
@@ -310,16 +332,7 @@ fn apply_skin_instance(
     };
     //  Add vertex attributes
     // Only insert joint indices/weights if some other node didn't already do it for this mesh
-    if mesh.attribute(Mesh::ATTRIBUTE_JOINT_INDEX).is_some() {
-        return;
-    }
-    let Some(vertex_count) = mesh.attribute(Mesh::ATTRIBUTE_POSITION).map(|a| a.len()) else {
-        warn!(
-            "   Could not apply skinning attributes: Mesh for {:?} missing positions?",
-            skin_instance.root.key,
-        );
-        return;
-    };
+    let vertex_count = mesh_ref.0.len();
 
     // The 4 indices of the bones that affect this vertex, like [bone1_idx, bone2_idx,..]
     let mut joint_indices: Vec<[u16; 4]> = vec![[0, 0, 0, 0]; vertex_count];
@@ -387,29 +400,45 @@ fn apply_skin_instance(
         }
     }
     // Required for animation
-    let Some(target_skeleton_id) = spawn_context.target_skeleton_id_opt else {
-        warn!("Skinned mesh was missing target skeleton id opt, skipping...");
+    let Some(mesh) = mesh_opt.take() else {
         return;
     };
+
     world.entity_mut(current_entity).insert(PendingNifSkin {
-        target_skeleton_id,
+        mesh: Some(mesh),
         joint_indices,
         joint_weights,
         inverse_bindposes: ibp_handle,
         bone_names,
     });
+    if let Some(pending_nif_skins) = pending_nif_skins {
+        pending_nif_skins.pending.push(current_entity);
+    } else {
+        let mut pending_skins = Vec::new();
+        pending_skins.push(current_entity);
+        *pending_nif_skins = Some(PendingNifSkins {
+            pending: pending_skins,
+            skeleton_entity: None,
+        });
+    }
 }
 #[derive(Component, Reflect)]
 #[reflect(Component)]
+pub struct NeedsNifSkinMapping;
+#[derive(Component, Reflect)]
+#[reflect(Component)]
 pub struct PendingNifSkin {
-    pub target_skeleton_id: u64,
+    // So we can .take() out of it later
+    pub mesh: Option<(Vec<Vec3>, Vec<Vec3>, Vec<Vec2>, Vec<u16>)>,
     pub joint_indices: Vec<[u16; 4]>,
     pub joint_weights: Vec<[f32; 4]>,
     pub inverse_bindposes: Handle<SkinnedMeshInverseBindposes>,
     pub bone_names: Vec<String>,
 }
 
-pub fn convert_nif_mesh(data: &NiTriShapeData) -> Option<Mesh> {
+pub fn convert_nif_mesh(
+    data: &NiTriShapeData,
+) -> Option<(Vec<Vec3>, Vec<Vec3>, Vec<Vec2>, Vec<u16>)> {
     // TODO:: not sure what to do with shared normals
     let NiTriShapeData {
         base,
@@ -421,26 +450,10 @@ pub fn convert_nif_mesh(data: &NiTriShapeData) -> Option<Mesh> {
     let normals = base.normals.clone();
     let uvs = base.uv_sets.clone();
     let indices = triangles;
-    let final_mesh_opt: Option<Mesh>;
+    let final_mesh_opt;
     let flat_indices: Vec<u16> = indices.into_iter().cloned().flatten().collect();
     if !normals.is_empty() {
-        let mut mesh = Mesh::new(
-            PrimitiveTopology::TriangleList,
-            RenderAssetUsages::default(),
-        )
-        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, vertices);
-
-        // Create the Bevy Mesh
-        mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals); // MOVE
-
-        // Insert UVs if they exist
-        if !uvs.is_empty() {
-            mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs); // MOVE
-        }
-        // Insert the final flat indices
-        mesh.insert_indices(Indices::U16(flat_indices));
-
-        final_mesh_opt = Some(mesh);
+        final_mesh_opt = Some((vertices, normals, uvs, flat_indices));
     } else {
         // Fallback: Need to call the helper function, which needs to be updated
         // to accept the Bevy array types (Vec<[f32; 3]>).
@@ -467,7 +480,7 @@ fn create_mesh_with_flat_normals(
     original_vertices_nif: Vec<Vec3>,
     original_indices: Vec<u16>,
     original_uvs: Option<&Vec<Vec2>>,
-) -> Option<Mesh> {
+) -> Option<(Vec<Vec3>, Vec<Vec3>, Vec<Vec2>, Vec<u16>)> {
     let vertex_count = original_vertices_nif.len();
     if vertex_count == 0 {
         warn!("Cannot compute flat normals: No vertices provided.");
@@ -489,11 +502,11 @@ fn create_mesh_with_flat_normals(
     let new_vertex_count = num_triangles * 3;
 
     // Initialize buffers for the new mesh data
-    let mut final_vertices: Vec<[f32; 3]> = Vec::with_capacity(new_vertex_count);
-    let mut final_normals: Vec<[f32; 3]> = Vec::with_capacity(new_vertex_count);
+    let mut final_vertices: Vec<Vec3> = Vec::with_capacity(new_vertex_count);
+    let mut final_normals: Vec<Vec3> = Vec::with_capacity(new_vertex_count);
     let mut final_indices: Vec<u16> = Vec::with_capacity(new_vertex_count);
     // Only create UV buffer if original UVs were present
-    let mut final_uvs: Option<Vec<[f32; 2]>> =
+    let mut final_uvs: Option<Vec<Vec2>> =
         original_uvs.map(|_| Vec::with_capacity(new_vertex_count));
 
     for i in 0..num_triangles {
@@ -526,12 +539,12 @@ fn create_mesh_with_flat_normals(
         let face_normal = edge1.cross(edge2);
 
         // Normalize, handling degenerate triangles (use Y-up as default)
-        let normalized_normal_array = face_normal.try_normalize().unwrap_or(Vec3::Y).to_array();
+        let normalized_normal_array = face_normal.try_normalize().unwrap_or(Vec3::Y);
 
         // Add duplicated vertex positions
-        final_vertices.push(v0.to_array());
-        final_vertices.push(v1.to_array());
-        final_vertices.push(v2.to_array());
+        final_vertices.push(v0);
+        final_vertices.push(v1);
+        final_vertices.push(v2);
 
         // Add the same face normal for all 3 vertices of this triangle
         final_normals.push(normalized_normal_array);
@@ -549,17 +562,17 @@ fn create_mesh_with_flat_normals(
             if let Some(uvs_in) = original_uvs {
                 // Check bounds for original UVs as well
                 if idx0 < uvs_in.len() && idx1 < uvs_in.len() && idx2 < uvs_in.len() {
-                    uvs_out.push([uvs_in[idx0].x, uvs_in[idx0].y]);
-                    uvs_out.push([uvs_in[idx1].x, uvs_in[idx1].y]);
-                    uvs_out.push([uvs_in[idx2].x, uvs_in[idx2].y]);
+                    uvs_out.push([uvs_in[idx0].x, uvs_in[idx0].y].into());
+                    uvs_out.push([uvs_in[idx1].x, uvs_in[idx1].y].into());
+                    uvs_out.push([uvs_in[idx2].x, uvs_in[idx2].y].into());
                 } else {
                     warn!(
                         "Missing UV data for original indices in triangle {}, using default [0,0].",
                         i
                     );
-                    uvs_out.push([0.0, 0.0]);
-                    uvs_out.push([0.0, 0.0]);
-                    uvs_out.push([0.0, 0.0]);
+                    uvs_out.push([0.0, 0.0].into());
+                    uvs_out.push([0.0, 0.0].into());
+                    uvs_out.push([0.0, 0.0].into());
                 }
             }
         }
@@ -587,18 +600,8 @@ fn create_mesh_with_flat_normals(
     }
 
     // Create the Bevy Mesh using the generated data
-    let mut mesh = Mesh::new(
-        PrimitiveTopology::TriangleList,
-        RenderAssetUsages::default(),
-    )
-    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, final_vertices) // Use new vertices
-    .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, final_normals); // Use new normals
 
-    if let Some(final_uvs_vec) = final_uvs {
-        mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, final_uvs_vec);
-    }
+    let final_uvs = final_uvs.unwrap_or_default();
 
-    mesh.insert_indices(Indices::U16(final_indices)); // Use new sequential indices
-
-    Some(mesh)
+    Some((final_vertices, final_normals, final_uvs, final_indices))
 }

@@ -138,8 +138,6 @@ pub struct NifEvent {
     pub entity: Entity,
     pub event_type: NifEventType,
 }
-#[derive(Event)]
-pub struct NifAnimatorAdded(pub Entity);
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub enum AnimationTransitionState {

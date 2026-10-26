@@ -4,15 +4,9 @@ use bevy::prelude::*;
 use bevy_material::OpaqueRendererMethod;
 use bevy_nif::attach_parts::AttachmentType;
 use bevy_nif::loader::NifSettings;
-use bevy_nif::skeleton::SkeletonIdManager;
 use bevy_pbr::{MeshMaterial3d, StandardMaterial};
 
-pub fn setup(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-
-    mut skeleton_id_manager: ResMut<SkeletonIdManager>,
-) {
+pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     spawn_nif_unattached(commands.reborrow(), &asset_server);
     let player_entity = commands
         .spawn(Transform {
@@ -24,7 +18,18 @@ pub fn setup(
         player_entity,
         commands.reborrow(),
         &asset_server,
-        &mut skeleton_id_manager,
+        Transform::default(),
+    );
+    let player_entity = commands
+        .spawn(Transform {
+            translation: Vec3::new(-10.0, 0.0, -1.0),
+            ..default()
+        })
+        .id();
+    spawn_nif_attached(
+        player_entity,
+        commands.reborrow(),
+        &asset_server,
         Transform::default(),
     );
 }
@@ -38,25 +43,15 @@ fn spawn_nifs(
     transform: Transform,
 ) {
     for (path, mut attachment_type) in paths_with_target_bone {
-        let asset_handle = if let AttachmentType::Skinned { skeleton_id } = attachment_type.clone()
-        {
-            asset_server
-                .load_builder()
-                .with_settings(move |settings: &mut NifSettings| {
-                    settings.target_skeleton_id = Some(skeleton_id)
-                })
-                .load(path.to_string())
-        } else {
-            asset_server.load(path.to_string())
-        };
+        let asset_handle = asset_server.load(path.to_string());
         if let AttachmentType::DoubleSidedRigid {
             target_bone,
-            skeleton_id,
+            skeleton_entity,
         } = attachment_type.clone()
         {
             attachment_type = AttachmentType::Rigid {
                 target_bone: format!("Left {}", target_bone),
-                skeleton_id,
+                skeleton_entity,
             };
             let child = commands
                 .spawn((
@@ -69,7 +64,7 @@ fn spawn_nifs(
             commands.entity(entity).add_child(child);
             attachment_type = AttachmentType::Rigid {
                 target_bone: format!("Right {}", target_bone),
-                skeleton_id,
+                skeleton_entity,
             };
         }
         let child = commands
@@ -229,15 +224,13 @@ fn spawn_nif_attached(
     player_entity: Entity,
     mut commands: Commands,
     asset_server: &Res<AssetServer>,
-    skeleton_id_manager: &mut SkeletonIdManager,
     transform: Transform,
 ) -> Entity {
-    let skeleton_id = skeleton_id_manager.next_id();
     let asset_handle = asset_server
         .load_builder()
-        .with_settings(move |settings: &mut NifSettings| settings.skeleton_id = Some(skeleton_id))
+        .with_settings(move |settings: &mut NifSettings| settings.is_skeleton = true)
         .load("data/base_anim.nif");
-    let skeleton = commands
+    let skeleton_entity = commands
         .spawn((
             WorldAssetRoot(asset_handle),
             Name::new("skeleton"),
@@ -245,87 +238,87 @@ fn spawn_nif_attached(
             InheritedVisibility::VISIBLE,
         ))
         .id();
-    commands.entity(player_entity).add_child(skeleton);
+    commands.entity(player_entity).add_child(skeleton_entity);
     let paths_with_target_bone: Vec<(&str, AttachmentType)> = vec![
         (
             "data/b_n_dark elf_m_skins.nif",
-            AttachmentType::Skinned { skeleton_id },
+            AttachmentType::Skinned { skeleton_entity },
         ),
         (
             "data/B_N_Dark Elf_M_Head_01.nif",
             AttachmentType::Rigid {
                 target_bone: "Head".to_string(),
-                skeleton_id,
+                skeleton_entity,
             },
         ),
         (
             "data/B_N_Dark Elf_M_Hair_01.nif",
             AttachmentType::Rigid {
                 target_bone: "Head".to_string(),
-                skeleton_id,
+                skeleton_entity,
             },
         ),
         (
             "data/B_N_Dark Elf_M_Neck.nif",
             AttachmentType::Rigid {
                 target_bone: "Neck".to_string(),
-                skeleton_id,
+                skeleton_entity,
             },
         ),
         (
             "data/B_N_Dark Elf_M_Groin.nif",
             AttachmentType::Rigid {
                 target_bone: "Groin".to_string(),
-                skeleton_id,
+                skeleton_entity,
             },
         ),
         (
             "data/B_N_Dark Elf_M_Forearm.nif",
             AttachmentType::DoubleSidedRigid {
                 target_bone: "Forearm".to_string(),
-                skeleton_id,
+                skeleton_entity,
             },
         ),
         (
             "data/B_N_Dark Elf_M_Upper Arm.nif",
             AttachmentType::DoubleSidedRigid {
                 target_bone: "Upper Arm".to_string(),
-                skeleton_id,
+                skeleton_entity,
             },
         ),
         (
             "data/B_N_Dark Elf_M_Wrist.nif",
             AttachmentType::DoubleSidedRigid {
                 target_bone: "Wrist".to_string(),
-                skeleton_id,
+                skeleton_entity,
             },
         ),
         (
             "data/B_N_Dark Elf_M_Upper Leg.nif",
             AttachmentType::DoubleSidedRigid {
                 target_bone: "Upper Leg".to_string(),
-                skeleton_id,
+                skeleton_entity,
             },
         ),
         (
             "data/B_N_Dark Elf_M_Knee.nif",
             AttachmentType::DoubleSidedRigid {
                 target_bone: "Knee".to_string(),
-                skeleton_id,
+                skeleton_entity,
             },
         ),
         (
             "data/B_N_Dark Elf_M_Ankle.nif",
             AttachmentType::DoubleSidedRigid {
                 target_bone: "Ankle".to_string(),
-                skeleton_id,
+                skeleton_entity,
             },
         ),
         (
             "data/B_N_Dark Elf_M_Foot.nif",
             AttachmentType::DoubleSidedRigid {
                 target_bone: "Foot".to_string(),
-                skeleton_id,
+                skeleton_entity,
             },
         ),
     ];

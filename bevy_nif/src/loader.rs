@@ -12,24 +12,29 @@ use bevy_render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy_transform::components::Transform;
 use bevy_world_serialization::WorldAsset;
 use image_dds::ddsfile::Dds;
-use nif::NiKey;
 pub use nif::loader::Nif;
 use nif::loader::load_nif_bytes;
+use nif::{NiKey, NiType};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::{Cursor, ErrorKind};
 
-use crate::loader_spawners::spawn_nif_node_recursive;
+use crate::loader_spawners::{NeedsNifSkinMapping, spawn_nif_node_recursive};
 use crate::nif_animation::animation_setup_system::setup_animations_new;
+use crate::physics::handle_bvs;
 use crate::skeleton::Skeleton;
 
 #[derive(Default, TypePath)]
 pub struct NifAssetLoader;
 #[derive(Serialize, Deserialize, Default, Clone, Hash, PartialEq, Eq)]
 pub struct NifSettings {
-    pub skeleton_id: Option<u64>,
-    pub target_skeleton_id: Option<u64>,
+    pub is_skeleton: bool,
 }
+
+#[derive(Component, Default, Reflect)]
+#[reflect(Component)]
+pub struct NeedsSkeletonMapping;
+
 impl AssetLoader for NifAssetLoader {
     type Asset = WorldAsset;
     type Settings = NifSettings;
@@ -47,11 +52,8 @@ impl AssetLoader for NifAssetLoader {
             return Err(e);
         }
         let nif = load_nif_bytes(&bytes, load_context)?;
-        let mut skeleton_opt = if let Some(skeleton_id) = settings.skeleton_id {
-            Some(Skeleton {
-                skeleton_id,
-                ..Default::default()
-            })
+        let mut skeleton_opt = if settings.is_skeleton {
+            Some(Skeleton::default())
         } else {
             None
         };
@@ -59,12 +61,12 @@ impl AssetLoader for NifAssetLoader {
             already_spawned_nodes: HashMap::default(),
             nif_node_index: NifNodeIndex::default(),
             ninodes_with_bvs: Vec::new(),
-            target_skeleton_id_opt: settings.target_skeleton_id,
         };
         let mut world = World::default();
         let root_entity = world
             .spawn((Transform::default(), Visibility::Inherited))
             .id();
+        let mut pending_nif_skins = None;
         for current_node in nif.roots.iter() {
             let root_node_entity = world
                 .spawn((
@@ -83,19 +85,19 @@ impl AssetLoader for NifAssetLoader {
                 root_node_entity,
                 None,
                 skeleton_opt.as_mut(),
+                &mut pending_nif_skins,
                 &mut world,
                 false,
                 false,
             );
         }
-        if !spawn_context.ninodes_with_bvs.is_empty() {
-            // TODO:: directly spawn the bvs
-            /*
-            world
-                .entity_mut(root_entity)
-                .insert(NeedsNifPhysics(spawn_context.ninodes_with_bvs));
-            */
-        }
+        let collider_data_opt = handle_bvs(spawn_context.ninodes_with_bvs, &nif);
+        // TODO:: directly spawn the bvs
+        /*
+        world
+            .entity_mut(root_entity)
+            .insert(NeedsNifPhysics(spawn_context.ninodes_with_bvs));
+        */
 
         world
             .entity_mut(root_entity)
@@ -103,7 +105,18 @@ impl AssetLoader for NifAssetLoader {
 
         if let Some(skeleton) = skeleton_opt {
             setup_animations_new(root_entity, &nif, &skeleton, load_context, &mut world);
-            world.entity_mut(root_entity).insert(skeleton);
+            dbg!(load_context.path());
+            world
+                .entity_mut(root_entity)
+                .insert((skeleton, NeedsSkeletonMapping));
+        }
+        if let Some(pending_nif_skins) = pending_nif_skins {
+            world
+                .entity_mut(root_entity)
+                .insert((pending_nif_skins, NeedsNifSkinMapping));
+        }
+        if let Some(collider_data) = collider_data_opt {
+            world.entity_mut(root_entity).insert(collider_data);
         }
         let world_asset = WorldAsset::new(world);
         Ok(world_asset)
@@ -112,6 +125,14 @@ impl AssetLoader for NifAssetLoader {
     fn extensions(&self) -> &[&str] {
         &["nif", "kf"]
     }
+}
+#[derive(Component, Default, Debug, Reflect, MapEntities)]
+#[reflect(Component, MapEntities)]
+pub struct PendingNifSkins {
+    #[entities]
+    pub pending: Vec<Entity>,
+    /// Will be filled in in attach_parts
+    pub skeleton_entity: Option<Entity>,
 }
 
 #[derive(Component, Default, Reflect, MapEntities)]
@@ -130,7 +151,6 @@ pub(crate) struct SpawnContext {
     pub(crate) already_spawned_nodes: HashMap<NiKey, Entity>,
     pub(crate) nif_node_index: NifNodeIndex,
     pub(crate) ninodes_with_bvs: Vec<(Entity, NiKey)>,
-    pub(crate) target_skeleton_id_opt: Option<u64>,
 }
 #[derive(Default, TypePath)]
 pub struct BMPLoader;

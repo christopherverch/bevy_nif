@@ -12,13 +12,16 @@ use bevy_app::{App, Plugin};
 use bevy_asset::AssetApp;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::reflect::ReflectComponent;
 use bevy_math::Vec3;
+use bevy_reflect::Reflect;
 pub use helper_funcs::*;
 use loader::{BMPLoader, Nif, NifAssetLoader};
 pub use nif::types::*;
 
-use crate::attach_parts::insert_into_skeleton_map;
+use crate::attach_parts::{handle_needs_nifskin_mapping, insert_into_skeleton_map};
 use crate::loader::DDSLoader;
+use crate::loader_spawners::NifBox;
 use crate::physics::replace_temp_colliders;
 use crate::skeleton::{SkeletonIdManager, SkeletonMap};
 
@@ -38,6 +41,7 @@ impl Plugin for BevyNifPlugin {
             .init_resource::<SkeletonIdManager>()
             .init_resource::<SkeletonMap>()
             .add_observer(replace_temp_colliders)
+            .add_observer(handle_needs_nifskin_mapping)
             .add_observer(insert_into_skeleton_map);
         // check for one of avian's core plugins to check if the user already added the
         // physicsplugin
@@ -45,4 +49,14 @@ impl Plugin for BevyNifPlugin {
             app.add_plugins(PhysicsPlugins::default());
         }
     }
+}
+#[derive(Component, Reflect, Default)]
+#[reflect(Component)]
+pub enum NifColliderData {
+    // Just so we can mem::take
+    #[default]
+    Taken,
+    Trimesh(Vec<Vec3>, Vec<[u32; 3]>),
+    // TODO:: this should just be compound, with different shapes as an enum
+    CompoundBox(Vec<NifBox>),
 }

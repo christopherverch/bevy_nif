@@ -10,8 +10,7 @@ use bevy_reflect::Reflect;
 
 #[derive(Resource, Default)]
 pub struct SkeletonMap {
-    pub id_to_skeleton: HashMap<u64, Skeleton>,
-    pub id_to_skeleton_entity: HashMap<u64, Entity>,
+    pub entity_to_skeleton: HashMap<Entity, Skeleton>,
 }
 
 #[derive(Resource, Default)]
@@ -36,7 +35,6 @@ pub struct Skeleton {
     pub(crate) name_to_id: HashMap<String, BoneId>,
     /// BoneIds of root bones
     pub(crate) roots: Vec<BoneId>,
-    pub(crate) skeleton_id: u64,
 }
 
 #[derive(Debug, Reflect, MapEntities)]

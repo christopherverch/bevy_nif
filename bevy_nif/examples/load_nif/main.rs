@@ -99,7 +99,9 @@ fn test_animations(
     mut anim_graphs: ResMut<Assets<AnimationGraph>>,
 ) {
     dbg!("added");
-    for (mut animation_player, mut nif_animator, graph_handle) in animator_q.iter_mut() {
+    if let Some((mut animation_player, mut nif_animator, graph_handle)) =
+        animator_q.iter_mut().next()
+    {
         // --- print out all animation names ---
         let mut animation_names = Vec::new();
         for (name, animation) in &nif_animator.animation_definitions {
@@ -161,7 +163,7 @@ fn wireframe(
     entity_q: Query<(Option<&Children>, &GlobalTransform)>,
     mut gizmos: Gizmos,
 ) {
-    for (_, skeleton_entity) in skeleton_map.id_to_skeleton_entity.iter() {
+    for (skeleton_entity, _) in skeleton_map.entity_to_skeleton.iter() {
         if let Ok((children_opt, global_transform)) = entity_q.get(*skeleton_entity) {
             // Use the first child of the skeleton entity to draw the wireframe, the other one is
             // the dark elf skinned mesh which we don't want to draw a wireframe for

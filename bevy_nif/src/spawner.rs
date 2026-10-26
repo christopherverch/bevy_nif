@@ -143,12 +143,6 @@ pub fn spawn_nif_scenes(
                 handle: nif_scene_component.0.clone(),
                 skeleton_id: target_skeleton_id,
             });
-        } else {
-            commands.trigger(NifInstantiated {
-                handle: nif_scene_component.0.clone(),
-                entity: original_entity,
-                skeleton_id_opt: target_skeleton_id_opt,
-            });
         }
     }
 }

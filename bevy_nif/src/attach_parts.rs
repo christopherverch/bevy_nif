@@ -4,21 +4,18 @@ use crate::{
     skeleton::{Skeleton, SkeletonMap},
 };
 
-use bevy_asset::{Assets, RenderAssetUsages};
+use bevy_asset::Assets;
 use bevy_ecs::{
     component::Component,
     entity::Entity,
     hierarchy::{ChildOf, Children},
-    name::Name,
     observer::On,
     query::{With, Without},
     system::{Commands, Query, ResMut},
 };
 use bevy_log::{error, warn};
 use bevy_math::{Mat3, Quat};
-use bevy_mesh::{
-    Indices, Mesh, Mesh3d, PrimitiveTopology, VertexAttributeValues, skinning::SkinnedMesh,
-};
+use bevy_mesh::{Mesh, Mesh3d, VertexAttributeValues, skinning::SkinnedMesh};
 use bevy_pbr::{MeshMaterial3d, StandardMaterial};
 use bevy_render::render_resource::Face;
 use bevy_transform::components::Transform;
@@ -42,8 +39,6 @@ pub enum AttachmentType {
     },
     // Maybe Morphed { target_bone: String }, later
 }
-// TODO:: this should call attach_parts somehow, otherwise we're just hoping another
-// worldinstanceready happens in the skeleton check and runs attach_parts for us
 pub fn handle_needs_nifskin_mapping(
     event: On<WorldInstanceReady>,
     pending_nif_skins: Query<(Entity, &ChildOf, &mut PendingNifSkins), With<NeedsNifSkinMapping>>,
@@ -72,13 +67,12 @@ pub fn insert_into_skeleton_map(
     mut skeleton_map: ResMut<SkeletonMap>,
     attach_query: Query<(Entity, &AttachmentType, &Children)>,
     transforms: Query<&mut Transform>,
-    materials_query: Query<&MeshMaterial3d<StandardMaterial>>,
+    materials_query: Query<(&Mesh3d, &MeshMaterial3d<StandardMaterial>)>,
     materials: ResMut<Assets<StandardMaterial>>,
     nif_node_index_q: Query<&NifNodeIndex>,
     meshes: ResMut<Assets<Mesh>>,
-    pending_nif_skins_q: Query<&PendingNifSkins, Without<NeedsNifSkinMapping>>,
+    pending_nif_skins_q: Query<&mut PendingNifSkins, Without<NeedsNifSkinMapping>>,
     pending_nif_skin_q: Query<&mut PendingNifSkin>,
-    name_q: Query<&Name>,
     mut commands: Commands,
 ) {
     for (skeleton_entity, mut skeleton, child_of) in skeletons_need_setup {
@@ -105,7 +99,6 @@ pub fn insert_into_skeleton_map(
                 meshes,
                 pending_nif_skins_q,
                 pending_nif_skin_q,
-                name_q,
             );
             break;
         }
@@ -117,15 +110,13 @@ pub fn attach_parts(
     skeleton_map: &SkeletonMap,
     mut commands: Commands,
     mut transforms: Query<&mut Transform>,
-    materials_query: Query<&MeshMaterial3d<StandardMaterial>>,
+    materials_query: Query<(&Mesh3d, &MeshMaterial3d<StandardMaterial>)>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     nif_node_index_q: Query<&NifNodeIndex>,
     mut meshes: ResMut<Assets<Mesh>>,
-    pending_nif_skins_q: Query<&PendingNifSkins, Without<NeedsNifSkinMapping>>,
+    mut pending_nif_skins_q: Query<&mut PendingNifSkins, Without<NeedsNifSkinMapping>>,
     mut pending_nif_skin_q: Query<&mut PendingNifSkin>,
-    name_q: Query<&Name>,
 ) {
-    dbg!(pending_nif_skins_q.iter().len());
     for (nifscene_root, attach_type, children) in attach_query {
         if let AttachmentType::Rigid {
             skeleton_entity,
@@ -159,7 +150,7 @@ pub fn attach_parts(
                             mat.x_axis.z = -mat.x_axis.z;
                             transform.rotation = Quat::from_mat3(&mat);
                         }
-                        if let Ok(material) = materials_query.get(*trishape) {
+                        if let Ok((_, material)) = materials_query.get(*trishape) {
                             if let Some(standard_material) = materials.get(&material.0) {
                                 let mut cloned_material = standard_material.clone();
                                 cloned_material.cull_mode = Some(Face::Front);
@@ -180,17 +171,15 @@ pub fn attach_parts(
         } else {
             match attach_type {
                 AttachmentType::Skinned { skeleton_entity } => {
-                    for pending_skins in pending_nif_skins_q.iter() {
+                    for pending_skins in pending_nif_skins_q.iter_mut() {
                         if pending_skins.skeleton_entity != Some(*skeleton_entity) {
                             continue;
                         }
-                        dbg!("pending");
 
                         let Some(skeleton) = skeleton_map.entity_to_skeleton.get(skeleton_entity)
                         else {
                             return;
                         };
-                        dbg!("pending");
                         // Skinned sets the skeleton root as the parent
                         commands
                             .entity(nifscene_root)
@@ -217,50 +206,36 @@ pub fn attach_parts(
                                 }
                             }
 
-                            if !missing_bone && joints_vec.len() == pending_skin.bone_names.len() {
-                                let mut mesh_data = pending_skin.mesh.take().unwrap();
-                                dbg!(pending_skin.joint_weights.len());
+                            if let Ok((mesh3d, _material)) = materials_query.get(*trishape_entity) {
+                                if let Some(mut mesh) = meshes.get_mut(&mesh3d.0) {
+                                    if !missing_bone
+                                        && joints_vec.len() == pending_skin.bone_names.len()
+                                    {
+                                        dbg!("inserting");
+                                        commands.entity(*trishape_entity).insert(SkinnedMesh {
+                                            inverse_bindposes: pending_skin
+                                                .inverse_bindposes
+                                                .clone(),
+                                            joints: joints_vec,
+                                        });
 
-                                dbg!(trishape_entity);
-                                let name = name_q.get(*trishape_entity).unwrap();
-                                dbg!(name);
-                                let mut mesh = Mesh::new(
-                                    PrimitiveTopology::TriangleList,
-                                    RenderAssetUsages::default(),
-                                )
-                                .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, mesh_data.0);
-
-                                // Create the Bevy Mesh
-                                mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, mesh_data.1); // MOVE
-
-                                // Insert UVs if they exist
-                                if !mesh_data.2.is_empty() {
-                                    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, mesh_data.2); // MOVE
+                                        mesh.insert_attribute(
+                                            Mesh::ATTRIBUTE_JOINT_INDEX,
+                                            VertexAttributeValues::Uint16x4(std::mem::take(
+                                                &mut pending_skin.joint_indices,
+                                            )),
+                                        );
+                                        mesh.insert_attribute(
+                                            Mesh::ATTRIBUTE_JOINT_WEIGHT,
+                                            VertexAttributeValues::Float32x4(std::mem::take(
+                                                &mut pending_skin.joint_weights,
+                                            )),
+                                        );
+                                        commands
+                                            .entity(*trishape_entity)
+                                            .remove::<PendingNifSkin>();
+                                    }
                                 }
-                                // Insert the final flat indices
-                                mesh.insert_indices(Indices::U16(mesh_data.3));
-
-                                mesh.insert_attribute(
-                                    Mesh::ATTRIBUTE_JOINT_INDEX,
-                                    VertexAttributeValues::Uint16x4(std::mem::take(
-                                        &mut pending_skin.joint_indices,
-                                    )),
-                                );
-                                mesh.insert_attribute(
-                                    Mesh::ATTRIBUTE_JOINT_WEIGHT,
-                                    VertexAttributeValues::Float32x4(std::mem::take(
-                                        &mut pending_skin.joint_weights,
-                                    )),
-                                );
-                                let mesh_handle = meshes.add(mesh);
-                                commands
-                                    .entity(*trishape_entity)
-                                    .insert(Mesh3d(mesh_handle));
-                                commands.entity(*trishape_entity).insert(SkinnedMesh {
-                                    inverse_bindposes: pending_skin.inverse_bindposes.clone(),
-                                    joints: joints_vec,
-                                });
-                                commands.entity(*trishape_entity).remove::<PendingNifSkin>();
                             }
                         }
                     }

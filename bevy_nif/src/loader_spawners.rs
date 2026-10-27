@@ -78,9 +78,8 @@ pub fn spawn_nif_node_recursive(
 
             if let Some(_bounding_volume) = &ni_node.bounding_volume {
                 // dbg!("pushing bv to", new_ninode_entity);
-                spawn_context
-                    .ninodes_with_bvs
-                    .push((new_ninode_entity, current_key));
+                let ninodes_with_bvs = spawn_context.ninodes_with_bvs.get_or_insert_default();
+                ninodes_with_bvs.push((new_ninode_entity, current_key));
             }
 
             spawn_context
@@ -143,16 +142,16 @@ pub fn spawn_nif_node_recursive(
             };
 
             spawn_context
-                .ninodes_with_bvs
-                .push((new_nitrishape_entity, current_key));
-
-            spawn_context
                 .nif_node_index
                 .tri_shapes
                 .push(new_nitrishape_entity);
 
             if is_nonvisual_collider || create_collider_from_mesh {
                 let nif_collider_data = create_collider(trishape_data);
+                spawn_context
+                    .trimeshes_with_colliders
+                    .get_or_insert_default()
+                    .push(new_nitrishape_entity);
                 world
                     .entity_mut(new_nitrishape_entity)
                     .insert(nif_collider_data);
@@ -184,8 +183,12 @@ pub fn spawn_nif_node_recursive(
                     match ni_property {
                         NiType::NiTexturingProperty(tex_prop) => {
                             // Note: use load_context instead of asset_server inside loaders
-                            texture_handle_opt =
-                                process_nitexturingproperty(tex_prop, nif, load_context);
+                            texture_handle_opt = process_nitexturingproperty(
+                                tex_prop,
+                                nif,
+                                load_context,
+                                &mut spawn_context.scratch_string,
+                            );
                         }
                         NiType::NiMaterialProperty(mat_prop) => {
                             material_opt = Some(process_nimaterialproperty(mat_prop));

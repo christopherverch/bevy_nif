@@ -7,12 +7,13 @@ use nif::{
     NiMaterialProperty, NiTexturingProperty, NiType, TextureMap, TextureSource, loader::Nif,
 };
 
-use crate::helper_funcs::resolve_nif_path;
+use crate::resolve_nif_texture_path;
 
 pub fn process_nitexturingproperty(
     tex_prop: &NiTexturingProperty,
     nif: &Nif,
     load_context: &mut LoadContext,
+    scratch_string: &mut String,
 ) -> Option<Handle<Image>> {
     let mut texture_handle_opt: Option<Handle<Image>> = None;
     let base_texture = tex_prop.texture_maps[0].as_ref().unwrap();
@@ -25,9 +26,9 @@ pub fn process_nitexturingproperty(
                             TextureSource::External(ext_path) => {
                                 //dbg!("loading");
                                 //dbg!(ext_path);
-                                let path = resolve_nif_path(ext_path);
-                                if let Some(path) = path {
-                                    texture_handle_opt = Some(load_context.load(path));
+                                let found = resolve_nif_texture_path(ext_path, scratch_string);
+                                if found {
+                                    texture_handle_opt = Some(load_context.load(&*scratch_string));
                                 }
                             }
                             TextureSource::Internal(_link) => {

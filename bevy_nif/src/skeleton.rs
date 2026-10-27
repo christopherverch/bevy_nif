@@ -25,8 +25,8 @@ impl SkeletonIdManager {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Reflect)]
 pub struct BoneId(pub usize);
 
-#[derive(Component, Default, Debug, Reflect, MapEntities)]
-#[reflect(Component, MapEntities)]
+#[derive(Component, Default, Debug, Reflect)]
+#[reflect(Component)]
 pub struct Skeleton {
     /// Stores all bone data
     #[entities] // Tells the derived mapper to map entities inside this collection
@@ -43,10 +43,9 @@ pub struct BoneData {
     pub name: String,
     pub parent: Option<BoneId>,
     pub children: Vec<BoneId>,
-    #[entities] // Tells the derived mapper to map this entity field
+    #[entities]
     pub entity: Entity,
 }
-
 impl Skeleton {
     pub fn new() -> Self {
         Self::default()

@@ -11,16 +11,16 @@ use bevy_reflect::{Reflect, TypePath};
 use bevy_render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy_transform::components::Transform;
 use bevy_world_serialization::WorldAsset;
-use image_dds::ddsfile::Dds;
+use ddsfile::Dds;
+use nif::NiKey;
 pub use nif::loader::Nif;
 use nif::loader::load_nif_bytes;
-use nif::{NiKey, NiType};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::{Cursor, ErrorKind};
 
 use crate::loader_spawners::{NeedsNifSkinMapping, spawn_nif_node_recursive};
-use crate::nif_animation::animation_setup_system::setup_animations_new;
+use crate::nif_animation::animation_setup_system::setup_animations;
 use crate::physics::handle_bvs;
 use crate::skeleton::Skeleton;
 
@@ -46,6 +46,7 @@ impl AssetLoader for NifAssetLoader {
         load_context: &mut LoadContext<'_>,
     ) -> Result<WorldAsset, Self::Error> {
         let mut bytes = Vec::new();
+        let scratch_string = String::with_capacity(128);
 
         if let Err(e) = reader.read_to_end(&mut bytes).await {
             error!("NifAssetLoader: Failed to read bytes: {:?}", e);
@@ -60,7 +61,9 @@ impl AssetLoader for NifAssetLoader {
         let mut spawn_context = SpawnContext {
             already_spawned_nodes: HashMap::default(),
             nif_node_index: NifNodeIndex::default(),
-            ninodes_with_bvs: Vec::new(),
+            ninodes_with_bvs: None,
+            trimeshes_with_colliders: None,
+            scratch_string,
         };
         let mut world = World::default();
         let root_entity = world
@@ -104,19 +107,21 @@ impl AssetLoader for NifAssetLoader {
             .insert(spawn_context.nif_node_index);
 
         if let Some(skeleton) = skeleton_opt {
-            setup_animations_new(root_entity, &nif, &skeleton, load_context, &mut world);
-            dbg!(load_context.path());
+            setup_animations(root_entity, &nif, &skeleton, load_context, &mut world);
             world
                 .entity_mut(root_entity)
                 .insert((skeleton, NeedsSkeletonMapping));
         }
         if let Some(pending_nif_skins) = pending_nif_skins {
-            world
-                .entity_mut(root_entity)
-                .insert((pending_nif_skins, NeedsNifSkinMapping));
+            world.entity_mut(root_entity).insert(pending_nif_skins);
         }
         if let Some(collider_data) = collider_data_opt {
             world.entity_mut(root_entity).insert(collider_data);
+        }
+        if let Some(trimeshes_with_colliders) = spawn_context.trimeshes_with_colliders {
+            world
+                .entity_mut(root_entity)
+                .insert(TrimeshesWithColliders(trimeshes_with_colliders));
         }
         let world_asset = WorldAsset::new(world);
         Ok(world_asset)
@@ -150,8 +155,13 @@ pub(crate) struct SpawnContext {
     /// In case of a circular dependency
     pub(crate) already_spawned_nodes: HashMap<NiKey, Entity>,
     pub(crate) nif_node_index: NifNodeIndex,
-    pub(crate) ninodes_with_bvs: Vec<(Entity, NiKey)>,
+    pub(crate) ninodes_with_bvs: Option<Vec<(Entity, NiKey)>>,
+    pub(crate) trimeshes_with_colliders: Option<Vec<Entity>>,
+    pub(crate) scratch_string: String,
 }
+#[derive(Component, Default, Debug, Reflect, MapEntities)]
+#[reflect(Component, MapEntities)]
+pub struct TrimeshesWithColliders(#[entities] pub Vec<Entity>);
 #[derive(Default, TypePath)]
 pub struct BMPLoader;
 
@@ -233,39 +243,39 @@ impl AssetLoader for DDSLoader {
             std::io::Error::new(ErrorKind::Other, format!("DDS parse error: {:?}", e))
         })?;
 
-        // Decode mip 0 into an RgbaImage
-        let rgba_image = image_dds::image_from_dds(&dds, 0).map_err(|e| {
-            std::io::Error::new(ErrorKind::Other, format!("DDS decode error: {:?}", e))
-        })?;
+        let width = dds.get_width();
+        let height = dds.get_height();
 
-        let width = rgba_image.width();
-        let height = rgba_image.height();
-        let rgba_data = rgba_image.into_raw();
+        // Extract raw bytes for the first mipmap level (mip 0)
+        let rgba_data = dds
+            .get_data(0)
+            .map_err(|e| std::io::Error::new(ErrorKind::Other, format!("DDS data error: {:?}", e)))?
+            .to_vec();
 
-        // If the header width/height multiplication doesn't match
-        // the actual byte length (due to block padding), we override the dimensions
-        // or let Bevy take the exact buffer length safely.
+        // Check format (supports uncompressed RGBA/BGRA formats)
+        // If your files use standard uncompressed RGBA:
+        let format = TextureFormat::Rgba8UnormSrgb;
+
+        // If your textures are BGRA instead, change to TextureFormat::Bgra8UnormSrgb
+
         let expected_len = (width * height * 4) as usize;
         let actual_len = rgba_data.len();
 
-        let (final_width, final_height) = if expected_len != actual_len {
-            // If there's padding mismatch, recalculate height based on actual buffer bytes
-            let corrected_height = (actual_len / 4) / width as usize;
-            (width, corrected_height as u32)
+        let final_height = if expected_len != actual_len {
+            (actual_len / 4) / width as usize
         } else {
-            (width, height)
-        };
+            height as usize
+        } as u32;
 
-        // Create Bevy Image with correct size and data length
         let image = Image::new(
             Extent3d {
-                width: final_width,
+                width,
                 height: final_height,
                 depth_or_array_layers: 1,
             },
             TextureDimension::D2,
             rgba_data,
-            TextureFormat::Rgba8UnormSrgb,
+            format,
             RenderAssetUsages::default(),
         );
 

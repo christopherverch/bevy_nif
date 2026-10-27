@@ -8,10 +8,11 @@ pub mod skeleton;
 pub mod spawning_ni_helpers;
 use avian3d::PhysicsPlugins;
 use avian3d::prelude::PhysicsSchedulePlugin;
-use bevy_app::{App, Plugin};
+use bevy_app::{App, Plugin, Update};
 use bevy_asset::AssetApp;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::event::EntityEvent;
 use bevy_ecs::reflect::ReflectComponent;
 use bevy_math::Vec3;
 use bevy_reflect::Reflect;
@@ -19,10 +20,10 @@ pub use helper_funcs::*;
 use loader::{BMPLoader, Nif, NifAssetLoader};
 pub use nif::types::*;
 
-use crate::attach_parts::{handle_needs_nifskin_mapping, insert_into_skeleton_map};
+use crate::attach_parts::{attach_parts_obs, insert_into_skeleton_map};
 use crate::loader::DDSLoader;
 use crate::loader_spawners::NifBox;
-use crate::physics::replace_temp_colliders;
+use crate::physics::{handle_collider_tasks, spawn_collider_tasks};
 use crate::skeleton::{SkeletonIdManager, SkeletonMap};
 
 pub const MW_UNITS_PER_METER: f32 = 69.991251091;
@@ -40,9 +41,10 @@ impl Plugin for BevyNifPlugin {
             .init_asset_loader::<DDSLoader>()
             .init_resource::<SkeletonIdManager>()
             .init_resource::<SkeletonMap>()
-            .add_observer(replace_temp_colliders)
-            .add_observer(handle_needs_nifskin_mapping)
+            .add_observer(spawn_collider_tasks)
+            .add_observer(attach_parts_obs)
             .add_observer(insert_into_skeleton_map);
+        app.add_systems(Update, handle_collider_tasks);
         // check for one of avian's core plugins to check if the user already added the
         // physicsplugin
         if !app.is_plugin_added::<PhysicsSchedulePlugin>() {
@@ -60,3 +62,5 @@ pub enum NifColliderData {
     // TODO:: this should just be compound, with different shapes as an enum
     CompoundBox(Vec<NifBox>),
 }
+#[derive(EntityEvent)]
+pub struct NifInstanceReady(pub Entity);

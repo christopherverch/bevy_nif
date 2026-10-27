@@ -71,7 +71,7 @@ struct RawBoneAnimation {
     /// All translation keys for this bone, sorted by time.
     all_translation_keys: Vec<(f32, Vec3)>,
 }
-pub fn setup_animations_new(
+pub fn setup_animations(
     root_entity: Entity,
     nif: &Nif,
     skeleton: &Skeleton,

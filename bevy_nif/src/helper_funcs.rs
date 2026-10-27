@@ -1,25 +1,18 @@
+use avian3d::parry::utils::hashmap::HashMap;
+use bevy_log::warn;
+use std::path::{Component, Path};
+use std::sync::{Mutex, OnceLock};
 use std::{env, path::PathBuf};
 
-pub fn resolve_nif_path(nif_path: &str) -> Option<String> {
-    let cleaned = clean_path_common(nif_path);
-
-    if cleaned.is_empty() {
-        return None;
-    }
-
-    // Strip "textures/" if it exists and normalize to "Textures/"
-    let base = if cleaned.len() >= 9 && cleaned[..9].eq_ignore_ascii_case("textures/") {
-        format!("Textures/{}", &cleaned[9..])
-    } else {
-        format!("Textures/{}", cleaned)
-    };
-    // If it exists, just return it
-    if check_exists(&base) {
-        return Some(base);
-    }
-
-    // Otherwise, try and find the case-insensitive version of it
-    resolve_bevy_asset_path(&base)
+fn cargo_manifest_dir() -> &'static str {
+    static DIR: OnceLock<String> = OnceLock::new();
+    DIR.get_or_init(|| {
+        env::var("CARGO_MANIFEST_DIR").expect("Not running within a Cargo environment")
+    })
+}
+fn path_cache() -> &'static Mutex<HashMap<String, Option<String>>> {
+    static CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::default()))
 }
 pub fn prepend_asset_path(str: &str) -> PathBuf {
     let mut path = env::var("CARGO_MANIFEST_DIR")
@@ -31,8 +24,18 @@ pub fn prepend_asset_path(str: &str) -> PathBuf {
     path
 }
 #[inline]
-pub fn clean_path_common(path: &str) -> String {
-    path.trim().replace('\\', "/").replace('\\', "")
+pub fn clean_path_common(path: &str, out: &mut String) {
+    out.clear();
+    let trimmed = path.trim();
+    out.reserve(trimmed.len());
+
+    for b in trimmed.bytes() {
+        if b != b'\\' {
+            out.push(b as char);
+        } else {
+            out.push('/');
+        }
+    }
 }
 pub fn check_exists(base: &str) -> bool {
     let path = prepend_asset_path(base);
@@ -41,44 +44,131 @@ pub fn check_exists(base: &str) -> bool {
     }
     false
 }
+pub fn resolve_nif_texture_path(nif_path: &str, scratch: &mut String) -> bool {
+    // 1. Clean path into scratch to use as our lookup key
+    clean_path_common(nif_path, scratch);
+    if scratch.is_empty() {
+        return false;
+    }
 
-use std::path::{Component, Path};
+    // 2. Check global cache using the cleaned scratch string as a key
+    if let Ok(cache) = path_cache().lock() {
+        if let Some(cached_opt) = cache.get(scratch.as_str()) {
+            if let Some(cached_path) = cached_opt {
+                scratch.clear();
+                scratch.push_str(cached_path);
+                return true;
+            } else {
+                return false; // Cached as non-existent
+            }
+        }
+    }
 
-use bevy_log::warn;
+    // Save the cleaned key so we can cache the result later
+    let cache_key = scratch.clone();
 
-/// Resolves a path case-insensitively inside the `assets/` folder
-/// and returns the path relative to `assets/` for Bevy's asset server.
-pub fn resolve_bevy_asset_path(input_path: &str) -> Option<String> {
-    // Build the full absolute path starting from CARGO_MANIFEST_DIR/assets/
-    let mut full_path = env::var("CARGO_MANIFEST_DIR").map(PathBuf::from).ok()?;
+    // 3. Determine if it starts with "textures/" case-insensitively
+    let starts_with_textures = scratch.len() >= 9 && scratch[..9].eq_ignore_ascii_case("textures/");
 
-    // normalize weird windows filepaths
-    let normalized_input = input_path.replace('\\', "/");
-    let asset_relative = format!("assets/{}", normalized_input.trim_start_matches('/'));
-    full_path.push(&asset_relative);
+    // Build the "Textures/..." base path
+    // Since scratch is already populated, we format the base path.
+    // (We can use a temporary local string or manipulate scratch carefully)
+    let base = if starts_with_textures {
+        let mut s = String::with_capacity(scratch.len());
+        s.push_str("Textures/");
+        s.push_str(&scratch[9..]);
+        s
+    } else {
+        let mut s = String::with_capacity(9 + scratch.len());
+        s.push_str("Textures/");
+        s.push_str(scratch.as_str());
+        s
+    };
 
-    // Resolve it case-insensitively using the absolute path
-    let resolved_absolute = resolve_case_insensitive_path(&full_path.to_string_lossy())?;
+    let found = if check_exists(&base) {
+        scratch.clear();
+        scratch.push_str(&base);
+        true
+    } else {
+        // Pass scratch down to resolve case-insensitively
+        resolve_bevy_asset_path(&base, scratch)
+    };
 
-    // Strip the absolute project and "assets/" prefix to get a relative path (i.e. music/song.mp3)
-    // for bevy's asset loader
-    let cargo_dir = env::var("CARGO_MANIFEST_DIR").ok()?;
-    let cargo_path = Path::new(&cargo_dir);
+    // 4. Store the result in the global cache
+    if let Ok(mut cache) = path_cache().lock() {
+        let entry = if found { Some(scratch.clone()) } else { None };
+        cache.insert(cache_key, entry);
+    }
+
+    found
+}
+pub fn resolve_nif_model_path(model_path: &str, scratch: &mut String) -> bool {
+    // 1. Clean path into scratch to use as our lookup key
+    clean_path_common(model_path, scratch);
+    if scratch.is_empty() {
+        return false;
+    }
+
+    // 2. Check global cache using the cleaned scratch string as a key
+    if let Ok(cache) = path_cache().lock() {
+        if let Some(cached_opt) = cache.get(scratch.as_str()) {
+            if let Some(cached_path) = cached_opt {
+                scratch.clear();
+                scratch.push_str(cached_path);
+                return true;
+            } else {
+                return false; // Cached as non-existent
+            }
+        }
+    }
+
+    // Save the cleaned key so we can cache the result later
+    let cache_key = scratch.clone();
+
+    // 3. Build the "data/Data Files/Meshes/..." base path
+    let mut base = String::with_capacity(25 + scratch.len());
+    base.push_str("data/Data Files/Meshes/");
+    base.push_str(scratch.as_str());
+
+    let found = if check_exists(&base) {
+        scratch.clear();
+        scratch.push_str(&base);
+        true
+    } else {
+        // Fall back to case-insensitive Bevy asset path resolution
+        resolve_bevy_asset_path(&base, scratch)
+    };
+
+    // 4. Store the result in the global cache
+    if let Ok(mut cache) = path_cache().lock() {
+        let entry = if found { Some(scratch.clone()) } else { None };
+        cache.insert(cache_key, entry);
+    }
+
+    found
+}
+pub fn resolve_bevy_asset_path(input_path: &str, scratch: &mut String) -> bool {
+    let full_path = prepend_asset_path(input_path);
+    let resolved_absolute = match resolve_case_insensitive_path(&full_path.to_string_lossy()) {
+        Some(p) => p,
+        None => return false,
+    };
+
+    let cargo_path = Path::new(cargo_manifest_dir());
     let resolved_path = Path::new(&resolved_absolute);
 
-    let rel_to_cargo = resolved_path.strip_prefix(cargo_path).ok()?;
-    let rel_to_assets = rel_to_cargo.strip_prefix("assets").ok()?;
+    let rel_to_cargo = match resolved_path.strip_prefix(cargo_path) {
+        Ok(p) => p,
+        Err(_) => return false,
+    };
+    let rel_to_assets = match rel_to_cargo.strip_prefix("assets") {
+        Ok(p) => p,
+        Err(_) => return false,
+    };
 
-    // Convert to a forward-slash string for Bevy
-    let final_path = rel_to_assets
-        .to_string_lossy()
-        .replace('\\', "/")
-        .trim_start_matches('/')
-        .to_owned();
-
-    Some(final_path)
+    clean_path_common(&rel_to_assets.to_string_lossy(), scratch);
+    !scratch.is_empty()
 }
-
 /// Takes a path and tries to find a file with that name, case-insensitively, and if found returns
 /// the actual filename
 pub fn resolve_case_insensitive_path(path: &str) -> Option<String> {

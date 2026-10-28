@@ -1,27 +1,14 @@
 use avian3d::parry::utils::hashmap::HashMap;
 use bevy_log::warn;
 use std::path::{Component, Path};
-use std::sync::{Mutex, OnceLock};
+use std::sync::Mutex;
 use std::{env, path::PathBuf};
 
-fn cargo_manifest_dir() -> &'static str {
-    static DIR: OnceLock<String> = OnceLock::new();
-    DIR.get_or_init(|| {
-        env::var("CARGO_MANIFEST_DIR").expect("Not running within a Cargo environment")
-    })
-}
+include!(concat!(env!("OUT_DIR"), "/asset_manifest.rs"));
+
 fn path_cache() -> &'static Mutex<HashMap<String, Option<String>>> {
     static CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
     CACHE.get_or_init(|| Mutex::new(HashMap::default()))
-}
-pub fn prepend_asset_path(str: &str) -> PathBuf {
-    let mut path = env::var("CARGO_MANIFEST_DIR")
-        .map(PathBuf::from)
-        .expect("Not running within a Cargo environment");
-    let mut prepended_asset_path = "assets/".to_string();
-    prepended_asset_path.push_str(str);
-    path.push(prepended_asset_path);
-    path
 }
 #[inline]
 pub fn clean_path_common(path: &str, out: &mut String) {
@@ -37,13 +24,25 @@ pub fn clean_path_common(path: &str, out: &mut String) {
         }
     }
 }
+
+/// Checks if an asset exists in the compile-time manifest case-insensitively
 pub fn check_exists(base: &str) -> bool {
-    let path = prepend_asset_path(base);
-    if path.exists() {
-        return true;
-    }
-    false
+    let normalized = base.replace('\\', "/");
+    asset_manifest().contains(CiLookup::from_str(&normalized))
 }
+
+/// Resolves an asset path case-insensitively and writes the correct cased path to scratch
+pub fn resolve_manifest_path(path_str: &str, scratch: &mut String) -> bool {
+    let normalized = path_str.replace('\\', "/");
+    if let Some(ci_str) = asset_manifest().get(CiLookup::from_str(&normalized)) {
+        scratch.clear();
+        scratch.push_str(ci_str.0);
+        true
+    } else {
+        false
+    }
+}
+
 pub fn resolve_nif_texture_path(nif_path: &str, scratch: &mut String) -> bool {
     // 1. Clean path into scratch to use as our lookup key
     clean_path_common(nif_path, scratch);
@@ -51,7 +50,7 @@ pub fn resolve_nif_texture_path(nif_path: &str, scratch: &mut String) -> bool {
         return false;
     }
 
-    // 2. Check global cache using the cleaned scratch string as a key
+    // 2. Check global runtime cache using the cleaned scratch string as a key
     if let Ok(cache) = path_cache().lock() {
         if let Some(cached_opt) = cache.get(scratch.as_str()) {
             if let Some(cached_path) = cached_opt {
@@ -70,9 +69,6 @@ pub fn resolve_nif_texture_path(nif_path: &str, scratch: &mut String) -> bool {
     // 3. Determine if it starts with "textures/" case-insensitively
     let starts_with_textures = scratch.len() >= 9 && scratch[..9].eq_ignore_ascii_case("textures/");
 
-    // Build the "Textures/..." base path
-    // Since scratch is already populated, we format the base path.
-    // (We can use a temporary local string or manipulate scratch carefully)
     let base = if starts_with_textures {
         let mut s = String::with_capacity(scratch.len());
         s.push_str("Textures/");
@@ -85,12 +81,9 @@ pub fn resolve_nif_texture_path(nif_path: &str, scratch: &mut String) -> bool {
         s
     };
 
-    let found = if check_exists(&base) {
-        scratch.clear();
-        scratch.push_str(&base);
+    let found = if resolve_manifest_path(&base, scratch) {
         true
     } else {
-        // Pass scratch down to resolve case-insensitively
         resolve_bevy_asset_path(&base, scratch)
     };
 
@@ -102,6 +95,7 @@ pub fn resolve_nif_texture_path(nif_path: &str, scratch: &mut String) -> bool {
 
     found
 }
+
 pub fn resolve_nif_model_path(model_path: &str, scratch: &mut String) -> bool {
     // 1. Clean path into scratch to use as our lookup key
     clean_path_common(model_path, scratch);
@@ -109,7 +103,7 @@ pub fn resolve_nif_model_path(model_path: &str, scratch: &mut String) -> bool {
         return false;
     }
 
-    // 2. Check global cache using the cleaned scratch string as a key
+    // 2. Check global runtime cache using the cleaned scratch string as a key
     if let Ok(cache) = path_cache().lock() {
         if let Some(cached_opt) = cache.get(scratch.as_str()) {
             if let Some(cached_path) = cached_opt {
@@ -130,12 +124,9 @@ pub fn resolve_nif_model_path(model_path: &str, scratch: &mut String) -> bool {
     base.push_str("data/Data Files/Meshes/");
     base.push_str(scratch.as_str());
 
-    let found = if check_exists(&base) {
-        scratch.clear();
-        scratch.push_str(&base);
+    let found = if resolve_manifest_path(&base, scratch) {
         true
     } else {
-        // Fall back to case-insensitive Bevy asset path resolution
         resolve_bevy_asset_path(&base, scratch)
     };
 
@@ -147,90 +138,9 @@ pub fn resolve_nif_model_path(model_path: &str, scratch: &mut String) -> bool {
 
     found
 }
+
 pub fn resolve_bevy_asset_path(input_path: &str, scratch: &mut String) -> bool {
-    let full_path = prepend_asset_path(input_path);
-    let resolved_absolute = match resolve_case_insensitive_path(&full_path.to_string_lossy()) {
-        Some(p) => p,
-        None => return false,
-    };
-
-    let cargo_path = Path::new(cargo_manifest_dir());
-    let resolved_path = Path::new(&resolved_absolute);
-
-    let rel_to_cargo = match resolved_path.strip_prefix(cargo_path) {
-        Ok(p) => p,
-        Err(_) => return false,
-    };
-    let rel_to_assets = match rel_to_cargo.strip_prefix("assets") {
-        Ok(p) => p,
-        Err(_) => return false,
-    };
-
-    clean_path_common(&rel_to_assets.to_string_lossy(), scratch);
-    !scratch.is_empty()
-}
-/// Takes a path and tries to find a file with that name, case-insensitively, and if found returns
-/// the actual filename
-pub fn resolve_case_insensitive_path(path: &str) -> Option<String> {
-    let normalized = path.replace('\\', "/");
-    let path_obj = Path::new(&normalized);
-    let mut current_path = PathBuf::new();
-
-    for component in path_obj.components() {
-        match component {
-            Component::RootDir => {
-                current_path.push("/");
-            }
-            Component::Prefix(prefix) => {
-                current_path.push(prefix.as_os_str());
-            }
-            Component::Normal(s) => {
-                let target_name = s.to_string_lossy();
-
-                let dir_to_read = if current_path.as_os_str().is_empty() {
-                    PathBuf::from(".")
-                } else {
-                    current_path.clone()
-                };
-
-                let entries = match std::fs::read_dir(&dir_to_read) {
-                    Ok(e) => e,
-                    Err(e) => {
-                        warn!("failed to read dir: {}", e);
-                        return None;
-                    }
-                };
-
-                let mut found = false;
-                let mut matched_name = PathBuf::new();
-
-                for entry in entries.flatten() {
-                    let file_name = entry.file_name();
-                    if file_name
-                        .to_string_lossy()
-                        .eq_ignore_ascii_case(&target_name)
-                    {
-                        matched_name = file_name.into();
-                        found = true;
-                        break;
-                    }
-                }
-
-                if !found {
-                    return None;
-                }
-
-                current_path.push(matched_name);
-            }
-            Component::CurDir | Component::ParentDir => {}
-        }
-    }
-
-    if current_path.is_file() {
-        Some(current_path.to_string_lossy().into_owned())
-    } else {
-        None
-    }
+    resolve_manifest_path(input_path, scratch)
 }
 
 /// Used to turn names to u64 so it's smaller to store

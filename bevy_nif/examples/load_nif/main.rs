@@ -3,9 +3,7 @@ use bevy::input::common_conditions::input_just_pressed;
 // This example runs animations and is meant to be run with base_anim.nif and the B_N dark elf nif
 // files inside of assets/data, but any can be loaded by replacing the names in setup.rs
 use bevy::prelude::*;
-use bevy_egui::EguiPlugin;
 use bevy_image::{ImageAddressMode, ImageSamplerDescriptor};
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_nif::nif_animation::bevy_types::{ActiveAnimation, AnimType, Priority};
 use bevy_nif::nif_animation::{BlendMask, NifAnimator};
 use bevy_nif::skeleton::{Skeleton, SkeletonMap};
@@ -14,17 +12,29 @@ mod setup;
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins.set(ImagePlugin {
-            // Sets the default fallback sampler for all standard asset loads
-            default_sampler: ImageSamplerDescriptor {
-                address_mode_u: ImageAddressMode::Repeat,
-                address_mode_v: ImageAddressMode::Repeat,
-                address_mode_w: ImageAddressMode::Repeat,
-                ..default()
-            },
-        }))
+        .add_plugins(
+            DefaultPlugins
+                .set(ImagePlugin {
+                    // Sets the default fallback sampler for all standard asset loads
+                    default_sampler: ImageSamplerDescriptor {
+                        address_mode_u: ImageAddressMode::Repeat,
+                        address_mode_v: ImageAddressMode::Repeat,
+                        address_mode_w: ImageAddressMode::Repeat,
+                        ..default()
+                    },
+                })
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        canvas: Some("#bevy".into()),
+                        fit_canvas_to_parent: true,
+                        resolution: bevy::window::WindowResolution::default()
+                            .with_scale_factor_override(1.0),
+                        ..default()
+                    }),
+                    ..default()
+                }),
+        )
         .add_plugins(BevyNifPlugin)
-        .add_plugins((EguiPlugin::default(), WorldInspectorPlugin::default()))
         .insert_resource(GlobalAmbientLight {
             color: Color::srgb(1.0, 0.8, 0.6),
             brightness: 100.0,

@@ -138,7 +138,6 @@ pub fn attach_parts_obs(
     let Ok((nifscene_root, attach_type, children)) = attach_query.get(ready.entity) else {
         return;
     };
-    dbg!(attach_type);
     attach_parts_common(
         nifscene_root,
         attach_type,
@@ -227,8 +226,7 @@ fn attach_parts_common(
                     }
                     let Some(skeleton) = skeleton_map.entity_to_skeleton.get(skeleton_entity)
                     else {
-                        dbg!("not found skeleton");
-                        return;
+                        continue;
                     };
 
                     // Skinned sets the skeleton root as the parent

@@ -1,11 +1,16 @@
 use std::fmt::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::{env, fs};
 
 fn main() {
     // Re-run build script if files in assets change or build.rs changes
     println!("cargo::rerun-if-changed=build.rs");
-    println!("cargo::rerun-if-changed=../examples/wasm/assets");
+    // Check what target we are compiling for
+    let target = env::var("TARGET").unwrap_or_default();
+    let is_wasm = target.contains("wasm32");
+    if !is_wasm {
+        return;
+    }
 
     let out_dir = env::var("OUT_DIR").unwrap();
     let dest_path = Path::new(&out_dir).join("asset_manifest.rs");
@@ -15,9 +20,9 @@ fn main() {
     // 1. Locate the assets directory dynamically (relative to workspace or cargo manifest)
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let assets_path = Path::new(&manifest_dir)
-        .join("../examples/wasm/assets")
+        .join("../tes3mp_rust/examples/wasm/assets")
         .canonicalize()
-        .unwrap_or_else(|_| Path::new("..").join("examples/wasm/assets"));
+        .unwrap_or_else(|_| Path::new("../../tes3mp_rust/").join("examples/wasm/assets"));
 
     // 2. Recursively gather all asset paths
     let mut paths = Vec::new();
@@ -29,7 +34,6 @@ fn main() {
     writeln!(buffer, "use std::collections::HashSet;").unwrap();
     writeln!(buffer, "use std::hash::{{Hash, Hasher}};").unwrap();
     writeln!(buffer, "use std::borrow::Borrow;").unwrap();
-    writeln!(buffer, "use std::sync::OnceLock;").unwrap();
     writeln!(buffer, "").unwrap();
 
     // CiString definition

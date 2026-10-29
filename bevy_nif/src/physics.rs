@@ -39,7 +39,7 @@ pub fn spawn_collider_tasks(
             };
 
             let scale = global_transform.scale();
-            let translation = transform.translation;
+            let translation = global_transform.translation();
 
             let task = thread_pool.spawn(async move {
                 for position in &mut positions {

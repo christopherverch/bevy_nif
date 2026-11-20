@@ -80,10 +80,23 @@ pub fn prepend_asset_path(str: &str) -> std::path::PathBuf {
     path.push(clean_str);
     path
 }
+/// The asset root directory (absolute), resolved the same way as
+/// [`prepend_asset_path`].
+#[cfg(not(target_arch = "wasm32"))]
+pub fn asset_root() -> std::path::PathBuf {
+    get_asset_base_path()
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 pub fn check_exists(base: &str) -> bool {
     let path = prepend_asset_path(base);
-    path.exists()
+    if path.exists() {
+        return true;
+    }
+    // Loose file missing: the asset may be packed in a .bsa archive (the
+    // stock Morrowind/Tribunal/Bloodmoon data ships almost everything in
+    // Morrowind.bsa et al.).
+    crate::bsa::bsa_set().find_any(base).is_some()
 }
 #[cfg(not(target_arch = "wasm32"))]
 pub fn resolve_bevy_asset_path(input_path: &str, scratch: &mut String) -> bool {
@@ -92,7 +105,16 @@ pub fn resolve_bevy_asset_path(input_path: &str, scratch: &mut String) -> bool {
     let full_path = prepend_asset_path(input_path);
     let resolved_absolute = match resolve_case_insensitive_path(&full_path.to_string_lossy()) {
         Some(p) => p,
-        None => return false,
+        None => {
+            // Not a loose file on disk: it may be packed in a .bsa archive.
+            // Return the cleaned input path so the BSA-aware asset reader
+            // (see bevy_nif::bsa) can serve it.
+            if crate::bsa::bsa_set().find_any(input_path).is_some() {
+                clean_path_common(input_path, scratch);
+                return !scratch.is_empty();
+            }
+            return false;
+        }
     };
 
     let base_path = get_asset_base_path();
@@ -158,6 +180,20 @@ pub fn resolve_case_insensitive_path(path: &str) -> Option<String> {
         .is_file()
         .then(|| current_path.to_string_lossy().into_owned())
 }
+/// This data set names textures as bare `.tga` files, but the BSAs store
+/// them as `textures/<stem>.dds`. Returns the `.dds` sibling of a `.tga`
+/// path (case-insensitive extension check), or `None` if the path does not
+/// end in `.tga`.
+fn tga_to_dds_sibling(path: &str) -> Option<String> {
+    if !path.to_ascii_lowercase().ends_with(".tga") {
+        return None;
+    }
+    let mut out = String::with_capacity(path.len());
+    out.push_str(&path[..path.len() - 4]);
+    out.push_str(".dds");
+    Some(out)
+}
+
 pub fn resolve_nif_texture_path(nif_path: &str, scratch: &mut String) -> bool {
     clean_path_common(nif_path, scratch);
     if scratch.is_empty() {
@@ -203,6 +239,17 @@ pub fn resolve_nif_texture_path(nif_path: &str, scratch: &mut String) -> bool {
         scratch.clear();
         scratch.push_str(&base);
         true
+    } else if let Some(dds_base) = tga_to_dds_sibling(&base) {
+        // This data set names textures as bare `.tga` files (ESM LTEX
+        // records, NIF texture blocks) while the BSAs store them as
+        // `textures/<stem>.dds`. Try the `.dds` sibling before giving up.
+        if check_exists(&dds_base) {
+            scratch.clear();
+            scratch.push_str(&dds_base);
+            true
+        } else {
+            resolve_bevy_asset_path(&base, scratch)
+        }
     } else {
         resolve_bevy_asset_path(&base, scratch)
     };
@@ -273,4 +320,31 @@ pub const fn hash_str(s: &str) -> u64 {
         i += 1;
     }
     hash
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tga_sibling_maps_to_dds() {
+        assert_eq!(
+            tga_to_dds_sibling("Data Files/Textures/Tx_sand_01.tga").as_deref(),
+            Some("Data Files/Textures/Tx_sand_01.dds")
+        );
+    }
+
+    #[test]
+    fn tga_sibling_is_case_insensitive_on_extension() {
+        assert_eq!(
+            tga_to_dds_sibling("textures/dune.TGA").as_deref(),
+            Some("textures/dune.dds")
+        );
+    }
+
+    #[test]
+    fn tga_sibling_rejects_non_tga_and_mid_name_tga() {
+        assert_eq!(tga_to_dds_sibling("textures/dune.dds"), None);
+        assert_eq!(tga_to_dds_sibling("textures/foo.tga.bak"), None);
+    }
 }

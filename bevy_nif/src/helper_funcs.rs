@@ -109,71 +109,54 @@ pub fn resolve_bevy_asset_path(input_path: &str, scratch: &mut String) -> bool {
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn resolve_case_insensitive_path(path: &str) -> Option<String> {
-    use std::path::{Path, PathBuf};
+    use std::path::{Component, Path, PathBuf};
 
-    let normalized = path.replace('\\', "/");
-    let path_obj = Path::new(&normalized);
+    let path_obj = Path::new(path);
     let mut current_path = PathBuf::new();
 
     for component in path_obj.components() {
-        use std::path::Component;
-
         match component {
-            Component::RootDir => {
-                current_path.push("/");
-            }
             Component::Prefix(prefix) => {
                 current_path.push(prefix.as_os_str());
             }
+            Component::RootDir => {
+                current_path.push(component.as_os_str());
+            }
+            Component::CurDir => {
+                if current_path.as_os_str().is_empty() {
+                    current_path.push(".");
+                }
+            }
+            Component::ParentDir => {
+                if current_path.as_os_str().is_empty() {
+                    current_path.push("..");
+                } else {
+                    current_path.pop();
+                }
+            }
             Component::Normal(s) => {
-                let target_name = s.to_string_lossy();
+                let target_lower = s.to_string_lossy().to_lowercase();
 
                 let dir_to_read = if current_path.as_os_str().is_empty() {
-                    PathBuf::from(".")
+                    Path::new(".")
                 } else {
-                    current_path.clone()
+                    current_path.as_path()
                 };
 
-                let entries = match std::fs::read_dir(&dir_to_read) {
-                    Ok(e) => e,
-                    Err(e) => {
-                        use bevy_log::warn;
+                let entries = std::fs::read_dir(dir_to_read).ok()?;
 
-                        warn!("failed to read dir: {}", e);
-                        return None;
-                    }
-                };
+                let matched = entries.flatten().find(|entry| {
+                    entry.file_name().to_string_lossy().to_lowercase() == target_lower
+                })?;
 
-                let mut found = false;
-                let mut matched_name = PathBuf::new();
-
-                for entry in entries.flatten() {
-                    let file_name = entry.file_name();
-                    if file_name
-                        .to_string_lossy()
-                        .eq_ignore_ascii_case(&target_name)
-                    {
-                        matched_name = file_name.into();
-                        found = true;
-                        break;
-                    }
-                }
-
-                if !found {
-                    return None;
-                }
-
-                current_path.push(matched_name);
+                current_path.push(matched.file_name());
             }
-            Component::CurDir | Component::ParentDir => {}
         }
     }
 
-    if current_path.is_file() {
-        Some(current_path.to_string_lossy().into_owned())
-    } else {
-        None
-    }
+    current_path
+        .is_file()
+        .then(|| current_path.to_string_lossy().into_owned())
 }
 pub fn resolve_nif_texture_path(nif_path: &str, scratch: &mut String) -> bool {
     clean_path_common(nif_path, scratch);

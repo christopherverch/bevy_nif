@@ -23,7 +23,6 @@ use loader::{BMPLoader, Nif, NifAssetLoader};
 pub use nif::types::*;
 
 use crate::attach_parts::{attach_parts_obs, insert_into_skeleton_map};
-use crate::loader::DDSLoader;
 use crate::loader_spawners::NifBox;
 use crate::physics::{handle_collider_tasks, spawn_collider_tasks};
 use crate::skeleton::{SkeletonIdManager, SkeletonMap};
@@ -40,7 +39,6 @@ impl Plugin for BevyNifPlugin {
             .preregister_asset_loader::<NifAssetLoader>(&["nif", "kf"])
             .register_asset_loader(NifAssetLoader)
             .init_asset_loader::<BMPLoader>()
-            .init_asset_loader::<DDSLoader>()
             .init_resource::<SkeletonIdManager>()
             .init_resource::<SkeletonMap>()
             .add_observer(spawn_collider_tasks)

@@ -334,6 +334,48 @@ impl BsaArchiveSet {
     pub fn archive_count(&self) -> usize {
         self.archives.len()
     }
+
+    /// Case-insensitive file-name (basename) lookup across every entry in
+    /// every archive, highest-priority archive first.
+    ///
+    /// The original Morrowind engine indexes BSA files by a hash of the file
+    /// *name* (the 8-byte hash block after the directory table), so a lookup
+    /// for `B_N_Orc_M_Skins.nif` succeeds no matter which subdirectory the
+    /// BSA builder stored it under — this data's Morrowind.bsa keeps meshes in
+    /// arbitrary subfolders such as `meshes/b/`, which
+    /// [`BsaArchiveSet::find_any`]'s suffix-stripping cannot recover.
+    pub fn find_by_file_name(&self, name: &str) -> Option<&BsaEntry> {
+        let name = normalize_bsa_name(name);
+        let basename = name.rsplit('/').next().unwrap_or(&name);
+        self.archives.iter().rev().find_map(|archive| {
+            archive.entries.values().find(|entry| {
+                entry
+                    .name
+                    .rsplit('/')
+                    .next()
+                    .is_some_and(|stored| stored.eq_ignore_ascii_case(basename))
+            })
+        })
+    }
+
+    /// Reads the payload for a basename query, with the same priority
+    /// semantics as [`BsaArchiveSet::find_by_file_name`].
+    pub fn read_entry_by_file_name(&self, name: &str) -> Result<Vec<u8>, BsaError> {
+        let name = normalize_bsa_name(name);
+        let basename = name.rsplit('/').next().unwrap_or(&name);
+        for archive in self.archives.iter().rev() {
+            if let Some(entry) = archive.entries.values().find(|entry| {
+                entry
+                    .name
+                    .rsplit('/')
+                    .next()
+                    .is_some_and(|stored| stored.eq_ignore_ascii_case(basename))
+            }) {
+                return archive.read_entry(&entry.name);
+            }
+        }
+        Err(BsaError::EntryNotFound(name))
+    }
 }
 
 impl std::fmt::Debug for BsaArchive {
@@ -524,6 +566,41 @@ mod tests {
     }
 
     #[test]
+    fn basename_lookup_recovers_nested_entries() {
+        // This data's BSA stores meshes in arbitrary subfolders
+        // (e.g. `meshes\m\probe_journeyman_01.nif`), which find_any's
+        // suffix-stripping cannot recover — only a basename search can.
+        let dir = test_dir("basename");
+        let p = dir.join("test.bsa");
+        write_bsa(
+            &p,
+            &[
+                ("meshes\\m\\probe_journeyman_01.nif", b"nif-payload"),
+                ("meshes\\base_anim.nif", b"anim-payload"),
+            ],
+        );
+        let set = BsaArchiveSet::scan_dir(&dir);
+        // find_any must NOT find the nested entry from a flat query...
+        assert!(set.find_any("meshes/probe_journeyman_01.nif").is_none());
+        // ...but the basename lookup does.
+        let entry = set
+            .find_by_file_name("Probe_Journeyman_01.NIF")
+            .expect("basename lookup must find nested entry");
+        assert_eq!(entry.name, "meshes/m/probe_journeyman_01.nif");
+        let data = set.read_entry_by_file_name("probe_journeyman_01.nif").unwrap();
+        assert_eq!(data, b"nif-payload");
+        // Plain entries resolve by basename too.
+        assert_eq!(
+            set.read_entry_by_file_name("base_anim.nif").unwrap(),
+            b"anim-payload"
+        );
+        // Misses stay misses.
+        assert!(set.find_by_file_name("not_there.nif").is_none());
+        assert!(set.read_entry_by_file_name("not_there.nif").is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn later_archives_win_by_priority() {
         let dir = test_dir("prio");
         let payload_a = b"from morrowind";
@@ -573,6 +650,21 @@ mod tests {
         // Set-level lookup with suffix tolerance must also work.
         let set = BsaArchiveSet::scan_dir(path.parent().unwrap());
         assert!(set.find_any("Textures\\TX_sand_01.DDS").is_some());
+        // Character meshes sit in arbitrary subfolders (meshes\b\...), so
+        // suffix-tolerant lookup misses them; the basename fallback
+        // (mirroring the engine's name-hash file search) must find them.
+        assert!(set.find_any("meshes/B_N_Orc_M_Skins.nif").is_none());
+        let entry = set
+            .find_by_file_name("B_N_Orc_M_Skins.nif")
+            .expect("B_N_Orc_M_Skins.nif must resolve by basename");
+        assert_eq!(entry.name, "meshes/b/b_n_orc_m_skins.nif");
+        let data = set
+            .read_entry_by_file_name("B_N_Orc_M_Skins.nif")
+            .unwrap();
+        assert_eq!(data.len(), entry.size as usize);
+        // This data's NIFs use the 40-byte NetImmerse ASCII header
+        // (see libs/nif HEADER), not the classic `\0NIF` magic.
+        assert!(data.starts_with(b"NetImmerse File Format, Version 4.0.0.2\n"));
         eprintln!(
             "integration: indexed {} entries from {} ({} archives)",
             archive.entries.len(),

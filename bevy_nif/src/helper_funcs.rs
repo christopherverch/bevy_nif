@@ -297,6 +297,16 @@ pub fn resolve_nif_model_path(model_path: &str, scratch: &mut String) -> bool {
         scratch.clear();
         scratch.push_str(&base);
         true
+    } else if let Some(entry) = crate::bsa::bsa_set().find_by_file_name(&cache_key) {
+        // This data's BSAs store meshes under arbitrary subfolders
+        // (e.g. `meshes/b/b_n_orc_m_skins.nif`), which the suffix-tolerant
+        // lookup above cannot recover. The original engine searches BSA
+        // files by a hash of the file *name*, so fall back to a basename
+        // search and emit the entry's actual path.
+        scratch.clear();
+        scratch.push_str("Data Files/");
+        scratch.push_str(&entry.name);
+        true
     } else {
         resolve_bevy_asset_path(&base, scratch)
     };

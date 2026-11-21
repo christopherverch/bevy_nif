@@ -11,13 +11,12 @@ use bevy_reflect::{Reflect, TypePath};
 use bevy_render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy_transform::components::Transform;
 use bevy_world_serialization::WorldAsset;
-use ddsfile::Dds;
 use nif::NiKey;
 pub use nif::loader::Nif;
 use nif::loader::load_nif_bytes;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::io::{Cursor, ErrorKind};
+use std::io::ErrorKind;
 
 use crate::loader_spawners::spawn_nif_node_recursive;
 use crate::nif_animation::animation_setup_system::setup_animations;
@@ -221,68 +220,9 @@ impl AssetLoader for BMPLoader {
         &["BMP", "bmp"]
     }
 }
-#[derive(Default, TypePath)]
-pub struct DDSLoader;
-
-impl AssetLoader for DDSLoader {
-    type Asset = Image;
-    type Settings = ();
-    type Error = std::io::Error;
-
-    async fn load(
-        &self,
-        reader: &mut dyn Reader,
-        _settings: &Self::Settings,
-        _load_context: &mut LoadContext<'_>,
-    ) -> Result<Self::Asset, Self::Error> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).await?;
-
-        // Parse container via ddsfile
-        let dds = Dds::read(&mut Cursor::new(&bytes)).map_err(|e| {
-            std::io::Error::new(ErrorKind::Other, format!("DDS parse error: {:?}", e))
-        })?;
-
-        let width = dds.get_width();
-        let height = dds.get_height();
-
-        // Extract raw bytes for the first mipmap level (mip 0)
-        let rgba_data = dds
-            .get_data(0)
-            .map_err(|e| std::io::Error::new(ErrorKind::Other, format!("DDS data error: {:?}", e)))?
-            .to_vec();
-
-        // Check format (supports uncompressed RGBA/BGRA formats)
-        // If your files use standard uncompressed RGBA:
-        let format = TextureFormat::Rgba8UnormSrgb;
-
-        // If your textures are BGRA instead, change to TextureFormat::Bgra8UnormSrgb
-
-        let expected_len = (width * height * 4) as usize;
-        let actual_len = rgba_data.len();
-
-        let final_height = if expected_len != actual_len {
-            (actual_len / 4) / width as usize
-        } else {
-            height as usize
-        } as u32;
-
-        let image = Image::new(
-            Extent3d {
-                width,
-                height: final_height,
-                depth_or_array_layers: 1,
-            },
-            TextureDimension::D2,
-            rgba_data,
-            format,
-            RenderAssetUsages::default(),
-        );
-
-        Ok(image)
-    }
-
-    fn extensions(&self) -> &[&str] {
-        &["DDS", "dds"]
-    }
-}
+// NOTE: `.dds` loading is intentionally NOT handled here. Bevy's own
+// `bevy_image` DDS loader (enabled via the `dds` feature) correctly maps
+// DXT1/DXT3/DXT5 to BC1/BC2/BC3 and keeps the packed mipmap chain, which is
+// wgpu's expected layout. The previous in-crate loader treated
+// `Dds::get_data(0)` (ALL mips, compressed) as uncompressed RGBA and
+// corrupted/panicked on every Morrowind texture.

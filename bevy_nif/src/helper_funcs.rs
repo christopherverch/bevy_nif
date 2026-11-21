@@ -180,16 +180,22 @@ pub fn resolve_case_insensitive_path(path: &str) -> Option<String> {
         .is_file()
         .then(|| current_path.to_string_lossy().into_owned())
 }
-/// This data set names textures as bare `.tga` files, but the BSAs store
-/// them as `textures/<stem>.dds`. Returns the `.dds` sibling of a `.tga`
-/// path (case-insensitive extension check), or `None` if the path does not
-/// end in `.tga`.
-fn tga_to_dds_sibling(path: &str) -> Option<String> {
-    if !path.to_ascii_lowercase().ends_with(".tga") {
+/// This data set names textures with source extensions — bare `.tga` in
+/// ESM LTEX records, `.bmp` in the character-mesh NIF texture blocks —
+/// while the BSAs store every texture as `textures/<stem>.dds`. Returns
+/// the `.dds` sibling of a path whose final segment carries a non-`.dds`
+/// extension (case-insensitive extension check), or `None` if the path
+/// already ends in `.dds` or its final segment has no extension.
+fn dds_sibling(path: &str) -> Option<String> {
+    let lower = path.to_ascii_lowercase();
+    if lower.ends_with(".dds") {
         return None;
     }
+    let segment = path.rsplit('/').next().unwrap_or(path);
+    let dot = segment.rfind('.')?;
+    let start = path.len() - (segment.len() - dot);
     let mut out = String::with_capacity(path.len());
-    out.push_str(&path[..path.len() - 4]);
+    out.push_str(&path[..start]);
     out.push_str(".dds");
     Some(out)
 }
@@ -239,10 +245,11 @@ pub fn resolve_nif_texture_path(nif_path: &str, scratch: &mut String) -> bool {
         scratch.clear();
         scratch.push_str(&base);
         true
-    } else if let Some(dds_base) = tga_to_dds_sibling(&base) {
-        // This data set names textures as bare `.tga` files (ESM LTEX
-        // records, NIF texture blocks) while the BSAs store them as
-        // `textures/<stem>.dds`. Try the `.dds` sibling before giving up.
+    } else if let Some(dds_base) = dds_sibling(&base) {
+        // This data set names textures with source extensions (bare
+        // `.tga` in LTEX records, `.bmp` in NIF texture blocks) while the
+        // BSAs store them as `textures/<stem>.dds`. Try the `.dds`
+        // sibling before giving up.
         if check_exists(&dds_base) {
             scratch.clear();
             scratch.push_str(&dds_base);
@@ -337,24 +344,45 @@ mod tests {
     use super::*;
 
     #[test]
-    fn tga_sibling_maps_to_dds() {
+    fn dds_sibling_maps_tga_to_dds() {
         assert_eq!(
-            tga_to_dds_sibling("Data Files/Textures/Tx_sand_01.tga").as_deref(),
+            dds_sibling("Data Files/Textures/Tx_sand_01.tga").as_deref(),
             Some("Data Files/Textures/Tx_sand_01.dds")
         );
     }
 
     #[test]
-    fn tga_sibling_is_case_insensitive_on_extension() {
+    fn dds_sibling_maps_bmp_to_dds() {
+        // Character-mesh NIFs (e.g. B_N_Orc_M_Skins) reference their skin
+        // textures with `.bmp` names; the BSAs only store the `.dds`
+        // siblings.
         assert_eq!(
-            tga_to_dds_sibling("textures/dune.TGA").as_deref(),
+            dds_sibling("Data Files/Textures/TX_B_N_Orc_M_Hfinger.BMP").as_deref(),
+            Some("Data Files/Textures/TX_B_N_Orc_M_Hfinger.dds")
+        );
+    }
+
+    #[test]
+    fn dds_sibling_is_case_insensitive_on_extension() {
+        assert_eq!(
+            dds_sibling("textures/dune.TGA").as_deref(),
             Some("textures/dune.dds")
         );
     }
 
     #[test]
-    fn tga_sibling_rejects_non_tga_and_mid_name_tga() {
-        assert_eq!(tga_to_dds_sibling("textures/dune.dds"), None);
-        assert_eq!(tga_to_dds_sibling("textures/foo.tga.bak"), None);
+    fn dds_sibling_rejects_dds_and_extensionless() {
+        assert_eq!(dds_sibling("textures/dune.dds"), None);
+        assert_eq!(dds_sibling("textures/DDS"), None);
+    }
+
+    #[test]
+    fn dds_sibling_only_rewrites_final_segment_extension() {
+        // A dot mid-name is not an extension: the whole final segment
+        // (minus its last extension) keeps it.
+        assert_eq!(
+            dds_sibling("textures/foo.tga.bak").as_deref(),
+            Some("textures/foo.tga.dds")
+        );
     }
 }

@@ -937,7 +937,14 @@ fn parse_line(line: &str) -> Option<(String, String)> {
             if cmd_start_index == 0 || lower_line.as_bytes().get(cmd_start_index - 1) == Some(&b' ')
             {
                 // Trim whitespace, then remove the colon.
-                let name_part = line[..cmd_start_index].trim().trim_end_matches(':').trim();
+                let mut name_part = line[..cmd_start_index].trim().trim_end_matches(':').trim();
+                // Qualified keys (e.g. "WeaponTwoHand: Slash Max Attack") must map
+                // to the plain group name ("WeaponTwoHand"): each group is one
+                // continuous timeline (C++ model), so middle segments belong to
+                // the key, not to the name. Mirrors the fallback below.
+                if let Some(pos) = name_part.find(':') {
+                    name_part = name_part[..pos].trim();
+                }
                 if !name_part.is_empty() {
                     return Some((name_part.to_string(), cmd.to_string()));
                 }

@@ -263,6 +263,9 @@ pub fn setup_animations(
     let animation_player = AnimationPlayer::default();
     let mut animation_graph = AnimationGraph::new();
     let mut animation_definitions_map: HashMap<String, AnimationDefinition> = HashMap::new();
+    // Text key events per clip name (relative time, original line) — used by
+    // gameplay systems for C++ getTextKeyTime-style lookups and key enumeration.
+    let mut text_key_events_map: HashMap<String, Vec<(f32, String)>> = HashMap::new();
     let root_blend_node = animation_graph.add_blend(0.5, animation_graph.root);
 
     // Add targets to graph mask based on pre-filtered `raw_bone_data`
@@ -354,7 +357,26 @@ pub fn setup_animations(
 
                     // Make sure the event falls within this clip's duration.
                     if relative_time >= 0.0 {
-                        // Determine the event type from the original line.
+                        // Store the structured key so gameplay systems can query key
+                        // times (C++ NIFAnimation::getTextKeyTime semantics).
+                        text_key_events_map
+                            .entry(processed_clip.name.clone())
+                            .or_default()
+                            .push((relative_time, original_line.to_string()));
+
+                        // Emit a generic TextKey event for every key so gameplay
+                        // systems can implement C++ handleTextKey dispatch.
+                        bevy_clip.add_event(
+                            relative_time,
+                            NifEvent {
+                                event_type: NifEventType::TextKey {
+                                    line: original_line.to_string(),
+                                },
+                                entity: root_entity,
+                            },
+                        );
+
+                        // Legacy SoundGen event (kept for existing consumers).
                         if original_line.to_lowercase().contains("soundgen") {
                             bevy_clip.add_event(
                                 relative_time,
@@ -366,7 +388,6 @@ pub fn setup_animations(
                                 },
                             );
                         }
-                        // TODO:: Add else if blocks here to parse other kinds of events
                     }
                 }
             }
@@ -503,6 +524,7 @@ pub fn setup_animations(
             animation_definitions: animation_definitions_map,
             active_animations: HashMap::new(),
             active_regions: [Priority::Default; 4],
+            text_key_events: text_key_events_map,
         },
     ));
 }
@@ -632,6 +654,31 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
             }
         } else if block_data.min_attack_time.is_some() || !block_data.follow_events.is_empty() {
             let base_name = &block_data.name;
+
+            // --- 0. Full-block base clip (start -> stop) ---
+            // Mirrors OpenMW semantics: the game plays a weapon animation as one
+            // continuous timeline (e.g. "sword1"), seeking by text key times
+            // (updateWeaponState: windup from "start", release replay from
+            // "max attack"). Sub-clips below are kept for segmented consumers.
+            final_animations.push(ProcessedAnimation {
+                name: base_name.clone(),
+                start_time: block_data.start_time,
+                end_time: block_data.end_time,
+                events: Vec::new(),
+                min_attack_time_relative: block_data
+                    .min_attack_time
+                    .map_or(0.0, |t| t - block_data.start_time),
+                max_attack_time_relative: block_data
+                    .max_attack_time
+                    .map_or(0.0, |t| t - block_data.start_time),
+                hit_time_relative: block_data
+                    .hit_time
+                    .map_or(0.0, |t| t - block_data.start_time),
+                min_hit_time_relative: block_data
+                    .min_hit_time
+                    .map_or(0.0, |t| t - block_data.start_time),
+                anim_type: AnimType::OneShot,
+            });
 
             // --- 1. Create Windup Clip (if it exists) ---
             let release_start_time = if let (Some(min_attack), Some(max_attack)) =
@@ -802,19 +849,20 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
                 if anim.start_time > event.time + 1e-4 {
                     break;
                 }
-                let anim_base_name = anim
-                    .name
-                    .trim_end_matches("_loop")
-                    .trim_end_matches("_outro");
-
-                if anim_base_name == parent_clip_name.as_str()
+                // A clip belongs to the block if it is the base clip or a
+                // sub-clip (e.g. "sword1", "sword1_loop", "sword1_windup",
+                // "sword1_release", "sword1_large_follow"). Assign to EVERY
+                // matching clip in the event's time window so the full-block
+                // base clip and its sub-clips both carry the events.
+                let in_block = anim.name == parent_clip_name.as_str()
+                    || anim.name.starts_with(&format!("{parent_clip_name}_"));
+                if in_block
                     && event.time >= anim.start_time - 1e-4
                     && event.time <= anim.end_time + 1e-4
                 {
                     let event_string = format!("'{}' @ {:.3}", event.original_line, event.time);
                     anim.events.push(event_string);
                     event_placed = true;
-                    break;
                 }
             }
         }

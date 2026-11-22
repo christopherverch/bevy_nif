@@ -108,6 +108,10 @@ pub struct NifAnimator {
     pub active_animations: HashMap<String, ActiveAnimation>,
     // Which priorities are currently controlling which regions
     pub active_regions: [Priority; NUM_DISCRETE_REGIONS],
+    // Text key events per clip name (e.g. "sword1"), as (relative_time, original_line).
+    // Relative time is offset from the clip's own start. Used by gameplay systems to
+    // implement C++ getTextKeyTime lookups and group key enumeration (hasHitKey scans).
+    pub text_key_events: HashMap<String, Vec<(f32, String)>>,
 }
 impl NifAnimator {
     /// Returns true if the animation is finished, or not found
@@ -131,7 +135,12 @@ impl NifAnimator {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum NifEventType {
+    // Sound generation key (legacy; emitted in addition to TextKey for soundgen lines).
     SoundGen { sound_name: String },
+    // Generic text key fired for EVERY parsed NIF text key on the timeline.
+    // `line` is the original line (e.g. "sword1: hit", "soundgen: left").
+    // Mirrors OpenMW CharacterController::handleTextKey receiving raw key text.
+    TextKey { line: String },
 }
 #[derive(Clone, Debug, Serialize, Deserialize, AnimationEvent)]
 pub struct NifEvent {

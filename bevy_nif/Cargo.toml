@@ -8,6 +8,7 @@ edition.workspace = true
 path = "src/lib.rs"
 
 [dependencies]
+bsa = { path = "../bsa" }
 nif = { path = "../libs/nif" }
 bitflags = {version = "2.9.0", features = ["serde"]}
 bmp = "0.5.0"

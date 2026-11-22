@@ -1,6 +1,4 @@
 pub mod attach_parts;
-#[cfg(not(target_arch = "wasm32"))]
-pub mod bsa;
 pub mod helper_funcs;
 pub mod loader;
 mod loader_spawners;

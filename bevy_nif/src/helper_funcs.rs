@@ -96,7 +96,7 @@ pub fn check_exists(base: &str) -> bool {
     // Loose file missing: the asset may be packed in a .bsa archive (the
     // stock Morrowind/Tribunal/Bloodmoon data ships almost everything in
     // Morrowind.bsa et al.).
-    crate::bsa::bsa_set().find_any(base).is_some()
+    bsa::bsa_set().find_any(base).is_some()
 }
 #[cfg(not(target_arch = "wasm32"))]
 pub fn resolve_bevy_asset_path(input_path: &str, scratch: &mut String) -> bool {
@@ -108,8 +108,8 @@ pub fn resolve_bevy_asset_path(input_path: &str, scratch: &mut String) -> bool {
         None => {
             // Not a loose file on disk: it may be packed in a .bsa archive.
             // Return the cleaned input path so the BSA-aware asset reader
-            // (see bevy_nif::bsa) can serve it.
-            if crate::bsa::bsa_set().find_any(input_path).is_some() {
+            // (see the `bsa` crate) can serve it.
+            if bsa::bsa_set().find_any(input_path).is_some() {
                 clean_path_common(input_path, scratch);
                 return !scratch.is_empty();
             }
@@ -304,7 +304,7 @@ pub fn resolve_nif_model_path(model_path: &str, scratch: &mut String) -> bool {
         scratch.clear();
         scratch.push_str(&base);
         true
-    } else if let Some(entry) = crate::bsa::bsa_set().find_by_file_name(&cache_key) {
+    } else if let Some(entry) = bsa::bsa_set().find_by_file_name(&cache_key) {
         // This data's BSAs store meshes under arbitrary subfolders
         // (e.g. `meshes/b/b_n_orc_m_skins.nif`), which the suffix-tolerant
         // lookup above cannot recover. The original engine searches BSA

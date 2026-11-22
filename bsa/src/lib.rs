@@ -1,12 +1,14 @@
-//! Morrowind `.bsa` archive reader (original, uncompressed format).
+//! Standalone Morrowind `.bsa` archive reader (original, uncompressed
+//! format). No Bevy dependencies — pure `std` + `log`.
 //!
 //! The stock Morrowind/Tribunal/Bloodmoon data ships almost everything
 //! (textures, meshes, sounds, ...) packed inside `Morrowind.bsa`,
 //! `Tribunal.bsa` and `Bloodmoon.bsa`. Loose files on disk always win;
-//! this module provides a case-insensitive index over all `.bsa` files
-//! found under `<asset root>/Data Files` so both path resolution
-//! (`check_exists` / `resolve_bevy_asset_path`) and the client's BSA-aware
-//! asset reader can find archive-packed entries.
+//! this crate provides a case-insensitive index over the `.bsa` files in
+//! an explicit data-files directory (see [`init_bsa_set`]) that bevy_nif's
+//! path resolution (`check_exists` / `resolve_bevy_asset_path`) and the
+//! tes3mp client's BSA-aware asset reader use to find archive-packed
+//! entries.
 //!
 //! Format (the *original* Morrowind format, `BsaVersion::Uncompressed`,
 //! as parsed by OpenMW in `components/bsa/bsafile.cpp`; NOT the
@@ -170,7 +172,7 @@ impl BsaArchive {
             ]) as usize;
             if nameoff >= namebuf.len() {
                 log::warn!(
-                    "bevy_nif::bsa: {}: entry {i} name offset {nameoff} out of range; skipping",
+                    "bsa: {}: entry {i} name offset {nameoff} out of range; skipping",
                     path.display()
                 );
                 continue;
@@ -191,7 +193,7 @@ impl BsaArchive {
             };
             if entry.offset + entry.size > file_len {
                 log::warn!(
-                    "bevy_nif::bsa: {}: entry {} ({} bytes @ 0x{:x}) extends past EOF; skipping",
+                    "bsa: {}: entry {} ({} bytes @ 0x{:x}) extends past EOF; skipping",
                     path.display(),
                     entry.name,
                     entry.size,
@@ -234,7 +236,9 @@ impl BsaArchive {
         &self,
     ) -> Result<std::sync::MutexGuard<'_, Option<BufReader<std::fs::File>>>, BsaError> {
         let mut guard = self.file.lock().map_err(|e| {
-            BsaError::Io(std::io::Error::other(format!("BSA file lock poisoned: {e}")))
+            BsaError::Io(std::io::Error::other(format!(
+                "BSA file lock poisoned: {e}"
+            )))
         })?;
         if guard.is_none() {
             let f = std::fs::File::open(&self.path)?;
@@ -265,26 +269,34 @@ impl BsaArchiveSet {
                     match BsaArchive::load(&path) {
                         Ok(archive) => {
                             log::info!(
-                                "bevy_nif::bsa: indexed {} ({} entries)",
+                                "bsa: indexed {} ({} entries)",
                                 path.display(),
                                 archive.entries.len()
                             );
                             found.push(archive);
                         }
                         Err(e) => {
-                            log::warn!("bevy_nif::bsa: failed to load {}: {e}", path.display());
+                            log::warn!("bsa: failed to load {}: {e}", path.display());
                         }
                     }
                 }
             }
         } else {
             log::warn!(
-                "bevy_nif::bsa: no BSA directory at {} — archive-packed assets unavailable",
+                "bsa: no BSA directory at {} — archive-packed assets unavailable",
                 dir.display()
             );
         }
         found.sort_by_key(|a| a.priority);
         Self { archives: found }
+    }
+
+    /// Empty set (the state returned by [`bsa_set`] before
+    /// [`init_bsa_set`] has been called).
+    pub fn empty() -> Self {
+        Self {
+            archives: Vec::new(),
+        }
     }
 
     /// Case-insensitive lookup. When the same name exists in several
@@ -417,15 +429,15 @@ pub fn normalize_bsa_name(name: &str) -> String {
 
 static SET: OnceLock<BsaArchiveSet> = OnceLock::new();
 
-/// Process-wide archive set, lazily built from `<asset root>/Data Files`.
-/// The client pre-initializes this before the first asset load; the lazy
-/// fallback uses bevy_nif's own asset-root resolution so the helper
-/// functions work standalone.
+/// Process-wide archive set.
+///
+/// Returns an empty set until [`init_bsa_set`] is called with an explicit
+/// data-files directory. The tes3mp client pre-initializes this at startup
+/// (before any asset load), so asset lookups hit the real index. This crate
+/// has no notion of a game asset root, so there is no automatic scan
+/// fallback.
 pub fn bsa_set() -> &'static BsaArchiveSet {
-    SET.get_or_init(|| {
-        let dir = crate::helper_funcs::asset_root().join("Data Files");
-        BsaArchiveSet::scan_dir(&dir)
-    })
+    SET.get_or_init(BsaArchiveSet::empty)
 }
 
 /// Eagerly initializes the archive set from an explicit directory.
@@ -587,7 +599,9 @@ mod tests {
             .find_by_file_name("Probe_Journeyman_01.NIF")
             .expect("basename lookup must find nested entry");
         assert_eq!(entry.name, "meshes/m/probe_journeyman_01.nif");
-        let data = set.read_entry_by_file_name("probe_journeyman_01.nif").unwrap();
+        let data = set
+            .read_entry_by_file_name("probe_journeyman_01.nif")
+            .unwrap();
         assert_eq!(data, b"nif-payload");
         // Plain entries resolve by basename too.
         assert_eq!(
@@ -658,9 +672,7 @@ mod tests {
             .find_by_file_name("B_N_Orc_M_Skins.nif")
             .expect("B_N_Orc_M_Skins.nif must resolve by basename");
         assert_eq!(entry.name, "meshes/b/b_n_orc_m_skins.nif");
-        let data = set
-            .read_entry_by_file_name("B_N_Orc_M_Skins.nif")
-            .unwrap();
+        let data = set.read_entry_by_file_name("B_N_Orc_M_Skins.nif").unwrap();
         assert_eq!(data.len(), entry.size as usize);
         // This data's NIFs use the 40-byte NetImmerse ASCII header
         // (see libs/nif HEADER), not the classic `\0NIF` magic.

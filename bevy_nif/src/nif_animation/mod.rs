@@ -1,3 +1,4 @@
+pub mod animation_block_parser;
 pub mod animation_setup_system;
 pub mod bevy_types;
 pub mod parser_helpers;

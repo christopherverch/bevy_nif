@@ -66,6 +66,12 @@ pub struct ActiveAnimation {
     /// Useful for things like a jump animation freezing on the last frame
     pub auto_remove: bool,
     pub speed_mult: f32,
+    /// C++ `Animation::mStopTime`: the raw clip time (seconds) at which
+    /// playback must freeze. `None` = run to the end of the clip. The NIF
+    /// animation format has no per-play stop semantics, so the client keeps
+    /// it on the active animation and clamps the seek time each frame.
+    #[reflect(ignore)]
+    pub stop_time: Option<f32>,
 }
 /// Defines the animation priority levels, ordered from lowest to highest.
 /// determines which animations override others.

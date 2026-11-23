@@ -114,7 +114,6 @@ pub enum AnimType {
     Windup,
     Release,
     Follow,
-    SpecificFollow,
 }
 
 #[derive(Component, Reflect)]

@@ -82,7 +82,6 @@ struct AnimationBlockData {
     max_attack_time: Option<f32>,
     hit_time: Option<f32>,
     min_hit_time: Option<f32>,
-    follow_events: HashMap<String, f32>,
 }
 #[derive(Debug, Clone)]
 struct RawBoneAnimation {
@@ -610,7 +609,6 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
                         max_attack_time: None,
                         hit_time: None,
                         min_hit_time: None,
-                        follow_events: HashMap::new(),
                     });
 
             block.start_time = block.start_time.min(event.time);
@@ -623,14 +621,9 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
                 "max attack" => block.max_attack_time = Some(event.time),
                 "hit" => block.hit_time = Some(event.time),
                 "min hit" => block.min_hit_time = Some(event.time),
-                cmd if cmd.contains(" follow") && cmd.ends_with(" start") => {
-                    // We want to store the base name, e.g., "large follow", not "large follow start".
-                    if let Some(base_cmd) = cmd.strip_suffix(" start") {
-                        block
-                            .follow_events
-                            .insert(base_cmd.trim().to_string(), event.time);
-                    }
-                }
+                // Follow start/stop keys are deliberately not collected: the
+                // per-attack-type follow phases are seek targets in the base
+                // clip's text-key events (see pass 4 comment).
                 _ => {} // Ignore other commands like "start", "stop" here
             }
         }
@@ -686,7 +679,7 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
                 }
                 continue;
             }
-        } else if block_data.min_attack_time.is_some() || !block_data.follow_events.is_empty() {
+        } else if block_data.min_attack_time.is_some() {
             let base_name = &block_data.name;
 
             // --- 0. Full-block base clip (start -> stop) ---
@@ -735,16 +728,16 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
             };
 
             // --- 2. Create Release/Shoot Clip ---
-            let mut sorted_follows: Vec<_> = block_data.follow_events.iter().collect();
-            sorted_follows.sort_by(|a, b| a.1.partial_cmp(b.1).unwrap());
-
-            let release_end_time = if let Some(hit_time) = block_data.hit_time {
-                hit_time
-            } else if let Some((_, first_follow_time)) = sorted_follows.first() {
-                **first_follow_time
-            } else {
-                block_data.end_time
-            };
+            // The release ends at the hit; without a hit key it runs to the
+            // block end. Per-attack-type follow phases (large/medium/small
+            // "follow start/stop" text keys) are deliberately NOT split into
+            // sub-clips: those keys are not prefixed by attack type, so a
+            // weapon with several attack cycles collides across cycles and
+            // produced degenerate 0-duration clips (e.g. the follow START of
+            // the last cycle paired with the follow STOP of the first). They
+            // remain seek targets in the base OneShot's text-key events; the
+            // attack-release logic picks the follow by attack type at release.
+            let release_end_time = block_data.hit_time.unwrap_or(block_data.end_time);
 
             // Calculate relative times and add them to the _release clip.
             let mut hit_time_rel = 0.0;
@@ -770,57 +763,12 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
                 anim_type: AnimType::Release,
             });
 
-            // --- 3. Create a clip for each specific follow event ---
-            if !sorted_follows.is_empty() {
-                // If the animation continues after the release but before the first follow,
-                // create a generic follow/recovery clip for that duration.
-                if sorted_follows.first().unwrap().1 > &release_end_time {
-                    final_animations.push(ProcessedAnimation {
-                        name: format!("{}_follow", base_name),
-                        start_time: release_end_time,
-                        end_time: *sorted_follows.first().unwrap().1, // End at the start of the first named follow
-                        events: Vec::new(),
-                        min_attack_time_relative: 0.0,
-                        max_attack_time_relative: 0.0,
-                        hit_time_relative: 0.0,
-                        min_hit_time_relative: 0.0,
-                        anim_type: AnimType::Follow,
-                    });
-                }
-
-                // Create the specific follow clips
-                for (command, start_time) in &sorted_follows {
-                    let follow_type_name = command.replace(' ', "_"); // e.g., "large follow" -> "large_follow"
-
-                    // Find the correct "stop" time for this specific follow clip.
-                    let stop_event_cmd = format!("{} stop", command); // e.g., "large follow stop"
-
-                    // Search all_events (from Pass 1) for the matching stop command.
-                    let stop_time = all_events
-                        .iter()
-                        .find(|event| {
-                            event.name.to_lowercase() == block_data.name
-                                && event.command == stop_event_cmd
-                        })
-                        .map_or(
-                            block_data.end_time, // Fallback to the main block's end time if not found.
-                            |event| event.time,  // Use the time from the found "follow stop" event.
-                        );
-
-                    final_animations.push(ProcessedAnimation {
-                        name: format!("{}_{}", base_name, follow_type_name),
-                        start_time: **start_time,
-                        end_time: stop_time,
-                        events: Vec::new(),
-                        min_attack_time_relative: 0.0,
-                        max_attack_time_relative: 0.0,
-                        hit_time_relative: 0.0,
-                        min_hit_time_relative: 0.0,
-                        anim_type: AnimType::SpecificFollow,
-                    });
-                }
-            } else if block_data.end_time > release_end_time + 1e-4 {
-                // This handles melee attacks that have a follow-through but no named follow events.
+            // --- 3. Create Follow clip (post-hit settle + return to ready) ---
+            // Covers everything after the release so the segmented chain
+            // windup -> release -> follow partitions the full timeline with
+            // no gaps. The per-attack-type follow phases live inside it and
+            // are reachable via the base clip's text-key events.
+            if block_data.end_time > release_end_time + 1e-4 {
                 final_animations.push(ProcessedAnimation {
                     name: format!("{}_follow", base_name),
                     start_time: release_end_time,
@@ -885,7 +833,7 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
                 }
                 // A clip belongs to the block if it is the base clip or a
                 // sub-clip (e.g. "sword1", "sword1_loop", "sword1_windup",
-                // "sword1_release", "sword1_large_follow"). Assign to EVERY
+                // "sword1_release"). Assign to EVERY
                 // matching clip in the event's time window so the full-block
                 // base clip and its sub-clips both carry the events.
                 // Case-insensitive: anim.name is lowercased (Pass 1) while

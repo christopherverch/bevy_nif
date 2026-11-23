@@ -557,6 +557,10 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
             || event.command == "equip stop"
             || event.command == "unequip start"
             || event.command == "unequip stop"
+            || event.command == "slash start"
+            || event.command == "chop start"
+            || event.command == "thrust start"
+            || event.command == "shoot start"
         {
             clip_defining_names.insert(event.name.clone());
         }
@@ -930,6 +934,15 @@ const KNOWN_COMMANDS: &[&str] = &[
     "max attack",
     "min hit",
     "hit",
+    // Round 8: per-attack-type windup start keys ("WeaponOneHand: Slash Start",
+    // "HandToHand: Chop Start", ...). Listed before the bare "start" so
+    // parse_line keeps the full command; these are real gameplay text keys
+    // (the windup start point, C++ updateWeaponState "start" seek), NOT bare
+    // boundary markers.
+    "slash start",
+    "chop start",
+    "thrust start",
+    "shoot start",
     // Less specific commands last
     "large follow",
     "medium follow",
@@ -1006,6 +1019,14 @@ mod weapon_group_parse_tests {
         assert_eq!(
             parse_line("WeaponOneHand: Slash Min Hit"),
             Some(("WeaponOneHand".to_string(), "min hit".to_string()))
+        );
+        assert_eq!(
+            parse_line("WeaponOneHand: Slash Start"),
+            Some(("WeaponOneHand".to_string(), "slash start".to_string()))
+        );
+        assert_eq!(
+            parse_line("HandToHand: Chop Start"),
+            Some(("HandToHand".to_string(), "chop start".to_string()))
         );
         assert_eq!(
             parse_line("WeaponTwoHand: Slash Follow Stop"),

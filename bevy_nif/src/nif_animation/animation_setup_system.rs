@@ -1,7 +1,8 @@
 use crate::{
     loader::Nif,
     nif_animation::{
-        AnimationDefinition, NifAnimator, NifEvent, NifEventType, REGION_ROOT_LOWER_BODY,
+        AnimationDefinition, CombatAnimData, NifAnimator, NifEvent, NifEventType,
+        REGION_ROOT_LOWER_BODY,
         bevy_types::{AnimType, Priority},
         parser_helpers::{
             determine_bone_primary_region_index, filter_and_retime_keyframes, flatten_keys_xz,
@@ -46,6 +47,29 @@ pub struct ProcessedAnimation {
     pub anim_type: AnimType,
 }
 
+/// Build the optional combat timing data for a processed clip.
+///
+/// `Some` when the NIF supplied at least one combat text key for this clip
+/// ("min attack", "max attack", "hit", "min hit"), `None` for non-attack
+/// clips (idle, equip, loops, ...). Values are clip-local seconds measured
+/// from the clip's own start (same convention as the `*_relative` fields).
+fn combat_anim_data_for(clip: &ProcessedAnimation) -> Option<CombatAnimData> {
+    let min_attack_time_relative = clip.min_attack_time_relative;
+    let max_attack_time_relative = clip.max_attack_time_relative;
+    let hit_time_relative = clip.hit_time_relative;
+    let min_hit_time_relative = clip.min_hit_time_relative;
+    (min_attack_time_relative > 0.0
+        || max_attack_time_relative > 0.0
+        || hit_time_relative > 0.0
+        || min_hit_time_relative > 0.0)
+        .then_some(CombatAnimData {
+            min_attack_time_relative,
+            max_attack_time_relative,
+            hit_time_relative,
+            min_hit_time_relative,
+        })
+}
+
 /// A temporary struct to hold all data about a block before the final split decision.
 #[derive(Debug, Clone)]
 struct AnimationBlockData {
@@ -87,7 +111,6 @@ pub fn setup_animations(
             .push(kfc.clone());
     }
     let global_nif_text_keys: &[NiTextKey] = &nif.text_keys;
-    dbg!(&nif.text_keys);
     if global_nif_text_keys.is_empty() {
         return;
     }
@@ -431,9 +454,7 @@ pub fn setup_animations(
                 duration: clip_duration,
                 base_velocity,
                 root_translation_curve,
-                min_attack_time_relative: processed_clip.min_attack_time_relative,
-                hit_time_relative: processed_clip.hit_time_relative,
-                min_hit_time_relative: processed_clip.min_hit_time_relative,
+                combat_anim_data: combat_anim_data_for(processed_clip),
             },
         );
     }
@@ -1052,5 +1073,85 @@ mod weapon_group_parse_tests {
         );
         assert_eq!(parse_line(""), None);
         assert_eq!(parse_line("NiTextKeyExtraData"), None);
+    }
+}
+
+#[cfg(test)]
+mod combat_anim_data_tests {
+    use super::{combat_anim_data_for, parse_and_split_animation_blocks, ProcessedAnimation};
+    use crate::nif_animation::bevy_types::AnimType;
+    use nif::NiTextKey;
+
+    fn clip(times: (f32, f32, f32, f32)) -> ProcessedAnimation {
+        ProcessedAnimation {
+            name: "test".to_string(),
+            start_time: 0.0,
+            end_time: 1.0,
+            events: Vec::new(),
+            min_attack_time_relative: times.0,
+            max_attack_time_relative: times.1,
+            hit_time_relative: times.2,
+            min_hit_time_relative: times.3,
+            anim_type: AnimType::OneShot,
+        }
+    }
+
+    #[test]
+    fn attack_clip_produces_some_combat_data() {
+        let data = combat_anim_data_for(&clip((0.3, 0.7, 1.1, 0.5))).unwrap();
+        assert_eq!((data.min_attack_time_relative, data.max_attack_time_relative), (0.3, 0.7));
+        assert_eq!((data.hit_time_relative, data.min_hit_time_relative), (1.1, 0.5));
+    }
+
+    #[test]
+    fn release_clip_with_only_hit_is_some() {
+        // _release clips carry hit/min_hit only (attack times live on the
+        // full-block and _windup clips).
+        let data = combat_anim_data_for(&clip((0.0, 0.0, 0.25, 0.1))).unwrap();
+        assert_eq!(data.hit_time_relative, 0.25);
+        assert_eq!(data.min_hit_time_relative, 0.1);
+        assert_eq!(data.min_attack_time_relative, 0.0);
+    }
+
+    #[test]
+    fn non_attack_clip_is_none() {
+        assert!(combat_anim_data_for(&clip((0.0, 0.0, 0.0, 0.0))).is_none());
+    }
+
+    #[test]
+    fn parse_extracts_combat_times_into_full_block_clip() {
+        fn tk(time: f32, line: &str) -> NiTextKey {
+            NiTextKey { time, value: line.to_string() }
+        }
+        let keys = vec![
+            tk(0.0, "WeaponOneHand: Slash Start"),
+            tk(0.4, "WeaponOneHand: Slash Min Attack"),
+            tk(0.9, "WeaponOneHand: Slash Max Attack"),
+            tk(1.0, "WeaponOneHand: Slash Min Hit"),
+            tk(1.2, "WeaponOneHand: Slash Hit"),
+            tk(1.8, "WeaponOneHand: Stop"),
+        ];
+        let anims = parse_and_split_animation_blocks(&keys);
+        let base = anims
+            .iter()
+            .find(|a| a.name == "weapononehand")
+            .expect("full-block clip exists");
+        assert!((base.min_attack_time_relative - 0.4).abs() < 1e-4);
+        assert!((base.max_attack_time_relative - 0.9).abs() < 1e-4);
+        assert!((base.hit_time_relative - 1.2).abs() < 1e-4);
+        assert!((base.min_hit_time_relative - 1.0).abs() < 1e-4);
+
+        // And the Some/None mapping for the sub-clips.
+        assert!(combat_anim_data_for(base).is_some());
+        let windup = anims
+            .iter()
+            .find(|a| a.name == "weapononehand_windup")
+            .expect("windup clip exists");
+        assert!(combat_anim_data_for(windup).is_some());
+        let follow = anims
+            .iter()
+            .find(|a| a.name == "weapononehand_follow")
+            .expect("follow clip exists");
+        assert!(combat_anim_data_for(follow).is_none());
     }
 }

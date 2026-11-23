@@ -549,7 +549,15 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
     // --- Pass 2: Identify "real" animation clips ---
     let mut clip_defining_names = std::collections::HashSet::new();
     for event in &all_events {
-        if event.command == "start" || event.command == "stop" {
+        // Equip/unequip start/stop are real keys (kept queryable by parse_line)
+        // but also serve as the block's defining boundary lines.
+        if event.command == "start"
+            || event.command == "stop"
+            || event.command == "equip start"
+            || event.command == "equip stop"
+            || event.command == "unequip start"
+            || event.command == "unequip stop"
+        {
             clip_defining_names.insert(event.name.clone());
         }
     }
@@ -854,8 +862,11 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
                 // "sword1_release", "sword1_large_follow"). Assign to EVERY
                 // matching clip in the event's time window so the full-block
                 // base clip and its sub-clips both carry the events.
-                let in_block = anim.name == parent_clip_name.as_str()
-                    || anim.name.starts_with(&format!("{parent_clip_name}_"));
+                // Case-insensitive: anim.name is lowercased (Pass 1) while
+                // clip_defining_names keeps the NIF's original case.
+                let parent_lower = parent_clip_name.to_lowercase();
+                let in_block = anim.name == parent_lower
+                    || anim.name.starts_with(&format!("{parent_lower}_"));
                 if in_block
                     && event.time >= anim.start_time - 1e-4
                     && event.time <= anim.end_time + 1e-4
@@ -905,6 +916,14 @@ const KNOWN_COMMANDS: &[&str] = &[
     "shoot follow stop",
     "follow start",
     "follow stop",
+    // "equip start"/"equip stop" and "unequip start"/"unequip stop" are real
+    // text keys (C++ character.cpp queries them for equip/unequip plays), NOT
+    // bare boundary markers — list them before "start"/"stop" so parse_line
+    // keeps the full command instead of collapsing it to "start"/"stop".
+    "unequip start",
+    "unequip stop",
+    "equip start",
+    "equip stop",
     "loop start",
     "loop stop",
     "min attack",
@@ -962,4 +981,60 @@ fn parse_line(line: &str) -> Option<(String, String)> {
     }
 
     None
+}
+
+#[cfg(test)]
+mod weapon_group_parse_tests {
+    use super::parse_line;
+
+    #[test]
+    fn qualified_weapon_group_commands_map_to_group_name() {
+        // P5: qualified per-attack keys ("WeaponTwoHand: Slash Max Attack")
+        // must map to the plain group name so pass 3 groups them into one
+        // continuous clip (C++ model).
+        assert_eq!(
+            parse_line("WeaponTwoHand: Equip Start"),
+            Some((
+                "WeaponTwoHand".to_string(),
+                "equip start".to_string()
+            ))
+        );
+        assert_eq!(
+            parse_line("WeaponTwoHand: Slash Max Attack"),
+            Some(("WeaponTwoHand".to_string(), "max attack".to_string()))
+        );
+        assert_eq!(
+            parse_line("WeaponOneHand: Slash Min Hit"),
+            Some(("WeaponOneHand".to_string(), "min hit".to_string()))
+        );
+        assert_eq!(
+            parse_line("WeaponTwoHand: Slash Follow Stop"),
+            Some(("WeaponTwoHand".to_string(), "follow stop".to_string()))
+        );
+        assert_eq!(
+            parse_line("WeaponBow: Bow Follow Start"),
+            Some(("WeaponBow".to_string(), "follow start".to_string()))
+        );
+        assert_eq!(
+            parse_line("WeaponShield: Unequip Stop"),
+            Some((
+                "WeaponShield".to_string(),
+                "unequip stop".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn simple_and_unknown_lines_unchanged() {
+        assert_eq!(
+            parse_line("Idle: Loop Start"),
+            Some(("Idle".to_string(), "loop start".to_string()))
+        );
+        assert_eq!(
+            parse_line("SoundGen:Left"),
+            Some(("SoundGen".to_string(), "left".to_string()))
+        );
+        assert_eq!(parse_line(""), None);
+        assert_eq!(parse_line("NiTextKeyExtraData"), None);
+    }
 }

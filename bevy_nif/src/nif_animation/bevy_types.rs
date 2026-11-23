@@ -11,14 +11,16 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 bitflags! {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)] // Added Default
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
     pub struct BlendMask: u64 {         const NONE       = 0b00000000;
         const LOWER_BODY = 1 << 0;    // 0b00000001
         const TORSO      = 1 << 1;    // 0b00000010
         const LEFT_ARM   = 1 << 2;    // 0b00000100
         const RIGHT_ARM  = 1 << 3;    // 0b00001000
 
-        const UPPER_BODY = Self::TORSO.bits() | Self::LEFT_ARM.bits() | Self::RIGHT_ARM.bits();         const ALL        = Self::LOWER_BODY.bits() | Self::UPPER_BODY.bits();     }
+        const UPPER_BODY = Self::TORSO.bits() | Self::LEFT_ARM.bits() | Self::RIGHT_ARM.bits();
+        const ALL        = Self::LOWER_BODY.bits() | Self::UPPER_BODY.bits();
+    }
 
 }
 
@@ -28,24 +30,34 @@ pub struct AnimationDefinition {
     pub node_index: AnimationNodeIndex,
     /// The handle to the Bevy AnimationClip asset being played.
     pub clip_handle: Handle<AnimationClip>,
-    /// oneshot, intro, loop, or outro
+    /// oneshot, intro, loop, or outro, etc
     pub anim_type: AnimType,
     /// The clip to play after this animation finishes, likely a
     /// loop such as RunForward_loop
     pub next_clip_name: Option<String>,
     pub duration: f32,
-    /// The intrinsic velocity of this animation, calculated from the root bone's movement.
-    /// This is used to sync physics speed with animation speed.
+    /// The average translational velocity of this animation, calculated from the root bone's movement.
+    /// Used for first-person movement.
     pub base_velocity: Vec3,
     /// The isolated translation curve for the root bone (`Bip01`).
     /// This is sampled manually for root motion.
     pub root_translation_curve: Option<AnimatableKeyframeCurve<Vec3>>,
-    /// For attack animations only
+    pub combat_anim_data: Option<CombatAnimData>,
+}
+#[derive(Debug, Clone, Reflect)]
+pub struct CombatAnimData {
+    /// Relative (0.0..=1.0) or clip-local timestamp where minimum charge / swing is reached
     pub min_attack_time_relative: f32,
-    /// For attack animations only
+    /// Relative timestamp where max charge / swing peak is reached
+    pub max_attack_time_relative: f32,
+    /// Relative timestamp where hit window / strike begins
     pub hit_time_relative: f32,
-    /// For attack animations only
+    /// Relative timestamp for minimum hit / follow-through threshold
     pub min_hit_time_relative: f32,
+    // TODO?
+    // pub follow_min_time: Option<f32>,
+    // pub follow_med_time: Option<f32>,
+    // pub follow_large_time: Option<f32>,
 }
 #[derive(Debug, Clone, Reflect)]
 pub struct ActiveAnimation {

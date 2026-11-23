@@ -87,6 +87,7 @@ pub fn setup_animations(
             .push(kfc.clone());
     }
     let global_nif_text_keys: &[NiTextKey] = &nif.text_keys;
+    dbg!(&nif.text_keys);
     if global_nif_text_keys.is_empty() {
         return;
     }
@@ -869,8 +870,8 @@ fn parse_and_split_animation_blocks(nif_keys: &[NiTextKey]) -> Vec<ProcessedAnim
                 // Case-insensitive: anim.name is lowercased (Pass 1) while
                 // clip_defining_names keeps the NIF's original case.
                 let parent_lower = parent_clip_name.to_lowercase();
-                let in_block = anim.name == parent_lower
-                    || anim.name.starts_with(&format!("{parent_lower}_"));
+                let in_block =
+                    anim.name == parent_lower || anim.name.starts_with(&format!("{parent_lower}_"));
                 if in_block
                     && event.time >= anim.start_time - 1e-4
                     && event.time <= anim.end_time + 1e-4
@@ -1007,10 +1008,7 @@ mod weapon_group_parse_tests {
         // continuous clip (C++ model).
         assert_eq!(
             parse_line("WeaponTwoHand: Equip Start"),
-            Some((
-                "WeaponTwoHand".to_string(),
-                "equip start".to_string()
-            ))
+            Some(("WeaponTwoHand".to_string(), "equip start".to_string()))
         );
         assert_eq!(
             parse_line("WeaponTwoHand: Slash Max Attack"),
@@ -1038,10 +1036,7 @@ mod weapon_group_parse_tests {
         );
         assert_eq!(
             parse_line("WeaponShield: Unequip Stop"),
-            Some((
-                "WeaponShield".to_string(),
-                "unequip stop".to_string()
-            ))
+            Some(("WeaponShield".to_string(), "unequip stop".to_string()))
         );
     }
 
